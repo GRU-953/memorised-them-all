@@ -56,9 +56,8 @@ def _expand(paths: list[str]) -> list[Path]:
 
 # ---- conversion worker (top-level so it pickles under spawn) ----------
 def _convert_worker(payload):
-    path_str, out_dir_str, cfg = payload
-    from .platform import pin_native_threads
     path_str, out_dir_str, cfg, out_name = payload
+    from .platform import pin_native_threads
     pin_native_threads()
     return convert_file(Path(path_str), Path(out_dir_str), cfg, out_name=out_name).as_dict()
 

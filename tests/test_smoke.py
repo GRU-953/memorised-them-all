@@ -254,6 +254,20 @@ def test_zip_bomb_is_skipped(tmp_path):
     assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
 
 
+def test_convert_worker_accepts_payload(tmp_path):
+    """The process-pool worker accepts the 4-tuple payload (guards against a
+    regression where a stray unpack silently disabled conversion parallelism)."""
+    import os
+    os.environ["MTA_HOME"] = str(tmp_path)
+    from mta.core.config import load
+    from mta.core.digest import _convert_worker
+    src = tmp_path / "x.txt"
+    src.write_text("Helios Energy operates in Reykjavik.", encoding="utf-8")
+    r = _convert_worker((str(src), str(tmp_path / "out"), load(), "x.txt.md"))
+    assert r["status"] == "ok"
+    assert r["output"].endswith("x.txt.md")
+
+
 def test_nested_archive_rejected(tmp_path):
     """An archive containing a nested archive is rejected (recursive-bomb vector)."""
     import io
