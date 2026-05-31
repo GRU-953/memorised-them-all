@@ -1,6 +1,6 @@
 {
   "name": "memorised-them-all",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Locally convert any attachment to Markdown and digest it into a token-free knowledge-graph memory for Claude — global synopsis, per-theme summaries, exportable Markdown notes, and an offline interactive mind map. 100% local, free & open-source, auto-installing, Apple-silicon first.",
   "author": {
     "name": "Aninda Sundar Howlader",

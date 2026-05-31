@@ -137,6 +137,8 @@ def _status() -> dict:
 
 
 def main() -> None:
+    from .core.platform import bootstrap_path
+    bootstrap_path()
     mcp.run()
 
 

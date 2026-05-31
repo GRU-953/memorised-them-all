@@ -65,19 +65,74 @@ def _try_markitdown(path: Path, cfg: Config) -> tuple[str | None, str]:
         return None, f"markitdown-error:{type(e).__name__}"
 
 
-def _try_ocr(path: Path, cfg: Config) -> tuple[str | None, str]:
+def _tesseract_bin() -> str | None:
+    import shutil
+    from .platform import bootstrap_path
+    bootstrap_path()
+    return shutil.which("tesseract")
+
+
+def _ocr_image_bytes(png_bytes: bytes, cfg: Config) -> str | None:
+    """OCR via piping PNG bytes to `tesseract stdin stdout` — no temp files.
+
+    The temp-file path pytesseract uses by default breaks under sandboxed/sparse
+    environments; piping is robust everywhere and supports PSM 1 auto-orientation.
+    """
+    import subprocess
+    tess = _tesseract_bin()
+    if not tess:
+        return None
+    lang = cfg.ocr_lang or "eng"
     try:
-        import pytesseract
-        from PIL import Image
-    except Exception:
+        proc = subprocess.run([tess, "stdin", "stdout", "-l", lang, "--psm", "1"],
+                              input=png_bytes, capture_output=True, timeout=180)
+        return (proc.stdout.decode("utf-8", "replace").strip() or None)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _try_ocr(path: Path, cfg: Config) -> tuple[str | None, str]:
+    if not _tesseract_bin():
         return None, "ocr-missing"
     try:
+        import io
+
+        from PIL import Image
         with Image.open(path) as im:
-            text = pytesseract.image_to_string(im, lang=cfg.ocr_lang or "eng")
-        text = (text or "").strip()
-        return (text or None), "tesseract"
+            buf = io.BytesIO()
+            im.convert("RGB").save(buf, format="PNG")
+        text = _ocr_image_bytes(buf.getvalue(), cfg)
+        return text, "tesseract"
     except Exception as e:  # noqa: BLE001
         return None, f"ocr-error:{type(e).__name__}"
+
+
+def _ocr_pdf(path: Path, cfg: Config, max_pages: int = 50) -> tuple[str | None, str]:
+    """OCR a scanned/image-only PDF by rasterising pages with pypdfium2."""
+    if not _tesseract_bin():
+        return None, "ocr-missing"
+    try:
+        import io
+
+        import pypdfium2 as pdfium
+    except Exception:
+        return None, "pdf-ocr-missing"
+    try:
+        pdf = pdfium.PdfDocument(str(path))
+        pages = []
+        for i in range(min(len(pdf), max_pages)):
+            bitmap = pdf[i].render(scale=2.0)
+            pil = bitmap.to_pil()
+            buf = io.BytesIO()
+            pil.convert("RGB").save(buf, format="PNG")
+            txt = _ocr_image_bytes(buf.getvalue(), cfg)
+            if txt:
+                pages.append(txt)
+        pdf.close()
+        joined = "\n\n".join(pages).strip()
+        return (joined or None), "tesseract-pdf"
+    except Exception as e:  # noqa: BLE001
+        return None, f"pdf-ocr-error:{type(e).__name__}"
 
 
 def _try_vision(path: Path, cfg: Config, ollama: OllamaManager) -> tuple[str | None, str]:
@@ -165,8 +220,8 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
         text, method = _native_text(path)
     elif ext in _MARKITDOWN_EXTS:
         text, method = _try_markitdown(path, cfg)
-        if not text and ext == ".pdf":      # scanned PDF → OCR
-            text, method = _try_ocr(path, cfg)
+        if not text and ext == ".pdf" and cfg.ocr_mode != "off":  # scanned PDF → OCR
+            text, method = _ocr_pdf(path, cfg)
     elif ext in _IMAGE_EXTS:
         if cfg.ocr_mode != "off":
             text, method = _try_ocr(path, cfg)

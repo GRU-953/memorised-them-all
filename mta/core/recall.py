@@ -25,7 +25,7 @@ def recall(cfg: Config, query: str, k: int | None = None,
     matrix, meta = loaded
     ollama = ollama or OllamaManager(cfg)
     embedder = Embedder(cfg, ollama)
-    qv = embedder.embed([query])
+    qv = embedder.embed([query], kind="query")
     if qv.shape[1] != matrix.shape[1]:
         # Embedding backend changed since digest; degrade to lexical overlap.
         return _lexical(query, meta, k, cfg)

@@ -119,24 +119,58 @@ def digest(cfg: Config, paths: list[str], reset: bool = False,
     ollama = ollama or OllamaManager(cfg)
     t0 = time.time()
 
+    if reset:
+        _reset_project(cfg)
+        cfg.ensure_dirs()
+
     files = _expand(paths)
     if not files:
         return {"status": "no_input", "project": cfg.project,
                 "message": "No convertible files found.", "paths": paths}
 
     conv = _convert_all(files, cfg, ollama)
-    ok_md = [Path(c["output"]) for c in conv if c.get("status") == "ok" and c.get("output")]
+
+    # Accumulative: rebuild the graph from the FULL markdown corpus on disk, so
+    # digesting another folder into the same project extends the memory rather
+    # than replacing it. `reset=True` clears the corpus first (above).
+    all_md = sorted(cfg.markdown_dir.glob("*.md"))
 
     # Segment + extract.
     embedder = Embedder(cfg, ollama)
     all_chunks = []
-    for md in ok_md:
+    for md in all_md:
         all_chunks.extend(segment_file(md, cfg.chunk_chars))
 
+    # Dedupe identical chunks, drop degenerate low-information passages (repetitive
+    # filler whose boundary-shifted windows defeat exact dedupe), then cap the
+    # workload with explicit reporting (never silently truncate).
+    unique: dict[str, object] = {}
+    skipped_low_value = 0
+    for ch in all_chunks:
+        if _low_value(ch.text):
+            skipped_low_value += 1
+            continue
+        unique.setdefault(ch.text, ch)
+    unique_chunks = list(unique.values())
+    truncated = 0
+    if len(unique_chunks) > cfg.max_chunks:
+        truncated = len(unique_chunks) - cfg.max_chunks
+        unique_chunks = unique_chunks[:cfg.max_chunks]
+
+    # Extract across a modest, memory-aware pool — LLM calls are I/O-bound (HTTP
+    # to Ollama); too much concurrency thrashes a unified-memory Mac running a 7B
+    # model, so the default scales with RAM.
     extractions: list[tuple] = []
     mentions: list[dict] = []
-    for ch in all_chunks:
-        ex = extract_chunk(ch, cfg, ollama)
+    workers = max(1, min(_auto_extract_workers(cfg), len(unique_chunks))) if unique_chunks else 1
+    if workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as tp:
+            results = list(tp.map(lambda c: (c, extract_chunk(c, cfg, ollama)),
+                                  unique_chunks))
+    else:
+        results = [(c, extract_chunk(c, cfg, ollama)) for c in unique_chunks]
+    for ch, ex in results:
         extractions.append((ch, ex))
         mentions.extend(ex.entities)
 
@@ -178,13 +212,14 @@ def digest(cfg: Config, paths: list[str], reset: bool = False,
         "edges": [{"source": u, "target": v, "weight": d["weight"],
                    "labels": sorted(d.get("labels", []))} for u, v, d in G.edges(data=True)],
         "communities": communities,
-        "documents": [{"name": c.get("source"), "output": c.get("output"),
-                       "status": c.get("status"), "method": c.get("method", ""),
-                       "chars": c.get("chars", 0)} for c in conv],
+        "documents": _documents(cfg, all_md, conv),
         "stats": {
             "files": len(files),
-            "converted": len(ok_md),
+            "converted": len(all_md),
             "chunks": len(all_chunks),
+            "unique_chunks": len(unique_chunks),
+            "chunks_truncated": truncated,
+            "chunks_skipped_low_value": skipped_low_value,
             "entities": G.number_of_nodes(),
             "relations": G.number_of_edges(),
             "communities": len(communities),
@@ -248,6 +283,78 @@ def _recall_units(graph_doc: dict) -> tuple[list[dict], list[str]]:
                       "text": card, "docs": n.get("docs", [])})
         texts.append(card)
     return units, texts
+
+
+def _low_value(text: str) -> bool:
+    """True for degenerate, near-zero-information passages (repetitive filler).
+
+    Real prose has high lexical diversity; a window of one word repeated hundreds
+    of times does not and is not worth an LLM call.
+    """
+    words = text.split()
+    if len(words) < 40:
+        return False
+    uniq = len(set(w.lower() for w in words))
+    return (uniq / len(words)) < 0.12
+
+
+def _auto_extract_workers(cfg: Config) -> int:
+    if cfg.extract_workers > 0:
+        return cfg.extract_workers
+    from .platform import memory_gb
+    gb = memory_gb()
+    # Conservative on unified-memory Macs running a 7B extractor.
+    return 1 if gb < 16 else (2 if gb < 48 else 3)
+
+
+def _reset_project(cfg: Config) -> None:
+    """Wipe a project's converted corpus and derived memory (for reset=True)."""
+    import shutil
+    for path in (cfg.markdown_dir, cfg.memory_dir):
+        shutil.rmtree(path, ignore_errors=True)
+    for f in (cfg.graph_path, cfg.vectors_path,
+              cfg.vectors_path.with_suffix(".json"), cfg.memory_md, cfg.mindmap_html):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+
+def _parse_md_header(md: Path) -> tuple[str, str]:
+    """Recover (source name, method) from the provenance comment we write."""
+    try:
+        first = md.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+    except (OSError, IndexError):
+        first = ""
+    src, method = md.name[:-3] if md.name.endswith(".md") else md.name, ""
+    if first.startswith("<!-- source:"):
+        body = first.strip("<!-> ")
+        for part in body.split("·"):
+            part = part.strip()
+            if part.startswith("source:"):
+                src = part[len("source:"):].strip()
+            elif part.startswith("method:"):
+                method = part[len("method:"):].strip()
+    return src, method
+
+
+def _documents(cfg: Config, all_md: list[Path], conv: list[dict]) -> list[dict]:
+    """Document manifest across the FULL corpus, plus this call's non-ok files."""
+    docs = []
+    for md in all_md:
+        src, method = _parse_md_header(md)
+        try:
+            chars = max(0, len(md.read_text(encoding="utf-8", errors="replace")) - 60)
+        except OSError:
+            chars = 0
+        docs.append({"name": src, "output": str(md), "status": "ok",
+                     "method": method, "chars": chars})
+    for c in conv:  # surface files that failed/were unsupported this run
+        if c.get("status") != "ok":
+            docs.append({"name": Path(c.get("source", "")).name, "output": None,
+                         "status": c.get("status"), "method": c.get("method", ""),
+                         "chars": 0})
+    return docs
 
 
 def _conv_tally(conv: list[dict]) -> dict:

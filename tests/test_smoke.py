@@ -88,6 +88,98 @@ def test_mindmap_is_offline(tmp_path):
     assert "cytoscape" in html.lower()
 
 
+def test_accumulation_and_reset(tmp_path):
+    """Digesting a second set extends the same project; reset wipes it."""
+    import json
+    cfg = _fresh_cfg(tmp_path, "acc")
+    from mta.core.digest import digest
+    digest(cfg, [str(SAMPLE / "aurora-project.md")])
+    digest(cfg, [str(SAMPLE / "notes.txt")])           # should ACCUMULATE
+    docs = {d["name"] for d in json.loads(cfg.graph_path.read_text())["documents"]
+            if d["status"] == "ok"}
+    assert {"aurora-project.md", "notes.txt"} <= docs, docs
+
+    digest(cfg, [str(SAMPLE / "aurora-project.md")], reset=True)  # should WIPE
+    docs2 = {d["name"] for d in json.loads(cfg.graph_path.read_text())["documents"]
+             if d["status"] == "ok"}
+    assert docs2 == {"aurora-project.md"}, docs2
+
+
+def test_ocr_stdin_pipe(tmp_path):
+    """Image OCR uses the stdin pipe and extracts exact text (local only)."""
+    import shutil
+    if not shutil.which("tesseract"):
+        import pytest
+        pytest.skip("tesseract not installed")
+    PIL = __import__("importlib").import_module("PIL.ImageDraw")  # noqa
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (640, 120), "white")
+    ImageDraw.Draw(img).text((20, 40), "Helios Energy Reykjavik report", fill="black")
+    p = tmp_path / "note.png"
+    img.save(p)
+    cfg = _fresh_cfg(tmp_path, "ocr")
+    from mta.core.convert import convert_file
+    r = convert_file(p, tmp_path / "out", cfg)
+    assert r.status == "ok" and r.method == "tesseract", (r.status, r.method)
+    assert "Helios" in (tmp_path / "out" / "note.png.md").read_text()
+
+
+def test_segment_hard_splits_oversize(tmp_path):
+    """A long unpunctuated blob is split into chunk-sized windows (no silent loss)."""
+    from mta.core.segment import segment_markdown
+    blob = "word " * 4000  # ~20k chars, no sentence boundaries
+    chunks = segment_markdown(blob, "blob", 1200)
+    assert len(chunks) > 10, len(chunks)
+    assert all(len(c.text) <= 1400 for c in chunks)
+
+
+def test_low_value_chunks_skipped(tmp_path):
+    """Degenerate repetitive content is skipped, not sent to extraction."""
+    import json
+    corpus = tmp_path / "c"
+    corpus.mkdir()
+    (corpus / "real.md").write_text((SAMPLE / "aurora-project.md").read_text())
+    (corpus / "junk.txt").write_text(("spam " * 3000 + "\n") * 20)
+    cfg = _fresh_cfg(tmp_path, "lv")
+    from mta.core.digest import digest
+    res = digest(cfg, [str(corpus)])
+    s = res["stats"]
+    assert s["chunks_skipped_low_value"] > 0, s
+    assert s["unique_chunks"] < 30, s          # junk did not flood extraction
+    assert s["entities"] >= 3                    # real content still digested
+
+
+def test_entity_resolution_no_overmerge():
+    """Even with maximally-similar embeddings, token-distinct entities stay apart."""
+    import numpy as np
+    from mta.core.resolve import resolve_entities
+
+    class _StubEmbedder:
+        def embed(self, names):
+            # Every name embeds to the SAME unit vector → cosine 1.0 everywhere,
+            # i.e. the worst case that previously collapsed everything.
+            v = np.ones((len(names), 4), dtype=np.float32)
+            v /= np.linalg.norm(v, axis=1, keepdims=True)
+            return v
+
+    mentions = ([{"name": "Helios Energy", "type": "org"}] * 3
+                + [{"name": "Helios", "type": "org"},
+                   {"name": "Vptr Robotics", "type": "org"},
+                   {"name": "Nordic Grid Authority", "type": "org"},
+                   {"name": "Dr. Lena Marsh", "type": "person"},
+                   {"name": "Lena Marsh", "type": "person"}])
+    res = resolve_entities(mentions, _StubEmbedder())
+    labels = {c["label"] for c in res["canonical"].values()}
+    # Distinct orgs must NOT have collapsed into a single node.
+    assert len(res["canonical"]) >= 4, res["canonical"]
+    assert "Vptr Robotics" in labels and "Nordic Grid Authority" in labels, labels
+    # But token-overlapping variants SHOULD merge.
+    from mta.core.resolve import cid_for
+    a2c = res["alias_to_cid"]
+    assert cid_for("Helios Energy", a2c) == cid_for("Helios", a2c)
+    assert cid_for("Dr. Lena Marsh", a2c) == cid_for("Lena Marsh", a2c)
+
+
 def test_idle_shutdown_only_stops_ours(tmp_path):
     # With Ollama disabled, ensure_running is False and nothing is started/stopped.
     os.environ["MTA_HOME"] = str(tmp_path)

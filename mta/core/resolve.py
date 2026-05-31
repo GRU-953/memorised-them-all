@@ -47,7 +47,7 @@ class _UnionFind:
 
 def resolve_entities(mentions: list[dict], embedder: Embedder,
                      fuzz_threshold: int = 88,
-                     cos_threshold: float = 0.86) -> dict:
+                     cos_threshold: float = 0.92) -> dict:
     """Group mention dicts ({name,type}) into canonical entities.
 
     Returns {"canonical": {cid: {label,type,aliases,count}},
@@ -90,13 +90,19 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
                 if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
                     uf.union(i, j)
 
-    # Embedding match catches semantic variants the string metric misses.
-    if n >= 2 and n <= 1200:
+    # Embeddings only *confirm* a merge that also shares tokens. Pure-embedding
+    # merging is unsafe for short proper nouns — domain-related names (e.g. two
+    # different organisations) sit close in embedding space and would otherwise
+    # collapse into one entity. Requiring a fuzzy floor prevents that.
+    if _HAVE_FUZZ and 2 <= n <= 1200:
         mat = embedder.embed(names)
         sims = cosine(mat, mat)
         rows, cols = np.where(np.triu(sims >= cos_threshold, k=1))
         for i, j in zip(rows.tolist(), cols.tolist()):
-            uf.union(i, j)
+            if uf.find(i) == uf.find(j):
+                continue
+            if fuzz.token_set_ratio(norms[i], norms[j]) >= 60:
+                uf.union(i, j)
 
     clusters: dict[int, list[int]] = defaultdict(list)
     for i in range(n):

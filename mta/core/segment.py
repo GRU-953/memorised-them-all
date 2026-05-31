@@ -34,14 +34,35 @@ def _sentences(block: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def _split_oversize(s: str, limit: int) -> list[str]:
+    """Hard-split a single overly long sentence on whitespace near the limit.
+
+    Without this, an unpunctuated blob becomes one giant chunk and the extractor's
+    input cap silently drops the tail. Splitting keeps all content addressable.
+    """
+    if len(s) <= limit:
+        return [s]
+    out, i, n = [], 0, len(s)
+    while i < n:
+        end = min(i + limit, n)
+        if end < n:
+            brk = s.rfind(" ", i + limit // 2, end)
+            if brk > i:
+                end = brk
+        out.append(s[i:end].strip())
+        i = end
+    return [p for p in out if p]
+
+
 def _pack(sentences: list[str], limit: int) -> list[str]:
     out, cur = [], ""
-    for s in sentences:
-        if cur and len(cur) + len(s) + 1 > limit:
-            out.append(cur)
-            cur = s
-        else:
-            cur = f"{cur} {s}".strip()
+    for raw in sentences:
+        for s in _split_oversize(raw, limit):
+            if cur and len(cur) + len(s) + 1 > limit:
+                out.append(cur)
+                cur = s
+            else:
+                cur = f"{cur} {s}".strip()
     if cur:
         out.append(cur)
     return out

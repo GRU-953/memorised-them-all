@@ -161,7 +161,7 @@ mta update            # pull the latest MarkItDown + dependencies
 
 | Tool | What it does | Returns |
 | --- | --- | --- |
-| `digest(paths, project?, reset?)` | convert + digest files/dirs/globs | counts, paths, graph stats |
+| `digest(paths, project?, reset?)` | convert + digest files/dirs/globs (**accumulates** into the project; `reset=true` starts fresh) | counts, paths, graph stats |
 | `recall(query, project?, k?)` | answer from memory | a small, citable slice |
 | `memory_overview(project?)` | synopsis + themes | compact overview |
 | `export_memory(dest, project?)` | export portable Markdown | files written |
@@ -187,6 +187,8 @@ settings (Desktop).
 | `MTA_WHISPER_MODEL` | `base` | on-device transcription model |
 | `MTA_IDLE` | `300` | seconds of idle before Ollama is stopped |
 | `MTA_WORKERS` | `0` (auto) | parallel conversion workers |
+| `MTA_EXTRACT_WORKERS` | `0` (auto) | parallel extraction workers (memory-aware: 1–3 by RAM) |
+| `MTA_MAX_CHUNKS` | `1500` | safety cap on chunks per digest (truncation is reported) |
 | `MTA_COMMUNITY_ALGO` | `auto` | `leiden` · `louvain` · `greedy` |
 | `MTA_AUTO_UPDATE` | `on` | auto-update MarkItDown & dependencies |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |

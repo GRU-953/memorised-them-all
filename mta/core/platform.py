@@ -90,6 +90,28 @@ def mlx_available() -> bool:
         return False
 
 
+_PATH_HEALED = False
+
+
+def bootstrap_path() -> None:
+    """Prepend common Homebrew/system bin dirs to PATH (idempotent).
+
+    Host apps like Claude Desktop launch the server with a very sparse PATH, so
+    ``tesseract``/``ffmpeg``/``ollama`` may not resolve. This makes them findable
+    without changing the user's shell config.
+    """
+    global _PATH_HEALED
+    if _PATH_HEALED:
+        return
+    extra = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+             os.path.expanduser("~/.local/bin")]
+    cur = os.environ.get("PATH", "").split(os.pathsep)
+    missing = [p for p in extra if p not in cur and os.path.isdir(p)]
+    if missing:
+        os.environ["PATH"] = os.pathsep.join(missing + cur)
+    _PATH_HEALED = True
+
+
 def summary() -> dict:
     return {
         "apple_silicon": is_apple_silicon(),

@@ -72,18 +72,30 @@ class Embedder:
         except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
             return None
 
-    def embed(self, texts: list[str]) -> np.ndarray:
-        """Embed a list of texts → (n, dim) L2-normalised float32 matrix."""
+    def _prefix(self, kind: str) -> str:
+        # nomic-embed-text is trained with task prefixes; without them short
+        # strings embed almost identically. Other models get no prefix.
+        if "nomic" in (self.cfg.embed_model or "").lower():
+            return "search_query: " if kind == "query" else "search_document: "
+        return ""
+
+    def embed(self, texts: list[str], kind: str = "document") -> np.ndarray:
+        """Embed a list of texts → (n, dim) L2-normalised float32 matrix.
+
+        ``kind`` is "document" (default) or "query"; it only changes the task
+        prefix for prefix-aware models (nomic).
+        """
         if not texts:
             return np.zeros((0, _FALLBACK_DIM), dtype=np.float32)
 
         use_ollama = self.cfg.embed_model and self.ollama.ensure_running(wait=20)
         if use_ollama:
             self.ollama.touch()
+            prefix = self._prefix(kind)
             vecs: list[list[float]] = []
             ok = True
             for t in texts:
-                emb = self._ollama_embed(t[:8000])
+                emb = self._ollama_embed((prefix + t)[:8000])
                 if emb is None:
                     ok = False
                     break

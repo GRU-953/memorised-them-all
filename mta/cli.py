@@ -57,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("serve", help="run the MCP server (stdio)")
 
     args = p.parse_args(argv)
+    from .core.platform import bootstrap_path
+    bootstrap_path()
     cfg = load_config().with_project(args.project)
 
     if args.cmd == "digest":

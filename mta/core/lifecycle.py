@@ -81,6 +81,8 @@ class OllamaManager:
         with self._lock:
             if self.is_up():
                 return True
+            from .platform import bootstrap_path
+            bootstrap_path()
             if not _which("ollama"):
                 return False
             try:
@@ -119,8 +121,8 @@ class OllamaManager:
         self._stop_evt.clear()
 
         def _loop():
-            idle = max(30, self.cfg.idle_seconds)
-            while not self._stop_evt.wait(min(15, idle / 4)):
+            idle = max(5, self.cfg.idle_seconds)
+            while not self._stop_evt.wait(max(1.0, min(15, idle / 4))):
                 if self._idle_for() >= idle:
                     self.stop()
                     return
