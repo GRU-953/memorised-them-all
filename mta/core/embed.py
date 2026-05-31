@@ -13,7 +13,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from functools import lru_cache
 
 import urllib.error
 import urllib.request

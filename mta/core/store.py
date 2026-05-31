@@ -68,6 +68,15 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
         return None
 
 
+def delete_project(cfg: Config) -> dict:
+    """Delete a project's entire memory (graph, markdown, vectors, mind map)."""
+    import shutil
+    if not cfg.project_dir.exists():
+        return {"status": "not_found", "project": cfg.project}
+    shutil.rmtree(cfg.project_dir, ignore_errors=True)
+    return {"status": "ok", "project": cfg.project, "deleted": True}
+
+
 def list_projects(cfg: Config) -> list[dict]:
     out: list[dict] = []
     pdir = cfg.projects_dir

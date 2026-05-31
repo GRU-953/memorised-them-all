@@ -104,9 +104,14 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
         elif len(words) >= 2:
             expand_of["".join(w[0] for w in words).upper() + f"|{len(words)}"].append(i)
     for acro, idxs in acro_of.items():
-        for j in expand_of.get(f"{acro}|{len(acro)}", []):
-            for i in idxs:
-                uf.union(i, j)
+        cands = expand_of.get(f"{acro}|{len(acro)}", [])
+        # Only link when the expansion is unambiguous — a single candidate. If two
+        # distinct entities share initials+word-count, linking either would
+        # transitively merge them, so we link none.
+        if len(cands) != 1:
+            continue
+        for i in idxs:
+            uf.union(i, cands[0])
 
     # Embeddings only *confirm* a merge that also shares tokens. Pure-embedding
     # merging is unsafe for short proper nouns — domain-related names (e.g. two

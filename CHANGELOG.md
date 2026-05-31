@@ -4,6 +4,36 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] — 2026-06-01
+
+Fixes from a further multi-agent evaluation loop (accuracy, token-safety,
+reliability, reusability) + Copilot review.
+
+### Fixed
+- **Acronym linking no longer over-merges**: an acronym is linked to an expansion
+  only when that expansion is unambiguous (a single candidate), so two distinct
+  entities sharing initials (e.g. two "WHO"s) are never transitively merged.
+- **Token-free guarantee hardened on the accurate path**: local-LLM theme/synopsis
+  summaries are now length-capped (`num_predict`), and every recall hit clamps its
+  text (≤600 chars) and `docs` list (≤5, with `doc_count`) — a verbose or
+  prompt-injected summary can no longer bloat Claude's context.
+- **No silent data loss**: same-named files in different folders (e.g. many
+  `README.md`) get unique, race-free output names assigned in the main process
+  instead of overwriting each other.
+- **graph.json bounded**: facts are de-duplicated and capped per node (was
+  duplicating heavily), shrinking the artifact and keeping it reusable.
+
+### Added
+- **`forget`** tool + `mta forget` CLI command to delete a project's memory.
+- **Prompt-injection hardening**: document text is wrapped in explicit data
+  delimiters in the extraction prompt (treated as data, never instructions).
+- **Decompression-bomb guard** now also rejects archives containing nested
+  archives.
+- `launch.py`, `launch.sh`, `install.sh`, and `scripts/` are shipped in the sdist.
+
+### Removed
+- Dead `lru_cache` import in `embed.py`.
+
 ## [1.3.0] — 2026-06-01
 
 Closes the v1.2.0 follow-up gaps.
@@ -130,6 +160,7 @@ The first public release.
 - **Distribution**: Claude Desktop `.mcpb`, Claude Code plugin/marketplace, PyPI
   package, and a Homebrew tap; CI and tagged releases with assets.
 
+[1.3.1]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.1
 [1.3.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.0
 [1.2.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.2.0
 [1.1.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.1.0

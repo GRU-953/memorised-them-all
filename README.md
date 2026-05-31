@@ -259,7 +259,7 @@ Apple M-series is the primary, most-optimised target. Other platforms are suppor
 | macOS (Apple silicon) | ✅ optimised | performance-core pool, MLX GPU Whisper, unified-memory-aware |
 | macOS (Intel) | ✅ supported | physical-core sizing via psutil, CPU Whisper |
 | Linux | ✅ supported | apt/dnf/pacman install paths, CUDA Whisper if a GPU is present |
-| Windows | 🧪 experimental | `pip install memorised-them-all` + `mta serve`, or `python launch.py`; psutil process management & PATH healing |
+| Windows | 🧪 experimental | `pip install memorised-them-all` then `mta serve` (or `python launch.py` from a clone). The one-click `.mcpb` bundle is macOS/Linux only (its launcher is bash); on Windows use pip. |
 
 CI runs the offline test suite across **Ubuntu, macOS, and Windows** on Python 3.10 & 3.12.
 
@@ -280,6 +280,32 @@ A memory built once can be **copied to another machine** and reused read-only �
 ## Quality & testing
 
 This project is exercised hard: a multi-format corpus (Office, PDF, scanned PDF, OCR images, audio), **14 regression tests** (determinism, token-safety, fact attribution, accumulation, OCR, lifecycle, cross-platform), green CI on three OSes, and a multi-agent review pass covering accuracy, reliability, token-safety, reusability, cross-platform, and security. The token-free guarantee is enforced (recall slices are hard-capped) and the digest never returns document contents to the model.
+
+## Security & threat model
+
+Memorised them All processes files you point it at — including, potentially,
+untrusted documents. It is hardened accordingly:
+
+- **No shell injection / no `curl | sh`**: all subprocesses use argv lists; the
+  optional installer downloads to a temp file before executing.
+- **Path-safe outputs**: converted filenames are sanitised; same-named files in
+  different folders get unique names (no silent overwrite); exports write only
+  the memory artifacts to the destination you choose.
+- **Bounded inputs**: per-file size cap (`MTA_MAX_FILE_MB`), a reported chunk cap,
+  and a decompression-bomb guard for archives (size, ratio, and nested-archive
+  rejection).
+- **Prompt-injection aware**: extracted document text is wrapped as *data* in the
+  local-LLM prompt. Note that theme/synopsis summaries are model output over your
+  documents — treat them as you would any generated text. Recall results are
+  hard-capped in size so a verbose or adversarial summary cannot bloat context.
+- **No deserialization risk**: JSON only; `numpy` loads with `allow_pickle=False`.
+- **Local-only egress**: the only network calls are localhost Ollama, dependency
+  installs, and a throttled once-a-day GitHub update check (opt out with
+  `MTA_AUTO_UPDATE=off`).
+
+Manage projects with `mta forget --project <name>` (or the `forget` tool) to
+delete a memory; the `.mcpb` one-click bundle targets macOS/Linux (Windows uses
+`pip install` + `mta serve`).
 
 ## Acknowledgements
 

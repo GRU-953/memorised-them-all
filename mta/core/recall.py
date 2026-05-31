@@ -14,6 +14,21 @@ from .embed import Embedder, cosine
 from .lifecycle import OllamaManager
 from .store import load_graph, load_vectors
 
+# Hard per-hit caps so a verbose (or prompt-injected) local-model summary can
+# never blow up Claude's context — the token-free guarantee must hold on the
+# accurate path, not just the classical one.
+_MAX_HIT_TEXT = 600
+_MAX_HIT_DOCS = 5
+
+
+def _hit(u: dict, score) -> dict:
+    docs = u.get("docs", []) or []
+    out = {"score": score, "kind": u.get("kind"), "label": u.get("label"),
+           "text": (u.get("text") or "")[:_MAX_HIT_TEXT], "docs": docs[:_MAX_HIT_DOCS]}
+    if len(docs) > _MAX_HIT_DOCS:
+        out["doc_count"] = len(docs)
+    return out
+
 
 def recall(cfg: Config, query: str, k: int | None = None,
            ollama: OllamaManager | None = None) -> dict:
@@ -34,12 +49,7 @@ def recall(cfg: Config, query: str, k: int | None = None,
 
     scores = cosine(qv, matrix)[0]
     order = np.argsort(-scores)[:k]
-    hits = []
-    for i in order:
-        u = meta[int(i)]
-        hits.append({"score": round(float(scores[int(i)]), 3),
-                     "kind": u.get("kind"), "label": u.get("label"),
-                     "text": u.get("text"), "docs": u.get("docs", [])})
+    hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3)) for i in order]
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
             "synopsis": (doc or {}).get("synopsis", ""), "hits": hits}
@@ -54,8 +64,7 @@ def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
         if overlap:
             scored.append((overlap, u))
     scored.sort(key=lambda x: -x[0])
-    hits = [{"score": s, "kind": u.get("kind"), "label": u.get("label"),
-             "text": u.get("text"), "docs": u.get("docs", [])} for s, u in scored[:k]]
+    hits = [_hit(u, s) for s, u in scored[:k]]
     return {"status": "ok", "project": cfg.project, "query": query,
             "mode": "lexical", "hits": hits}
 
