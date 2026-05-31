@@ -65,4 +65,5 @@ packages = ["mta"]
 
 [tool.hatch.build.targets.sdist]
 include = ["mta", "templates", "assets", "README.md", "LICENSE", "CHANGELOG.md",
-           "ACKNOWLEDGEMENTS.md", "requirements.txt"]
+           "ACKNOWLEDGEMENTS.md", "requirements.txt",
+           "launch.py", "launch.sh", "install.sh", "scripts"]
