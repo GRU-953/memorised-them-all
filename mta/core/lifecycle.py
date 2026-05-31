@@ -102,17 +102,51 @@ class OllamaManager:
         return self.is_up()
 
     def stop(self) -> None:
-        """Stop only the instance we launched."""
+        """Stop only the instance we launched, including its child runner.
+
+        `ollama serve` spawns a child runner process; terminating only the parent
+        (the default on Windows, and sometimes on POSIX) would orphan it and hold
+        the port. We tear down the whole process tree via psutil when available.
+        """
         self._stop_evt.set()
         with self._lock:
-            if self._started_by_us and self._proc and self._proc.poll() is None:
-                self._proc.terminate()
+            proc = self._proc
+            if self._started_by_us and proc and proc.poll() is None:
+                if not self._terminate_tree(proc.pid):
+                    proc.terminate()
+                # Reap the Popen child in both paths so it doesn't linger as a
+                # zombie (psutil's wait_procs doesn't reap our Popen handle).
                 try:
-                    self._proc.wait(timeout=8)
+                    proc.wait(timeout=8)
                 except subprocess.TimeoutExpired:
-                    self._proc.kill()
+                    proc.kill()
             self._started_by_us = False
             self._proc = None
+
+    @staticmethod
+    def _terminate_tree(pid: int) -> bool:
+        """Terminate a process and all its children. Returns True if handled."""
+        try:
+            import psutil
+        except Exception:
+            return False
+        try:
+            parent = psutil.Process(pid)
+            procs = parent.children(recursive=True) + [parent]
+            for p in procs:
+                try:
+                    p.terminate()
+                except psutil.Error:
+                    pass
+            _, alive = psutil.wait_procs(procs, timeout=8)
+            for p in alive:
+                try:
+                    p.kill()
+                except psutil.Error:
+                    pass
+            return True
+        except psutil.Error:
+            return False
 
     # ---- watchdog -----------------------------------------------------
     def _start_watchdog(self) -> None:

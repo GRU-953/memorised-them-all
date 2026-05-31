@@ -74,9 +74,12 @@ def run_check(cfg: Config, force: bool = False) -> dict:
         return {"status": "disabled"}
     if not force and not _due(cfg):
         return {"status": "throttled"}
+    # Stamp BEFORE doing the work so a second process (e.g. Desktop + Code both
+    # launching) sees the throttle and doesn't race a concurrent pip install into
+    # the same venv.
+    _touch(cfg)
     result = {"status": "ok", "markitdown_updated": update_markitdown(),
               "latest_release": latest_self_release(), "current": _current_version()}
-    _touch(cfg)
     return result
 
 

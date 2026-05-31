@@ -191,7 +191,14 @@ settings (Desktop).
 | `MTA_MAX_CHUNKS` | `1500` | safety cap on chunks per digest (truncation is reported) |
 | `MTA_COMMUNITY_ALGO` | `auto` | `leiden` · `louvain` · `greedy` |
 | `MTA_AUTO_UPDATE` | `on` | auto-update MarkItDown & dependencies |
+| `MTA_FAST` | `off` | fast mode — skip the LLM (classical extraction, deterministic, keeps embeddings) |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
+
+> **Accuracy vs speed.** The default path uses the local LLM for the highest
+> extraction accuracy. **Fast mode** (`MTA_FAST=on`, `mta digest --fast`, or the
+> `fast=true` tool arg) skips the LLM for a fully **deterministic**, ~100× faster
+> digest that still builds the graph and keeps semantic recall — ideal for large
+> or frequently-updated corpora.
 
 ## Apple silicon first
 

@@ -116,7 +116,7 @@ def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
                             "target": str(rel["target"]).strip()})
         return out
 
-    facts = [str(f).strip() for f in (obj.get("facts") or [])
+    facts = [str(f).strip()[:300] for f in (obj.get("facts") or [])
              if isinstance(f, (str, int, float)) and str(f).strip()][:8]
     return Extraction(
         entities=_clean_entities(obj.get("entities")),

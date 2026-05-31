@@ -50,10 +50,18 @@ class Config:
 
     # Extraction / digestion.
     extract_mode: str = field(default_factory=lambda: _env("MTA_EXTRACT", "auto"))  # auto|llm|classical
+    # Fast mode: skip the LLM entirely (classical extraction + deterministic
+    # summaries), keeping the small embedding model for recall. Opt-in; the
+    # default stays the accurate LLM path.
+    fast: bool = field(default_factory=lambda: _env("MTA_FAST", "off").lower()
+                       in ("on", "1", "true", "yes"))
     community_algo: str = field(default_factory=lambda: _env("MTA_COMMUNITY_ALGO", "auto"))  # auto|leiden|louvain|greedy
     chunk_chars: int = field(default_factory=lambda: _env_int("MTA_CHUNK_CHARS", 1200))
     recall_k: int = field(default_factory=lambda: _env_int("MTA_RECALL_K", 8))
     max_chunks: int = field(default_factory=lambda: _env_int("MTA_MAX_CHUNKS", 1500))
+    # Skip individual files larger than this (MB) before reading them into memory,
+    # bounding OOM/decompression-bomb risk. 0 disables the cap.
+    max_file_mb: int = field(default_factory=lambda: _env_int("MTA_MAX_FILE_MB", 200))
     extract_workers: int = field(default_factory=lambda: _env_int("MTA_EXTRACT_WORKERS", 0))  # 0=auto
 
     # Lifecycle & maintenance.
@@ -118,4 +126,6 @@ class Config:
 
 def load() -> Config:
     cfg = Config()
+    if cfg.fast:
+        cfg.extract_mode = "classical"  # no LLM extraction or summaries
     return cfg

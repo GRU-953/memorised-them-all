@@ -171,7 +171,10 @@ def export_bundle(cfg: Config, dest: str) -> dict:
     dest_path = Path(dest).expanduser()
     dest_path.mkdir(parents=True, exist_ok=True)
     copied = []
-    for src in (cfg.memory_md, cfg.graph_path, cfg.mindmap_html):
+    # Include the vector store so semantic recall works from the exported bundle,
+    # not just human browsing + graph reload.
+    for src in (cfg.memory_md, cfg.graph_path, cfg.mindmap_html,
+                cfg.vectors_path, cfg.vectors_path.with_suffix(".json")):
         if src.exists():
             shutil.copy2(src, dest_path / src.name)
             copied.append(src.name)

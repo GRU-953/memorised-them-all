@@ -180,6 +180,57 @@ def test_entity_resolution_no_overmerge():
     assert cid_for("Dr. Lena Marsh", a2c) == cid_for("Lena Marsh", a2c)
 
 
+def test_fast_mode_is_deterministic(tmp_path):
+    """Fast mode (no LLM) yields a byte-stable graph across runs (same content)."""
+    import json
+
+    def sig(cfg):
+        gd = json.loads(cfg.graph_path.read_text())
+        return (sorted((n["label"], n["type"]) for n in gd["nodes"]),
+                sorted((e["source"], e["target"], e["weight"]) for e in gd["edges"]),
+                [sorted(c["members"]) for c in gd["communities"]])
+
+    from mta.core.digest import digest
+    c1 = _fresh_cfg(tmp_path / "a", "f")
+    digest(c1, [str(SAMPLE)], fast=True)
+    c2 = _fresh_cfg(tmp_path / "b", "f")
+    digest(c2, [str(SAMPLE)], fast=True)
+    assert sig(c1) == sig(c2)
+    assert json.loads(c1.graph_path.read_text())["stats"]["mode"] == "fast"
+
+
+def test_fact_attribution_word_boundary_and_no_dup():
+    """Facts attach by word boundary (no 'Cat' in 'Category') and never duplicate."""
+    from mta.core.extract import Extraction
+    from mta.core.graph import build_graph
+    from mta.core.segment import Chunk
+
+    canonical = {"e0": {"label": "Cat", "type": "other", "aliases": [], "count": 2},
+                 "e1": {"label": "Dog", "type": "other", "aliases": [], "count": 1}}
+    alias_to_cid = {"cat": "e0", "dog": "e1"}
+    ch = Chunk(id="d#0", doc="d", heading_path="d", index=0,
+               text="The Category includes a Dog.")
+    # Same canonical entity referenced via two surface forms in one chunk.
+    ex = Extraction(entities=[{"name": "Cat", "type": "other"},
+                              {"name": "cat", "type": "other"},
+                              {"name": "Dog", "type": "other"}],
+                    relations=[], facts=["The Category includes a Dog."])
+    g = build_graph([(ch, ex)], alias_to_cid, canonical)
+    assert len(g.nodes["e0"]["facts"]) == 0           # "Cat" not matched in "Category"
+    assert len(g.nodes["e1"]["facts"]) == 1           # "Dog" matched once, not twice
+
+
+def test_oversize_file_is_skipped(tmp_path):
+    """Files over the size cap are skipped before being read into memory."""
+    big = tmp_path / "big.txt"
+    big.write_text("x" * (2 * 1024 * 1024))  # 2 MB
+    cfg = _fresh_cfg(tmp_path, "sz")
+    cfg.max_file_mb = 1  # cap at 1 MB
+    from mta.core.convert import convert_file
+    r = convert_file(big, tmp_path / "out", cfg)
+    assert r.status == "skipped" and r.method == "too-large", (r.status, r.method)
+
+
 def test_idle_shutdown_only_stops_ours(tmp_path):
     # With Ollama disabled, ensure_running is False and nothing is started/stopped.
     os.environ["MTA_HOME"] = str(tmp_path)
