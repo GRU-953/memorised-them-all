@@ -23,4 +23,6 @@ if [ ! -f "$STATE/installed" ]; then
   ( bash "$DIR/install.sh" >/dev/null 2>&1 & ) >/dev/null 2>&1
 fi
 
-exec "$VENV/bin/python" -m mta.server
+# Run from the source tree via PYTHONPATH so the server starts even if an
+# editable install didn't register the package (belt-and-suspenders).
+exec env PYTHONPATH="$DIR${PYTHONPATH:+:$PYTHONPATH}" "$VENV/bin/python" -m mta.server

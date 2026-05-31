@@ -4,6 +4,14 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.1] — 2026-06-01
+
+### Fixed
+- **Homebrew / CLI launcher**: run the pure-Python package directly from the
+  source tree via `PYTHONPATH` instead of building it at first run. This avoids a
+  failure when a packager strips `README.md` from the install tree (Homebrew),
+  and makes the plugin launcher resilient to a missing editable install.
+
 ## [1.0.0] — 2026-06-01
 
 The first public release.
@@ -37,4 +45,5 @@ The first public release.
 - **Distribution**: Claude Desktop `.mcpb`, Claude Code plugin/marketplace, PyPI
   package, and a Homebrew tap; CI and tagged releases with assets.
 
+[1.0.1]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.0.1
 [1.0.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.0.0

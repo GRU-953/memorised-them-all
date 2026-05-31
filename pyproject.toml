@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memorised-them-all"
-version = "1.0.0"
+version = "1.0.1"
 description = "Local, token-free file digestion → knowledge-graph memory for Claude. Convert any attachment to Markdown and digest it into a graph + exportable memory, entirely on-device. Tuned for Apple silicon."
 readme = "README.md"
 license = { text = "MIT" }
