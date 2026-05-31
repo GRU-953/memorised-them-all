@@ -71,11 +71,19 @@ elif command -v apt-get >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && e
   log "Installing system apps via apt…"
   $SUDO apt-get update -y >/dev/null 2>&1 || true
   $SUDO apt-get install -y tesseract-ocr tesseract-ocr-all ffmpeg >/dev/null 2>&1 || true
-  command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh >/dev/null 2>&1 || true
+  if ! command -v ollama >/dev/null 2>&1; then
+    # Download then execute (not curl|sh) so partial/garbled output can't run.
+    _oll="$(mktemp)"; curl -fsSL https://ollama.com/install.sh -o "$_oll" \
+      && sh "$_oll" >/dev/null 2>&1; rm -f "$_oll" || true
+  fi
 elif command -v dnf >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via dnf…"
   $SUDO dnf install -y tesseract ffmpeg >/dev/null 2>&1 || true
-  command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh >/dev/null 2>&1 || true
+  if ! command -v ollama >/dev/null 2>&1; then
+    # Download then execute (not curl|sh) so partial/garbled output can't run.
+    _oll="$(mktemp)"; curl -fsSL https://ollama.com/install.sh -o "$_oll" \
+      && sh "$_oll" >/dev/null 2>&1; rm -f "$_oll" || true
+  fi
 elif command -v pacman >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via pacman…"
   $SUDO pacman -S --noconfirm tesseract tesseract-data-eng ffmpeg ollama >/dev/null 2>&1 || true

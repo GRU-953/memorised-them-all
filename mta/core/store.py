@@ -22,7 +22,7 @@ from .config import Config
 def save_graph(cfg: Config, graph_doc: dict) -> None:
     cfg.ensure_dirs()
     cfg.graph_path.write_text(json.dumps(graph_doc, indent=2, ensure_ascii=False),
-                              encoding="utf-8")
+                              encoding="utf-8")  # explicit utf-8 (Windows defaults to cp1252)
 
 
 # Bump when the on-disk graph schema changes incompatibly.
@@ -37,9 +37,14 @@ def load_graph(cfg: Config) -> dict | None:
     except (json.JSONDecodeError, OSError):
         return None
     # Refuse to mis-read a future, incompatible schema rather than silently
-    # returning garbage; older/equal versions load fine.
-    if isinstance(doc, dict) and doc.get("version", 1) > SCHEMA_VERSION:
-        return None
+    # returning garbage; older/equal versions load fine. graph.json is user-
+    # editable, so coerce the version defensively (a non-numeric value won't crash).
+    if isinstance(doc, dict):
+        try:
+            if int(doc.get("version", 1)) > SCHEMA_VERSION:
+                return None
+        except (TypeError, ValueError):
+            return None
     return doc
 
 

@@ -189,6 +189,7 @@ settings (Desktop).
 | `MTA_WORKERS` | `0` (auto) | parallel conversion workers |
 | `MTA_EXTRACT_WORKERS` | `0` (auto) | parallel extraction workers (memory-aware: 1–3 by RAM) |
 | `MTA_MAX_CHUNKS` | `1500` | safety cap on chunks per digest (truncation is reported) |
+| `MTA_MAX_FILE_MB` | `200` | skip files larger than this before reading (0 disables) |
 | `MTA_COMMUNITY_ALGO` | `auto` | `leiden` · `louvain` · `greedy` |
 | `MTA_AUTO_UPDATE` | `on` | auto-update MarkItDown & dependencies |
 | `MTA_FAST` | `off` | fast mode — skip the LLM (classical extraction, deterministic, keeps embeddings) |
@@ -233,6 +234,52 @@ and left alone. Only an instance *this tool* starts is stopped on idle.
 
 **Where are my files?** Under `MTA_HOME/projects/<project>/` — `graph.json`,
 `memory.md`, `memory/`, `mindmap.html`. `export_memory` copies them anywhere.
+
+## Modes & performance
+
+Two digest modes — the default favours **accuracy & consistency**, fast mode favours **speed & determinism**:
+
+| | Default (accurate) | Fast (`--fast` / `MTA_FAST=on`) |
+| --- | --- | --- |
+| Extraction | local LLM (qwen2.5) | classical (deterministic) |
+| Theme summaries | local LLM | deterministic fact-join |
+| Embeddings / recall | local (nomic) | local (nomic) |
+| Reproducible | per-model | **byte-identical across runs** |
+| Relative speed | baseline | **~100× faster** |
+| Best for | highest fidelity | large or frequently-refreshed corpora |
+
+Both are **token-free** and **fully local**. Digestion is incremental — pointing `digest` at another folder *extends* the same project; `reset=true` starts fresh. Degenerate/repetitive content is de-duplicated and a reported `MTA_MAX_CHUNKS` cap keeps even pathological inputs bounded.
+
+## Platform support
+
+Apple M-series is the primary, most-optimised target. Other platforms are supported with portable fallbacks:
+
+| Platform | Status | Notes |
+| --- | --- | --- |
+| macOS (Apple silicon) | ✅ optimised | performance-core pool, MLX GPU Whisper, unified-memory-aware |
+| macOS (Intel) | ✅ supported | physical-core sizing via psutil, CPU Whisper |
+| Linux | ✅ supported | apt/dnf/pacman install paths, CUDA Whisper if a GPU is present |
+| Windows | 🧪 experimental | `pip install memorised-them-all` + run `mta serve`; psutil process management & PATH healing |
+
+CI runs the offline test suite across **Ubuntu, macOS, and Windows** on Python 3.10 & 3.12.
+
+## Generated files & reuse
+
+Each project under `MTA_HOME/projects/<name>/` is self-contained and portable:
+
+| File | What it is |
+| --- | --- |
+| `graph.json` | source of truth — nodes, edges, communities, layered summaries, stats (`version`-stamped; stores basenames, no absolute paths) |
+| `memory.md` | compact, layered digest for reading / pasting |
+| `memory/<doc>.md` | one note per source document |
+| `mindmap.html` | offline interactive graph (Cytoscape inlined) |
+| `vectors.npz` + `vectors.json` | local embeddings for recall |
+
+A memory built once can be **copied to another machine** and reused read-only — recall and the mind map work with no rebuild. `export_memory` bundles all of the above (including the vector store) into a folder you choose.
+
+## Quality & testing
+
+This project is exercised hard: a multi-format corpus (Office, PDF, scanned PDF, OCR images, audio), **14 regression tests** (determinism, token-safety, fact attribution, accumulation, OCR, lifecycle, cross-platform), green CI on three OSes, and a multi-agent review pass covering accuracy, reliability, token-safety, reusability, cross-platform, and security. The token-free guarantee is enforced (recall slices are hard-capped) and the digest never returns document contents to the model.
 
 ## Acknowledgements
 

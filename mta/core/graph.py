@@ -44,10 +44,11 @@ def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Gr
             holders = []
             for cid in present:
                 lbl = g.nodes[cid]["label"].lower()
-                # Word-boundary match for Latin scripts; fall back to substring
-                # containment for scripts without word separators (e.g. CJK),
-                # where \b does not fire.
-                if re.search(rf"\b{re.escape(lbl)}\b", fl) or (
+                # Boundary match via lookarounds (not \b) so labels that begin or
+                # end with punctuation still match — e.g. "Inc.", "C++". Falls back
+                # to substring containment for scripts without word separators
+                # (e.g. CJK), where word boundaries don't fire.
+                if re.search(rf"(?<!\w){re.escape(lbl)}(?!\w)", fl) or (
                         not re.search(r"[a-z0-9]", lbl) and lbl in fl):
                     holders.append(cid)
             if not holders and present:
