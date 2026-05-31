@@ -1,0 +1,144 @@
+"""Memorised them All — MCP server (stdio) for Claude Desktop & Claude Code.
+
+Exposes seven token-free tools. Every tool returns only compact metadata or a
+small, relevant slice of memory — never document contents — so digesting and
+recalling whole folders costs ~0 Claude context tokens. All heavy work runs
+locally; the local model server (Ollama) is started on demand and stopped after
+``MTA_IDLE`` seconds of inactivity (default 5 minutes).
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from .core import recall as recall_mod
+from .core import render, store, updater
+from .core.config import load as load_config
+from .core.digest import digest as run_digest
+from .core.lifecycle import OllamaManager
+from .core.platform import summary as platform_summary
+
+try:
+    from mcp.server.fastmcp import FastMCP
+except Exception as exc:  # pragma: no cover - only when mcp not installed
+    raise SystemExit("The 'mcp' package is required to run the server: pip install mcp") from exc
+
+mcp = FastMCP("memorised-them-all")
+
+# One Ollama manager per process so the idle watchdog and "started-by-us" flag
+# are shared across all tool calls.
+_OLLAMA: OllamaManager | None = None
+
+
+def _ollama() -> OllamaManager:
+    global _OLLAMA
+    if _OLLAMA is None:
+        _OLLAMA = OllamaManager(load_config())
+    return _OLLAMA
+
+
+def _cfg(project: str | None = None):
+    cfg = load_config().with_project(project)
+    # Kick a throttled, non-blocking auto-update on first activity.
+    updater.start_background(cfg)
+    return cfg
+
+
+@mcp.tool()
+def digest(paths: list[str], project: str | None = None, reset: bool = False) -> dict:
+    """Convert files/dirs/globs to Markdown locally, then build a knowledge graph
+    + layered memory. Returns ONLY counts, paths and graph stats (token-free)."""
+    cfg = _cfg(project)
+    return run_digest(cfg, paths, reset=reset, ollama=_ollama())
+
+
+@mcp.tool()
+def recall(query: str, project: str | None = None, k: int = 0) -> dict:
+    """Answer from memory: returns a small, relevant slice (theme summaries +
+    entity cards with provenance) — never whole documents."""
+    cfg = _cfg(project)
+    return recall_mod.recall(cfg, query, k=k or None, ollama=_ollama())
+
+
+@mcp.tool()
+def memory_overview(project: str | None = None) -> dict:
+    """Return the compact synopsis, stats and theme list for a project's memory."""
+    return recall_mod.overview(_cfg(project))
+
+
+@mcp.tool()
+def export_memory(dest: str, project: str | None = None) -> dict:
+    """Export the memory (memory.md, per-document notes, graph.json, mind map) as
+    portable Markdown files to a destination directory."""
+    return render.export_bundle(_cfg(project), dest)
+
+
+@mcp.tool()
+def list_digestible(directory: str) -> dict:
+    """List convertible files under a directory (paths + sizes only)."""
+    from .core.convert import SUPPORTED_EXTS
+    base = Path(directory).expanduser()
+    if not base.exists():
+        return {"status": "not_found", "directory": str(base)}
+    files = [p for p in base.rglob("*") if p.is_file()
+             and p.suffix.lower() in SUPPORTED_EXTS]
+    return {"status": "ok", "directory": str(base), "count": len(files),
+            "files": [{"path": str(p), "bytes": p.stat().st_size} for p in files[:500]]}
+
+
+@mcp.tool()
+def memory_status() -> dict:
+    """Report the local stack: Ollama, models, Tesseract, MarkItDown version,
+    platform tuning, and existing projects."""
+    return _status()
+
+
+@mcp.tool()
+def open_mindmap(project: str | None = None) -> dict:
+    """Return the path to the offline interactive mind map for a project."""
+    cfg = _cfg(project)
+    if not cfg.mindmap_html.exists():
+        return {"status": "no_memory", "project": cfg.project}
+    return {"status": "ok", "project": cfg.project, "path": str(cfg.mindmap_html),
+            "open_with": f"open '{cfg.mindmap_html}'"}
+
+
+def _status() -> dict:
+    cfg = load_config()
+    o = _ollama()
+    ollama_up = o.is_up()
+    models = []
+    if ollama_up:
+        import json
+        import urllib.request
+        try:
+            with urllib.request.urlopen(f"{o.host}/api/tags", timeout=3) as r:
+                models = [m["name"] for m in json.loads(r.read()).get("models", [])]
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        import importlib.metadata as md
+        mid = md.version("markitdown")
+    except Exception:  # noqa: BLE001
+        mid = None
+    import shutil
+    return {
+        "status": "ok",
+        "ollama_running": ollama_up,
+        "ollama_models": models,
+        "tesseract": shutil.which("tesseract") is not None,
+        "ffmpeg": shutil.which("ffmpeg") is not None,
+        "markitdown_version": mid,
+        "platform": platform_summary(),
+        "auto_update": cfg.auto_update,
+        "idle_seconds": cfg.idle_seconds,
+        "projects": store.list_projects(cfg),
+    }
+
+
+def main() -> None:
+    mcp.run()
+
+
+if __name__ == "__main__":
+    main()

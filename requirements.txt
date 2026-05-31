@@ -1,0 +1,19 @@
+# Memorised them All — runtime dependencies (all free & open-source, all local).
+# The reliably-installable core. install.sh additionally pulls the latest
+# MarkItDown from upstream and the optional Leiden/MLX accelerators (best-effort).
+
+mcp>=1.2
+numpy>=1.26
+networkx>=3.2
+rapidfuzz>=3.6
+
+# Local conversion stack
+markitdown[pdf,docx,pptx,xlsx,xls,outlook]>=0.1.6
+pdfplumber>=0.11
+pillow>=10.2
+pytesseract>=0.3.10
+pypdfium2>=4.27
+striprtf>=0.0.26
+
+# Local, on-device speech-to-text (no cloud)
+faster-whisper>=1.0

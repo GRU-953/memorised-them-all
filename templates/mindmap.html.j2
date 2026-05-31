@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memorised them All — Mind Map</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141b2e; --ink:#e7ecf5; --muted:#8b97b3; --accent:#6366f1; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  #cy { position:fixed; inset:0; }
+  #panel { position:fixed; top:16px; left:16px; width:330px; max-height:calc(100% - 32px);
+           overflow:auto; background:rgba(20,27,46,.92); backdrop-filter:blur(8px);
+           border:1px solid #243049; border-radius:14px; padding:18px 20px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+  #panel h1 { font-size:16px; margin:0 0 6px; letter-spacing:.2px; }
+  #panel .sub { color:var(--muted); font-size:12px; margin-bottom:12px; }
+  #panel .syn { font-size:13px; line-height:1.5; color:#cdd6ea; }
+  #panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:16px 0 6px; }
+  .theme { font-size:12.5px; line-height:1.45; margin:0 0 10px; padding-left:10px; border-left:2px solid var(--accent); }
+  .theme b { color:#fff; }
+  #search { width:100%; padding:8px 10px; border-radius:9px; border:1px solid #2a3650;
+            background:#0e1426; color:var(--ink); font-size:13px; margin-bottom:8px; }
+  .pill { position:fixed; bottom:16px; right:16px; font-size:11px; color:var(--muted);
+          background:rgba(20,27,46,.9); border:1px solid #243049; padding:6px 10px; border-radius:20px; }
+</style>
+/*__CYTOSCAPE__*/
+</head>
+<body>
+<div id="cy"></div>
+<div id="panel">
+  <h1 id="title">Knowledge Graph</h1>
+  <div class="sub" id="meta"></div>
+  <input id="search" placeholder="Filter entities…" autocomplete="off">
+  <div class="syn" id="synopsis"></div>
+  <h2>Themes</h2>
+  <div id="themes"></div>
+</div>
+<div class="pill">Memorised them All · 100% local</div>
+<script>
+const DATA = /*__DATA__*/;
+document.getElementById('title').textContent = DATA.project + " — memory";
+document.getElementById('meta').textContent =
+  DATA.elements.nodes.length + " entities · " + DATA.elements.edges.length +
+  " relations · " + DATA.communities.length + " themes";
+document.getElementById('synopsis').textContent = DATA.synopsis || "";
+document.getElementById('themes').innerHTML = DATA.communities.map(
+  c => '<div class="theme"><b>' + esc(c.label) + '</b><br>' + esc(c.summary||'') + '</div>').join('');
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: DATA.elements,
+  layout: { name: 'cose', animate: false, nodeRepulsion: 9000, idealEdgeLength: 80 },
+  style: [
+    { selector: 'node', style: {
+        'background-color':'data(color)', 'label':'data(label)', 'color':'#e7ecf5',
+        'font-size':9, 'width':'data(size)', 'height':'data(size)',
+        'text-valign':'center', 'text-halign':'center', 'text-outline-color':'#0b1020',
+        'text-outline-width':2, 'min-zoomed-font-size':6 } },
+    { selector: 'edge', style: {
+        'width':'mapData(weight,1,10,1,5)', 'line-color':'#39456a', 'opacity':0.45,
+        'curve-style':'haystack' } },
+    { selector: '.dim', style: { 'opacity':0.08 } },
+    { selector: '.hi', style: { 'opacity':1, 'border-width':3, 'border-color':'#fff' } }
+  ]
+});
+const search = document.getElementById('search');
+search.addEventListener('input', () => {
+  const q = search.value.trim().toLowerCase();
+  cy.elements().removeClass('dim hi');
+  if (!q) return;
+  const match = cy.nodes().filter(n => n.data('label').toLowerCase().includes(q));
+  if (match.length) {
+    cy.elements().addClass('dim');
+    match.removeClass('dim').addClass('hi');
+    match.neighborhood().removeClass('dim');
+    cy.animate({ fit: { eles: match, padding: 80 } }, { duration: 350 });
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memorised-them-all"
+version = "1.0.0"
+description = "Local, token-free file digestion → knowledge-graph memory for Claude. Convert any attachment to Markdown and digest it into a graph + exportable memory, entirely on-device. Tuned for Apple silicon."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Aninda Sundar Howlader", email = "225374119+GRU-953@users.noreply.github.com" }]
+keywords = ["mcp", "claude", "knowledge-graph", "memory", "markitdown", "ollama",
+            "local-llm", "token-free", "rag", "graphrag", "mind-map", "ocr"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Topic :: Text Processing :: Markup :: Markdown",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+  "mcp>=1.2",
+  "numpy>=1.26",
+  "networkx>=3.2",
+  "rapidfuzz>=3.6",
+  "markitdown[pdf,docx,pptx,xlsx,xls,outlook]>=0.1.6",
+  "pdfplumber>=0.11",
+  "pillow>=10.2",
+  "pytesseract>=0.3.10",
+  "pypdfium2>=4.27",
+  "striprtf>=0.0.26",
+  "faster-whisper>=1.0",
+]
+
+[project.optional-dependencies]
+# Preferred Leiden community detection (needs a C toolchain; falls back to Louvain).
+graph = ["python-igraph>=0.11", "leidenalg>=0.10"]
+# GPU-accelerated Whisper on Apple silicon.
+mlx = ["mlx-whisper>=0.4 ; platform_machine=='arm64' and sys_platform=='darwin'"]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/GRU-953/memorised-them-all"
+Repository = "https://github.com/GRU-953/memorised-them-all"
+Issues = "https://github.com/GRU-953/memorised-them-all/issues"
+Changelog = "https://github.com/GRU-953/memorised-them-all/blob/main/CHANGELOG.md"
+
+[project.scripts]
+mta = "mta.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mta"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"templates" = "mta/templates"
+"assets" = "mta/assets"
+
+[tool.hatch.build.targets.sdist]
+include = ["mta", "templates", "assets", "README.md", "LICENSE", "CHANGELOG.md",
+           "ACKNOWLEDGEMENTS.md", "requirements.txt"]

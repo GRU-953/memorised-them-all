@@ -1,0 +1,128 @@
+"""Entity resolution — collapse surface variants into canonical nodes.
+
+Two mentions refer to the same entity when their names are fuzzily similar
+(``rapidfuzz`` token-set ratio, with a normalised-string fast path) *or* their
+name embeddings are highly cosine-similar. A union-find groups the matches; the
+most frequent surface form becomes the canonical label and the rest become
+aliases. Falls back to exact normalised-string matching if ``rapidfuzz`` is
+absent.
+"""
+from __future__ import annotations
+
+import re
+from collections import Counter, defaultdict
+
+import numpy as np
+
+from .embed import Embedder, cosine
+
+_NORM_RE = re.compile(r"[^a-z0-9]+")
+
+try:
+    from rapidfuzz import fuzz
+    _HAVE_FUZZ = True
+except Exception:  # noqa: BLE001
+    _HAVE_FUZZ = False
+
+
+def _norm(name: str) -> str:
+    return _NORM_RE.sub(" ", name.lower()).strip()
+
+
+class _UnionFind:
+    def __init__(self, n: int):
+        self.parent = list(range(n))
+
+    def find(self, x: int) -> int:
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a: int, b: int) -> None:
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            self.parent[rb] = ra
+
+
+def resolve_entities(mentions: list[dict], embedder: Embedder,
+                     fuzz_threshold: int = 88,
+                     cos_threshold: float = 0.86) -> dict:
+    """Group mention dicts ({name,type}) into canonical entities.
+
+    Returns {"canonical": {cid: {label,type,aliases,count}},
+             "alias_to_cid": {normalised_name: cid}}.
+    """
+    if not mentions:
+        return {"canonical": {}, "alias_to_cid": {}}
+
+    # Count surface forms; resolve over the unique set for speed.
+    freq: Counter[str] = Counter()
+    types: dict[str, Counter] = defaultdict(Counter)
+    for m in mentions:
+        name = (m.get("name") or "").strip()
+        if not name:
+            continue
+        freq[name] += 1
+        types[name][m.get("type", "other") or "other"] += 1
+
+    names = list(freq)
+    n = len(names)
+    uf = _UnionFind(n)
+    norms = [_norm(x) for x in names]
+
+    # Exact normalised match.
+    by_norm: dict[str, list[int]] = defaultdict(list)
+    for i, nm in enumerate(norms):
+        by_norm[nm].append(i)
+    for group in by_norm.values():
+        for k in range(1, len(group)):
+            uf.union(group[0], group[k])
+
+    # Fuzzy string match (only worthwhile for a manageable set).
+    if _HAVE_FUZZ and n <= 1500:
+        for i in range(n):
+            for j in range(i + 1, n):
+                if uf.find(i) == uf.find(j):
+                    continue
+                if abs(len(norms[i]) - len(norms[j])) > 12:
+                    continue
+                if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
+                    uf.union(i, j)
+
+    # Embedding match catches semantic variants the string metric misses.
+    if n >= 2 and n <= 1200:
+        mat = embedder.embed(names)
+        sims = cosine(mat, mat)
+        rows, cols = np.where(np.triu(sims >= cos_threshold, k=1))
+        for i, j in zip(rows.tolist(), cols.tolist()):
+            uf.union(i, j)
+
+    clusters: dict[int, list[int]] = defaultdict(list)
+    for i in range(n):
+        clusters[uf.find(i)].append(i)
+
+    canonical: dict[str, dict] = {}
+    alias_to_cid: dict[str, str] = {}
+    for cid_num, members in enumerate(clusters.values()):
+        member_names = [names[i] for i in members]
+        label = max(member_names, key=lambda x: (freq[x], len(x)))
+        type_counter: Counter = Counter()
+        total = 0
+        for mn in member_names:
+            total += freq[mn]
+            type_counter.update(types[mn])
+        cid = f"e{cid_num}"
+        canonical[cid] = {
+            "label": label,
+            "type": (type_counter.most_common(1)[0][0] if type_counter else "other"),
+            "aliases": sorted(set(member_names) - {label}),
+            "count": total,
+        }
+        for mn in member_names:
+            alias_to_cid[_norm(mn)] = cid
+    return {"canonical": canonical, "alias_to_cid": alias_to_cid}
+
+
+def cid_for(name: str, alias_to_cid: dict) -> str | None:
+    return alias_to_cid.get(_norm(name))

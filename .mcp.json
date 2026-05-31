@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "memorised-them-all": {
+      "command": "bash",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/launch.sh"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "MTA_EXTRACT_MODEL": "qwen2.5:7b",
+        "MTA_EMBED_MODEL": "nomic-embed-text",
+        "MTA_VISION_MODEL": "moondream",
+        "MTA_OCR_LANG": "eng",
+        "MTA_WHISPER_MODEL": "base",
+        "MTA_IDLE": "300",
+        "MTA_AUTO_UPDATE": "on"
+      }
+    }
+  }
+}

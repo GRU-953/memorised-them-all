@@ -1,0 +1,101 @@
+{
+  "manifest_version": "0.3",
+  "name": "memorised-them-all",
+  "display_name": "Memorised them All (local, token-free)",
+  "version": "1.0.0",
+  "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally.",
+  "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, images, audio, and more) to Markdown locally using Microsoft's MarkItDown (kept up to date from upstream automatically), Tesseract OCR, on-device Whisper, and a local Ollama vision model. It then runs an original local pipeline — semantic chunking, local embeddings, local-LLM (with a classical fallback) extraction of entities/relations/facts, embedding+fuzzy entity resolution, and community detection — to build a layered knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, an exportable memory bundle, and an offline interactive mind map. Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens. Everything is free and open-source and runs locally; the Ollama model server starts on demand and stops after 5 minutes idle. Tuned for Apple M-series silicon (performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency).\n\nTools: digest, recall, memory_overview, export_memory, list_digestible, memory_status, open_mindmap.",
+  "author": {
+    "name": "Aninda Sundar Howlader",
+    "url": "https://github.com/GRU-953"
+  },
+  "homepage": "https://github.com/GRU-953/memorised-them-all",
+  "documentation": "https://github.com/GRU-953/memorised-them-all#readme",
+  "support": "https://github.com/GRU-953/memorised-them-all/issues",
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "keywords": ["memory", "knowledge-graph", "mind-map", "markitdown", "ocr",
+               "local-llm", "ollama", "token-free", "graphrag", "mcp"],
+  "server": {
+    "type": "binary",
+    "entry_point": "launch.sh",
+    "mcp_config": {
+      "command": "bash",
+      "args": ["${__dirname}/launch.sh"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "MTA_HOME": "${user_config.project_dir}",
+        "MTA_EXTRACT_MODEL": "${user_config.extract_model}",
+        "MTA_EMBED_MODEL": "${user_config.embed_model}",
+        "MTA_VISION_MODEL": "${user_config.vision_model}",
+        "MTA_OCR_LANG": "${user_config.ocr_lang}",
+        "MTA_WHISPER_MODEL": "${user_config.whisper_model}",
+        "MTA_IDLE": "${user_config.idle_seconds}",
+        "MTA_WORKERS": "${user_config.workers}",
+        "MTA_AUTO_UPDATE": "${user_config.auto_update}"
+      }
+    }
+  },
+  "tools": [
+    {"name": "digest", "description": "Convert + digest files/dirs/globs into local graph memory. Returns metadata only (token-free)."},
+    {"name": "recall", "description": "Return a small, citable slice of memory for a query. Never returns whole documents."},
+    {"name": "memory_overview", "description": "Synopsis, stats and theme list for a project's memory."},
+    {"name": "export_memory", "description": "Export memory.md, per-document notes, graph.json and the mind map to a folder."},
+    {"name": "list_digestible", "description": "List convertible files under a directory (paths/sizes only)."},
+    {"name": "memory_status", "description": "Local stack health: Ollama, models, Tesseract, MarkItDown version, projects."},
+    {"name": "open_mindmap", "description": "Path to the offline interactive mind map."}
+  ],
+  "user_config": {
+    "project_dir": {
+      "type": "directory",
+      "title": "Memory home",
+      "description": "Where memories are stored (default: ~/.memorised-them-all).",
+      "required": false,
+      "default": "${HOME}/.memorised-them-all"
+    },
+    "extract_model": {
+      "type": "string", "title": "Extraction model (Ollama)",
+      "description": "Local LLM for entity/relation/fact extraction & summaries.",
+      "required": false, "default": "qwen2.5:7b"
+    },
+    "embed_model": {
+      "type": "string", "title": "Embedding model (Ollama)",
+      "description": "Local embedding model used for resolution and recall.",
+      "required": false, "default": "nomic-embed-text"
+    },
+    "vision_model": {
+      "type": "string", "title": "Vision model (Ollama)",
+      "description": "Captions images that OCR can't read.",
+      "required": false, "default": "moondream"
+    },
+    "ocr_lang": {
+      "type": "string", "title": "OCR language(s)",
+      "description": "Tesseract language codes, e.g. 'eng' or 'eng+ben'.",
+      "required": false, "default": "eng"
+    },
+    "whisper_model": {
+      "type": "string", "title": "Whisper model",
+      "description": "On-device speech-to-text model (e.g. tiny, base, small).",
+      "required": false, "default": "base"
+    },
+    "idle_seconds": {
+      "type": "number", "title": "Idle shutdown (seconds)",
+      "description": "Stop the on-demand Ollama after this many seconds idle.",
+      "required": false, "default": 300, "min": 30, "max": 3600
+    },
+    "workers": {
+      "type": "number", "title": "Parallel workers (0 = auto)",
+      "description": "Conversion workers; 0 auto-sizes to performance cores.",
+      "required": false, "default": 0, "min": 0, "max": 32
+    },
+    "auto_update": {
+      "type": "string", "title": "Auto-update MarkItDown & deps",
+      "description": "'on' or 'off'.",
+      "required": false, "default": "on"
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin"],
+    "runtimes": {"python": ">=3.10"}
+  }
+}
