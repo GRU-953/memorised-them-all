@@ -254,6 +254,22 @@ def test_zip_bomb_is_skipped(tmp_path):
     assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
 
 
+def test_nested_archive_rejected(tmp_path):
+    """An archive containing a nested archive is rejected (recursive-bomb vector)."""
+    import io
+    import zipfile
+    inner = io.BytesIO()
+    with zipfile.ZipFile(inner, "w") as iz:
+        iz.writestr("inner.txt", "hello")
+    outer = tmp_path / "outer.zip"
+    with zipfile.ZipFile(outer, "w") as oz:
+        oz.writestr("nested.zip", inner.getvalue())
+    cfg = _fresh_cfg(tmp_path, "nz")
+    from mta.core.convert import convert_file
+    r = convert_file(outer, tmp_path / "out", cfg)
+    assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
+
+
 def test_oversize_file_is_skipped(tmp_path):
     """Files over the size cap are skipped before being read into memory."""
     big = tmp_path / "big.txt"
@@ -263,6 +279,60 @@ def test_oversize_file_is_skipped(tmp_path):
     from mta.core.convert import convert_file
     r = convert_file(big, tmp_path / "out", cfg)
     assert r.status == "skipped" and r.method == "too-large", (r.status, r.method)
+
+
+def test_acronym_no_false_merge():
+    """An ambiguous acronym (two expansions share initials) links to neither."""
+    import numpy as np
+    from mta.core.resolve import cid_for, resolve_entities
+
+    class _Ortho:
+        def embed(self, names):
+            return np.eye(len(names), dtype=np.float32)
+
+    mentions = [{"name": "World Health Organization", "type": "org"},
+                {"name": "World Heritage Organisation", "type": "org"},
+                {"name": "WHO", "type": "org"}]
+    res = resolve_entities(mentions, _Ortho())
+    a2c = res["alias_to_cid"]
+    assert cid_for("World Health Organization", a2c) != cid_for("World Heritage Organisation", a2c)
+
+
+def test_recall_hit_is_bounded():
+    """Each recall hit clamps text length and docs count (token-free guarantee)."""
+    from mta.core.recall import _hit
+    u = {"kind": "theme", "label": "X", "text": "y" * 5000,
+         "docs": [f"d{i}" for i in range(30)]}
+    h = _hit(u, 0.5)
+    assert len(h["text"]) <= 600
+    assert len(h["docs"]) <= 5
+    assert h["doc_count"] == 30
+
+
+def test_same_basename_no_data_loss(tmp_path):
+    """Two same-named files in different folders both survive (no silent overwrite)."""
+    corpus = tmp_path / "c"
+    (corpus / "a").mkdir(parents=True)
+    (corpus / "b").mkdir(parents=True)
+    (corpus / "a" / "notes.txt").write_text("Alpha mentions Helios Energy in Reykjavik.",
+                                            encoding="utf-8")
+    (corpus / "b" / "notes.txt").write_text("Beta mentions Vptr Robotics in Oslo.",
+                                            encoding="utf-8")
+    cfg = _fresh_cfg(tmp_path, "col")
+    from mta.core.digest import digest
+    res = digest(cfg, [str(corpus)])
+    assert res["stats"]["converted"] == 2, res["stats"]
+    assert len(list(cfg.markdown_dir.glob("*.md"))) == 2
+
+
+def test_forget_deletes_project(tmp_path):
+    from mta.core.digest import digest
+    from mta.core.store import delete_project
+    cfg = _fresh_cfg(tmp_path, "gone")
+    digest(cfg, [str(SAMPLE)])
+    assert cfg.project_dir.exists()
+    r = delete_project(cfg)
+    assert r["status"] == "ok" and not cfg.project_dir.exists()
 
 
 def test_idle_shutdown_only_stops_ours(tmp_path):

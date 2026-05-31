@@ -15,6 +15,8 @@ import networkx as nx
 
 from .resolve import cid_for
 
+_MAX_FACTS_PER_NODE = 25
+
 
 def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Graph:
     """Assemble an undirected weighted graph from per-chunk extractions.
@@ -55,7 +57,14 @@ def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Gr
                 holders = [present[0]]
             rec = {"text": fact, "doc": chunk.doc, "heading": chunk.heading_path}
             for cid in holders:
-                g.nodes[cid]["facts"].append(rec)
+                facts = g.nodes[cid]["facts"]
+                # Dedupe identical fact text per node and cap the count — keeps
+                # graph.json bounded (facts were duplicating heavily otherwise).
+                if len(facts) >= _MAX_FACTS_PER_NODE:
+                    continue
+                if any(f["text"] == fact for f in facts):
+                    continue
+                facts.append(rec)
         # Explicit relations.
         for rel in ex.relations:
             s = cid_for(rel.get("source", ""), alias_to_cid)

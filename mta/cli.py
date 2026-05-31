@@ -16,7 +16,7 @@ import argparse
 import json
 
 from .core import recall as recall_mod
-from .core import render, updater
+from .core import render, store, updater
 from .core.config import load as load_config
 from .core.digest import digest as run_digest
 
@@ -54,6 +54,8 @@ def main(argv: list[str] | None = None) -> int:
     u = sub.add_parser("update", help="update MarkItDown + dependencies")
     u.add_argument("--force", action="store_true")
 
+    sub.add_parser("forget", help="delete a project's memory (irreversible)")
+
     sub.add_parser("serve", help="run the MCP server (stdio)")
 
     args = p.parse_args(argv)
@@ -80,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
                 import webbrowser  # portable across macOS/Linux/Windows
                 webbrowser.open(cfg.mindmap_html.as_uri())
             _print({"status": "ok", "path": str(cfg.mindmap_html)})
+    elif args.cmd == "forget":
+        _print(store.delete_project(cfg))
     elif args.cmd == "update":
         _print(updater.run_check(cfg, force=args.force))
     elif args.cmd == "serve":

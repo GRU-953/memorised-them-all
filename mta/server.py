@@ -91,6 +91,13 @@ def list_digestible(directory: str) -> dict:
 
 
 @mcp.tool()
+def forget(project: str | None = None) -> dict:
+    """Delete a project's memory (graph, converted Markdown, vectors, mind map).
+    Irreversible. Pass the project name explicitly."""
+    return store.delete_project(_cfg(project))
+
+
+@mcp.tool()
 def memory_status() -> dict:
     """Report the local stack: Ollama, models, Tesseract, MarkItDown version,
     platform tuning, and existing projects."""

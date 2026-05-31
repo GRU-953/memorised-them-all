@@ -71,6 +71,11 @@ def _zip_within_bounds(path: Path, cfg: Config) -> bool:
             return False
         if total / comp > 200:                            # extreme expansion ratio
             return False
+        # Reject nested archives (classic recursive zip-bomb vector) — we can't
+        # cheaply bound what an inner archive expands to.
+        _nested = (".zip", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar", ".tar")
+        if any(i.filename.lower().endswith(_nested) for i in infos):
+            return False
         return True
     except Exception:  # noqa: BLE001 — can't inspect → let the converter try
         return True
@@ -241,7 +246,8 @@ def _native_text(path: Path) -> tuple[str | None, str]:
 
 
 def convert_file(path: Path, out_dir: Path, cfg: Config,
-                 ollama: OllamaManager | None = None) -> ConvResult:
+                 ollama: OllamaManager | None = None,
+                 out_name: str | None = None) -> ConvResult:
     """Convert a single file to a Markdown file on disk. Returns metadata only."""
     path = Path(path)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -293,7 +299,7 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
             res.error = method
         return res
 
-    out = _safe_out_name(path, out_dir)
+    out = (out_dir / out_name) if out_name else _safe_out_name(path, out_dir)
     header = f"<!-- source: {path.name} · method: {method} -->\n\n"
     out.write_text(header + text, encoding="utf-8")
     res.output = str(out)

@@ -58,15 +58,37 @@ def _expand(paths: list[str]) -> list[Path]:
 def _convert_worker(payload):
     path_str, out_dir_str, cfg = payload
     from .platform import pin_native_threads
+    path_str, out_dir_str, cfg, out_name = payload
     pin_native_threads()
-    return convert_file(Path(path_str), Path(out_dir_str), cfg).as_dict()
+    return convert_file(Path(path_str), Path(out_dir_str), cfg, out_name=out_name).as_dict()
+
+
+def _assign_output_names(files: list[Path]) -> dict[str, str]:
+    """Assign a unique output filename per source path (race-free, in the main
+    process). Distinct files with the same basename in different directories
+    (e.g. many README.md) would otherwise overwrite each other and silently lose
+    data. The first (sorted) keeps the clean name; collisions get a short,
+    deterministic path-hash suffix.
+    """
+    import hashlib
+    taken: set[str] = set()
+    assigned: dict[str, str] = {}
+    for f in files:  # files are already sorted upstream → deterministic
+        base = f.name + ".md"
+        if base in taken:
+            h = hashlib.sha1(str(f.resolve()).encode("utf-8")).hexdigest()[:8]
+            base = f"{f.name}.{h}.md"
+        taken.add(base)
+        assigned[str(f)] = base
+    return assigned
 
 
 def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager) -> list[dict]:
     out_dir = cfg.markdown_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    names = _assign_output_names(files)
     n = worker_count(cfg.workers)
-    payloads = [(str(f), str(out_dir), cfg) for f in files]
+    payloads = [(str(f), str(out_dir), cfg, names[str(f)]) for f in files]
     # Parallel across performance cores. A single worker crash converts only that
     # file on the main thread (not the whole batch); a broken pool degrades to
     # fully sequential.
@@ -81,11 +103,13 @@ def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager) -> list[
                         results.append(fut.result())
                     except Exception:  # noqa: BLE001 — isolate one bad file
                         bad = Path(futs[fut][0])
-                        results.append(convert_file(bad, out_dir, cfg, ollama).as_dict())
+                        results.append(convert_file(bad, out_dir, cfg, ollama,
+                                                    out_name=futs[fut][3]).as_dict())
             return results
         except Exception:  # noqa: BLE001 — pool construction / BrokenProcessPool
             pass
-    return [convert_file(f, out_dir, cfg, ollama).as_dict() for f in files]
+    return [convert_file(f, out_dir, cfg, ollama, out_name=names[str(f)]).as_dict()
+            for f in files]
 
 
 # ---- local summarisation ---------------------------------------------
@@ -94,7 +118,9 @@ def _llm_summarise(prompt: str, cfg: Config, ollama: OllamaManager) -> str | Non
         return None
     payload = json.dumps({
         "model": cfg.extract_model, "prompt": prompt, "stream": False,
-        "options": {"temperature": 0.1},
+        # Cap output length so a runaway/prompt-injected model can't inject an
+        # unbounded summary into memory.md / recall units.
+        "options": {"temperature": 0.1, "num_predict": 320},
     }).encode()
     try:
         req = urllib.request.Request(f"{ollama.host}/api/generate", data=payload,
