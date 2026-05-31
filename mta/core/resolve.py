@@ -90,6 +90,24 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
                 if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
                     uf.union(i, j)
 
+    # Acronym ↔ expansion linking, e.g. "NGA" ↔ "Nordic Grid Authority". An
+    # acronym is matched to an expansion only when its letters exactly equal the
+    # initials of the expansion's significant words AND the word count matches —
+    # precise enough to avoid the over-merge failure mode.
+    acro_of: dict[str, list[int]] = defaultdict(list)   # ACRONYM -> indices
+    expand_of: dict[str, list[int]] = defaultdict(list)  # INITIALS -> indices
+    for i, raw in enumerate(names):
+        letters = re.sub(r"[^A-Za-z]", "", raw)
+        words = [w for w in re.split(r"\s+", raw.strip()) if w and w[0].isalpha()]
+        if len(words) <= 1 and 2 <= len(letters) <= 6 and raw.strip() == raw.strip().upper():
+            acro_of[letters.upper()].append(i)
+        elif len(words) >= 2:
+            expand_of["".join(w[0] for w in words).upper() + f"|{len(words)}"].append(i)
+    for acro, idxs in acro_of.items():
+        for j in expand_of.get(f"{acro}|{len(acro)}", []):
+            for i in idxs:
+                uf.union(i, j)
+
     # Embeddings only *confirm* a merge that also shares tokens. Pure-embedding
     # merging is unsafe for short proper nouns — domain-related names (e.g. two
     # different organisations) sit close in embedding space and would otherwise

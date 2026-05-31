@@ -259,7 +259,7 @@ Apple M-series is the primary, most-optimised target. Other platforms are suppor
 | macOS (Apple silicon) | ✅ optimised | performance-core pool, MLX GPU Whisper, unified-memory-aware |
 | macOS (Intel) | ✅ supported | physical-core sizing via psutil, CPU Whisper |
 | Linux | ✅ supported | apt/dnf/pacman install paths, CUDA Whisper if a GPU is present |
-| Windows | 🧪 experimental | `pip install memorised-them-all` + run `mta serve`; psutil process management & PATH healing |
+| Windows | 🧪 experimental | `pip install memorised-them-all` + `mta serve`, or `python launch.py`; psutil process management & PATH healing |
 
 CI runs the offline test suite across **Ubuntu, macOS, and Windows** on Python 3.10 & 3.12.
 

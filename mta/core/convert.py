@@ -51,6 +51,31 @@ def _safe_out_name(src: Path, out_dir: Path) -> Path:
     return out_dir / (src.name + ".md")
 
 
+def _zip_within_bounds(path: Path, cfg: Config) -> bool:
+    """Reject decompression bombs before MarkItDown extracts an archive.
+
+    Skips archives whose total uncompressed size is excessive, or whose
+    compression ratio is implausibly high. Non-zip or unreadable → allow (let the
+    normal converter decide).
+    """
+    import zipfile
+    if not zipfile.is_zipfile(path):
+        return True
+    try:
+        with zipfile.ZipFile(path) as z:
+            infos = z.infolist()
+            total = sum(i.file_size for i in infos)
+            comp = sum(i.compress_size for i in infos) or 1
+        cap_mb = getattr(cfg, "max_file_mb", 0)
+        if cap_mb and total > cap_mb * 4 * 1024 * 1024:   # uncompressed >> file cap
+            return False
+        if total / comp > 200:                            # extreme expansion ratio
+            return False
+        return True
+    except Exception:  # noqa: BLE001 — can't inspect → let the converter try
+        return True
+
+
 def _try_markitdown(path: Path, cfg: Config) -> tuple[str | None, str]:
     try:
         from markitdown import MarkItDown
@@ -242,6 +267,9 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     if ext in _TEXT_EXTS or ext in _DATA_EXTS:
         text, method = _native_text(path)
     elif ext in _MARKITDOWN_EXTS:
+        if ext == ".zip" and not _zip_within_bounds(path, cfg):
+            res.status, res.method, res.error = "skipped", "zip-too-large", "decompression-bound"
+            return res
         text, method = _try_markitdown(path, cfg)
         if not text and ext == ".pdf" and cfg.ocr_mode != "off":  # scanned PDF → OCR
             text, method = _ocr_pdf(path, cfg)
