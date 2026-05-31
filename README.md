@@ -42,6 +42,11 @@ mind map — and lets Claude recall from it for next to nothing.
 [Apple silicon](#apple-silicon-first) ·
 [Privacy](#privacy) ·
 [FAQ](#faq) ·
+[Modes & performance](#modes--performance) ·
+[Platform support](#platform-support) ·
+[Generated files & reuse](#generated-files--reuse) ·
+[Quality & testing](#quality--testing) ·
+[Security](#security--threat-model) ·
 [Acknowledgements](#acknowledgements)
 
 ## Why it's token-free
@@ -95,8 +100,10 @@ once the models are present.
 
 ## Install
 
-> **Requirements:** macOS (Apple silicon recommended) · [Homebrew](https://brew.sh)
-> · Python ≥ 3.10. The installer fetches everything else for you.
+> **Requirements:** macOS (Apple silicon recommended), Linux, or Windows ·
+> Python ≥ 3.10 · [Homebrew](https://brew.sh) on macOS/Linux (the installer uses
+> apt/dnf/pacman if Homebrew is absent on Linux). The installer fetches everything
+> else for you. See [Platform support](#platform-support) for details.
 
 ### Claude Desktop (one click)
 
@@ -150,24 +157,27 @@ Or use the slash commands: `/memorise`, `/recall`, `/memory-map`,
 
 ```bash
 mta digest ~/Documents/research --project aurora
+mta digest ~/Documents/big-corpus --project aurora --fast   # deterministic, ~100× faster
 mta recall "who leads the project and who are the partners?" --project aurora
 mta overview --project aurora
 mta mindmap --project aurora --open
 mta export ~/Desktop/aurora-memory --project aurora
-mta update            # pull the latest MarkItDown + dependencies
+mta forget --project aurora    # delete this project's memory
+mta update                     # pull the latest MarkItDown + dependencies
 ```
 
 ## MCP tools
 
 | Tool | What it does | Returns |
 | --- | --- | --- |
-| `digest(paths, project?, reset?)` | convert + digest files/dirs/globs (**accumulates** into the project; `reset=true` starts fresh) | counts, paths, graph stats |
+| `digest(paths, project?, reset?, fast?)` | convert + digest files/dirs/globs (**accumulates** into the project; `reset=true` starts fresh; `fast=true` skips the LLM) | counts, paths, graph stats |
 | `recall(query, project?, k?)` | answer from memory | a small, citable slice |
 | `memory_overview(project?)` | synopsis + themes | compact overview |
 | `export_memory(dest, project?)` | export portable Markdown | files written |
 | `list_digestible(directory)` | list convertible files | paths + sizes |
 | `memory_status()` | local stack health | versions, models, projects |
 | `open_mindmap(project?)` | offline mind map | file path |
+| `forget(project?)` | delete a project's memory (irreversible) | status |
 
 Every result is metadata or a small slice — **document contents never return to
 the conversation**.
