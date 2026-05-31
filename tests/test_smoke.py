@@ -225,6 +225,35 @@ def test_fact_attribution_word_boundary_and_no_dup():
     assert any("Acme Inc." in f["text"] for f in g.nodes["e2"]["facts"])
 
 
+def test_acronym_links_to_expansion():
+    """'NGA' resolves to 'Nordic Grid Authority' (acronym ↔ expansion)."""
+    import numpy as np
+    from mta.core.resolve import cid_for, resolve_entities
+
+    class _Ortho:  # orthogonal embeddings → no embedding-based merge
+        def embed(self, names):
+            return np.eye(len(names), dtype=np.float32)
+
+    mentions = ([{"name": "Nordic Grid Authority", "type": "org"}] * 2
+                + [{"name": "NGA", "type": "org"}])
+    res = resolve_entities(mentions, _Ortho())
+    a2c = res["alias_to_cid"]
+    assert cid_for("NGA", a2c) == cid_for("Nordic Grid Authority", a2c)
+    assert res["canonical"][cid_for("NGA", a2c)]["label"] == "Nordic Grid Authority"
+
+
+def test_zip_bomb_is_skipped(tmp_path):
+    """A high-ratio archive is skipped before MarkItDown extracts it."""
+    import zipfile
+    z = tmp_path / "bomb.zip"
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("big.txt", "a" * (8 * 1024 * 1024))  # compresses to ~KB
+    cfg = _fresh_cfg(tmp_path, "zip")
+    from mta.core.convert import convert_file
+    r = convert_file(z, tmp_path / "out", cfg)
+    assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
+
+
 def test_oversize_file_is_skipped(tmp_path):
     """Files over the size cap are skipped before being read into memory."""
     big = tmp_path / "big.txt"

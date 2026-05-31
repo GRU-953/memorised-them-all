@@ -4,6 +4,23 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] — 2026-06-01
+
+Closes the v1.2.0 follow-up gaps.
+
+### Added
+- **Acronym ↔ expansion linking** in entity resolution: e.g. "NGA" now resolves
+  to "Nordic Grid Authority" (exact initials + matching word count — precise, so
+  it doesn't reintroduce over-merging).
+- **Decompression-bomb guard**: `.zip` archives are inspected before MarkItDown
+  extracts them; archives with an excessive uncompressed size or implausible
+  compression ratio are skipped (`zip-too-large`).
+- **`launch.py`** — a standard-library, cross-platform launcher/bootstrap
+  (handles the Windows `Scripts/` vs POSIX `bin/` venv layout), so Windows MCP
+  clients can run `python launch.py` directly.
+
+[Unreleased gaps now addressed: acronym linking, archive bounding, Windows launcher.]
+
 ## [1.2.0] — 2026-06-01
 
 Fast mode + a multi-agent evaluation/hardening pass (accuracy, reliability,
@@ -113,6 +130,7 @@ The first public release.
 - **Distribution**: Claude Desktop `.mcpb`, Claude Code plugin/marketplace, PyPI
   package, and a Homebrew tap; CI and tagged releases with assets.
 
+[1.3.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.0
 [1.2.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.2.0
 [1.1.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.1.0
 [1.0.1]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.0.1
