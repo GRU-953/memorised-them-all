@@ -35,26 +35,54 @@ def _sysctl_int(key: str) -> int | None:
     return None
 
 
+def _psutil():
+    try:
+        import psutil
+        return psutil
+    except Exception:
+        return None
+
+
 @functools.lru_cache(maxsize=1)
 def performance_cores() -> int:
-    """Performance cores on Apple silicon (perflevel0); logical CPUs elsewhere."""
+    """Best available "real work" core count, portable across OSes.
+
+    Apple silicon → performance cores (perflevel0). Elsewhere → physical cores via
+    psutil (avoids oversubscribing hyperthreaded Intel/Linux/Windows boxes), then
+    logical CPUs as a last resort.
+    """
     if is_apple_silicon():
         p = _sysctl_int("hw.perflevel0.physicalcpu")
         if p:
             return p
+    ps = _psutil()
+    if ps:
+        try:
+            phys = ps.cpu_count(logical=False)
+            if phys:
+                return phys
+        except Exception:
+            pass
     return os.cpu_count() or 4
 
 
 @functools.lru_cache(maxsize=1)
 def memory_gb() -> float:
+    """Total RAM in GB — portable (Apple sysctl → psutil → POSIX sysconf → 8)."""
     if is_apple_silicon():
         b = _sysctl_int("hw.memsize")
         if b:
             return round(b / (1024 ** 3), 1)
-    try:  # portable fallback
+    ps = _psutil()
+    if ps:
+        try:
+            return round(ps.virtual_memory().total / (1024 ** 3), 1)
+        except Exception:
+            pass
+    try:  # POSIX fallback (no Windows)
         return round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
                      / (1024 ** 3), 1)
-    except (ValueError, OSError):
+    except (ValueError, OSError, AttributeError):
         return 8.0
 
 
@@ -103,8 +131,18 @@ def bootstrap_path() -> None:
     global _PATH_HEALED
     if _PATH_HEALED:
         return
-    extra = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
-             os.path.expanduser("~/.local/bin")]
+    if os.name == "nt":  # Windows: common install locations for the CLI tools
+        extra = [
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama"),
+            os.path.expandvars(r"%ProgramFiles%\Tesseract-OCR"),
+            os.path.expandvars(r"%ProgramFiles%\ffmpeg\bin"),
+            os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Links"),
+            os.path.expanduser(r"~\scoop\shims"),
+            os.path.expandvars(r"%ProgramData%\chocolatey\bin"),
+        ]
+    else:  # macOS / Linux: Homebrew, system, snap, user-local
+        extra = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+                 "/snap/bin", os.path.expanduser("~/.local/bin")]
     cur = os.environ.get("PATH", "").split(os.pathsep)
     missing = [p for p in extra if p not in cur and os.path.isdir(p)]
     if missing:

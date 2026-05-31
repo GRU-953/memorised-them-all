@@ -117,6 +117,7 @@ def _ocr_pdf(path: Path, cfg: Config, max_pages: int = 50) -> tuple[str | None, 
         import pypdfium2 as pdfium
     except Exception:
         return None, "pdf-ocr-missing"
+    pdf = None
     try:
         pdf = pdfium.PdfDocument(str(path))
         pages = []
@@ -128,11 +129,16 @@ def _ocr_pdf(path: Path, cfg: Config, max_pages: int = 50) -> tuple[str | None, 
             txt = _ocr_image_bytes(buf.getvalue(), cfg)
             if txt:
                 pages.append(txt)
-        pdf.close()
         joined = "\n\n".join(pages).strip()
         return (joined or None), "tesseract-pdf"
     except Exception as e:  # noqa: BLE001
         return None, f"pdf-ocr-error:{type(e).__name__}"
+    finally:
+        if pdf is not None:
+            try:
+                pdf.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _try_vision(path: Path, cfg: Config, ollama: OllamaManager) -> tuple[str | None, str]:
@@ -175,14 +181,21 @@ def _try_whisper(path: Path, cfg: Config) -> tuple[str | None, str]:
             return (text or None), "mlx-whisper"
         except Exception:  # noqa: BLE001 — fall through to CPU
             pass
-    try:
-        from faster_whisper import WhisperModel
-        model = WhisperModel(cfg.whisper_model, device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(str(path))
-        text = " ".join(s.text for s in segments).strip()
-        return (text or None), "faster-whisper"
-    except Exception as e:  # noqa: BLE001
-        return None, f"transcribe-error:{type(e).__name__}"
+    # Prefer a CUDA GPU when present (Linux/Windows), else CPU int8 everywhere.
+    import shutil
+    devices = ([("cuda", "float16")] if shutil.which("nvidia-smi") else []) + [("cpu", "int8")]
+    last = "transcribe-error"
+    for device, ctype in devices:
+        try:
+            from faster_whisper import WhisperModel
+            model = WhisperModel(cfg.whisper_model, device=device, compute_type=ctype)
+            segments, _ = model.transcribe(str(path))
+            text = " ".join(s.text for s in segments).strip()
+            return (text or None), f"faster-whisper-{device}"
+        except Exception as e:  # noqa: BLE001 — try the next device
+            last = f"transcribe-error:{type(e).__name__}"
+            continue
+    return None, last
 
 
 def _native_text(path: Path) -> tuple[str | None, str]:
@@ -211,6 +224,16 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     if not path.exists() or not path.is_file():
         res.status, res.error = "failed", "not-a-file"
         return res
+
+    # Bound memory: skip oversize files before reading them in.
+    cap = getattr(cfg, "max_file_mb", 0)
+    if cap and cap > 0:
+        try:
+            if path.stat().st_size > cap * 1024 * 1024:
+                res.status, res.method, res.error = "skipped", "too-large", f">{cap}MB"
+                return res
+        except OSError:
+            pass
 
     ext = path.suffix.lower()
     text: str | None = None

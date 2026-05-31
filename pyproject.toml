@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memorised-them-all"
-version = "1.1.0"
+version = "1.2.0"
 description = "Local, token-free file digestion → knowledge-graph memory for Claude. Convert any attachment to Markdown and digest it into a graph + exportable memory, entirely on-device. Tuned for Apple silicon."
 readme = "README.md"
 license = { text = "MIT" }
@@ -17,7 +17,10 @@ classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
   "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3",
   "Topic :: Text Processing :: Markup :: Markdown",
   "Topic :: Scientific/Engineering :: Information Analysis",
@@ -27,6 +30,7 @@ dependencies = [
   "numpy>=1.26",
   "networkx>=3.2",
   "rapidfuzz>=3.6",
+  "psutil>=5.9",
   "markitdown[pdf,docx,pptx,xlsx,xls,outlook]>=0.1.6",
   "pdfplumber>=0.11",
   "pillow>=10.2",

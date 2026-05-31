@@ -17,7 +17,9 @@ from .store import load_graph, load_vectors
 
 def recall(cfg: Config, query: str, k: int | None = None,
            ollama: OllamaManager | None = None) -> dict:
-    k = k or cfg.recall_k
+    # Hard-clamp k so a caller can never pull the whole graph's text into Claude's
+    # context — the token-free guarantee depends on recall returning a tiny slice.
+    k = max(1, min(int(k or cfg.recall_k), 50))
     loaded = load_vectors(cfg)
     if loaded is None:
         return {"status": "no_memory", "project": cfg.project,

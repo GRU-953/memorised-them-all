@@ -94,7 +94,7 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
     # merging is unsafe for short proper nouns — domain-related names (e.g. two
     # different organisations) sit close in embedding space and would otherwise
     # collapse into one entity. Requiring a fuzzy floor prevents that.
-    if _HAVE_FUZZ and 2 <= n <= 1200:
+    if _HAVE_FUZZ and 2 <= n <= 1500:
         mat = embedder.embed(names)
         sims = cosine(mat, mat)
         rows, cols = np.where(np.triu(sims >= cos_threshold, k=1))

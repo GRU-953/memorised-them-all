@@ -4,6 +4,38 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] — 2026-06-01
+
+Fast mode + a multi-agent evaluation/hardening pass (accuracy, reliability,
+token-safety, reusability, cross-platform) and security review.
+
+### Added
+- **Fast mode** (`MTA_FAST=on`, `mta digest --fast`, `fast=true` tool arg): skips
+  the LLM (classical extraction + deterministic summaries, keeps the embedding
+  model) for a fully **deterministic**, ~100× faster digest. The default path
+  stays on the LLM for maximum accuracy.
+- **Cross-platform support beyond Apple silicon**: psutil-based physical-core and
+  memory detection (correct pool sizing on Intel/Linux/Windows), platform-aware
+  PATH healing, portable mind-map opener, `psutil` process-tree teardown for the
+  idle-stop, CUDA Whisper on Linux/Windows GPUs, Linux package-manager install
+  paths (apt/dnf/pacman), broadened platform metadata, and a CI matrix across
+  Ubuntu/macOS/Windows × Python 3.10/3.12.
+- **Per-file size cap** (`MTA_MAX_FILE_MB`, default 200) — oversize files are
+  skipped before being read into memory (bounds OOM/decompression-bomb risk).
+
+### Fixed / Hardened (from agent reviews)
+- **Token-safety**: `recall(k=…)` is hard-clamped (≤50) so a caller can't pull the
+  whole graph's text into context; LLM fact strings are length-capped.
+- **Accuracy**: facts attach to entities by **word boundary** (no "Cat" inside
+  "Category"; CJK-aware), de-duplicated per chunk; stable community tiebreak.
+- **Reliability**: per-file isolation for the conversion process pool and
+  per-chunk isolation for threaded extraction (one failure or a mid-run model
+  death no longer aborts/redoes the whole digest); PDF OCR handle leak fixed;
+  updater throttle stamped before work to avoid concurrent pip races.
+- **Reusability**: `graph.json` stores basenames (no absolute-path leakage —
+  portable across machines); exports now include the vector store so recall works
+  from a copied bundle; `load_graph` rejects an incompatible future schema.
+
 ## [1.1.0] — 2026-06-01
 
 ### Added
@@ -81,6 +113,7 @@ The first public release.
 - **Distribution**: Claude Desktop `.mcpb`, Claude Code plugin/marketplace, PyPI
   package, and a Homebrew tap; CI and tagged releases with assets.
 
+[1.2.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.2.0
 [1.1.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.1.0
 [1.0.1]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.0.1
 [1.0.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.0.0

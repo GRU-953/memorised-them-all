@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
-import sys
 
 from .core import recall as recall_mod
 from .core import render, updater
@@ -36,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
     d = sub.add_parser("digest", help="convert + digest files/dirs/globs")
     d.add_argument("paths", nargs="+")
     d.add_argument("--reset", action="store_true")
+    d.add_argument("--fast", action="store_true",
+                   help="skip the LLM (classical extraction); faster, fully deterministic")
 
     r = sub.add_parser("recall", help="query the memory")
     r.add_argument("query")
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config().with_project(args.project)
 
     if args.cmd == "digest":
-        _print(run_digest(cfg, args.paths, reset=args.reset))
+        _print(run_digest(cfg, args.paths, reset=args.reset, fast=args.fast))
     elif args.cmd == "recall":
         _print(recall_mod.recall(cfg, args.query, k=args.k or None))
     elif args.cmd == "overview":
@@ -77,8 +77,8 @@ def main(argv: list[str] | None = None) -> int:
             _print({"status": "no_memory", "project": cfg.project})
         else:
             if args.open:
-                opener = "open" if sys.platform == "darwin" else "xdg-open"
-                subprocess.run([opener, str(cfg.mindmap_html)], check=False)
+                import webbrowser  # portable across macOS/Linux/Windows
+                webbrowser.open(cfg.mindmap_html.as_uri())
             _print({"status": "ok", "path": str(cfg.mindmap_html)})
     elif args.cmd == "update":
         _print(updater.run_check(cfg, force=args.force))

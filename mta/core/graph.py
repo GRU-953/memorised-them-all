@@ -8,6 +8,7 @@ when available — it gives the most stable partitions — and degrade to Networ
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 
 import networkx as nx
@@ -29,20 +30,32 @@ def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Gr
         present: list[str] = []
         for ent in ex.entities:
             cid = cid_for(ent.get("name", ""), alias_to_cid)
-            if cid and cid in g:
+            # De-dup: two surface forms of one canonical entity in the same chunk
+            # must not double-count facts or co-occurrence edges.
+            if cid and cid in g and cid not in present:
                 present.append(cid)
                 g.nodes[cid]["docs"].add(chunk.doc)
-        # Attach facts to the entities they mention (provenance preserved).
+        # Attach facts to the entities they actually mention (word-boundary match,
+        # so "Cat" does not capture "Category"). A fact mentioning several present
+        # entities is shared by all of them; one mentioning none falls back to the
+        # most salient present entity (deterministic).
         for fact in ex.facts:
-            holder = None
+            fl = fact.lower()
+            holders = []
             for cid in present:
-                if g.nodes[cid]["label"].lower() in fact.lower():
-                    holder = cid
-                    break
-            holder = holder or (present[0] if present else None)
-            if holder:
-                g.nodes[holder]["facts"].append({"text": fact, "doc": chunk.doc,
-                                                 "heading": chunk.heading_path})
+                lbl = g.nodes[cid]["label"].lower()
+                # Boundary match via lookarounds (not \b) so labels that begin or
+                # end with punctuation still match — e.g. "Inc.", "C++". Falls back
+                # to substring containment for scripts without word separators
+                # (e.g. CJK), where word boundaries don't fire.
+                if re.search(rf"(?<!\w){re.escape(lbl)}(?!\w)", fl) or (
+                        not re.search(r"[a-z0-9]", lbl) and lbl in fl):
+                    holders.append(cid)
+            if not holders and present:
+                holders = [present[0]]
+            rec = {"text": fact, "doc": chunk.doc, "heading": chunk.heading_path}
+            for cid in holders:
+                g.nodes[cid]["facts"].append(rec)
         # Explicit relations.
         for rel in ex.relations:
             s = cid_for(rel.get("source", ""), alias_to_cid)
@@ -121,8 +134,9 @@ def community_members(g: nx.Graph, partition: dict[str, int]) -> dict[int, list[
     members: dict[int, list[str]] = defaultdict(list)
     for node, comm in partition.items():
         members[comm].append(node)
-    # Rank members within a community by salience (degree * count).
+    # Rank members within a community by salience; node id is a stable final
+    # tiebreaker so labels/ordering don't flip between near-tied entities.
     for comm, nodes in members.items():
         nodes.sort(key=lambda n: (g.degree(n, weight="weight"),
-                                  g.nodes[n].get("count", 0)), reverse=True)
+                                  g.nodes[n].get("count", 0), n), reverse=True)
     return members

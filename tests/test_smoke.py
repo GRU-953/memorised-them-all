@@ -34,7 +34,7 @@ def test_imports():
 
 def test_segment_and_resolve(tmp_path):
     from mta.core.segment import segment_markdown
-    chunks = segment_markdown((SAMPLE / "aurora-project.md").read_text(),
+    chunks = segment_markdown((SAMPLE / "aurora-project.md").read_text(encoding="utf-8"),
                               "aurora", 400)
     assert len(chunks) >= 2
     assert all(c.heading_path for c in chunks)
@@ -63,7 +63,7 @@ def test_digest_end_to_end(tmp_path):
     assert "distribution losses by 12 percent" not in blob
 
     # Key entity made it into the graph.
-    graph_doc = json.loads(cfg.graph_path.read_text())
+    graph_doc = json.loads(cfg.graph_path.read_text(encoding="utf-8"))
     labels = {n["label"] for n in graph_doc["nodes"]}
     assert any("Aurora" in l or "Helios" in l or "Marsh" in l for l in labels), labels
 
@@ -84,7 +84,7 @@ def test_mindmap_is_offline(tmp_path):
     cfg = _fresh_cfg(tmp_path)
     from mta.core.digest import digest
     digest(cfg, [str(SAMPLE)])
-    html = cfg.mindmap_html.read_text()
+    html = cfg.mindmap_html.read_text(encoding="utf-8")
     assert "cytoscape" in html.lower()
 
 
@@ -95,12 +95,12 @@ def test_accumulation_and_reset(tmp_path):
     from mta.core.digest import digest
     digest(cfg, [str(SAMPLE / "aurora-project.md")])
     digest(cfg, [str(SAMPLE / "notes.txt")])           # should ACCUMULATE
-    docs = {d["name"] for d in json.loads(cfg.graph_path.read_text())["documents"]
+    docs = {d["name"] for d in json.loads(cfg.graph_path.read_text(encoding="utf-8"))["documents"]
             if d["status"] == "ok"}
     assert {"aurora-project.md", "notes.txt"} <= docs, docs
 
     digest(cfg, [str(SAMPLE / "aurora-project.md")], reset=True)  # should WIPE
-    docs2 = {d["name"] for d in json.loads(cfg.graph_path.read_text())["documents"]
+    docs2 = {d["name"] for d in json.loads(cfg.graph_path.read_text(encoding="utf-8"))["documents"]
              if d["status"] == "ok"}
     assert docs2 == {"aurora-project.md"}, docs2
 
@@ -121,7 +121,7 @@ def test_ocr_stdin_pipe(tmp_path):
     from mta.core.convert import convert_file
     r = convert_file(p, tmp_path / "out", cfg)
     assert r.status == "ok" and r.method == "tesseract", (r.status, r.method)
-    assert "Helios" in (tmp_path / "out" / "note.png.md").read_text()
+    assert "Helios" in (tmp_path / "out" / "note.png.md").read_text(encoding="utf-8")
 
 
 def test_segment_hard_splits_oversize(tmp_path):
@@ -138,8 +138,8 @@ def test_low_value_chunks_skipped(tmp_path):
     import json
     corpus = tmp_path / "c"
     corpus.mkdir()
-    (corpus / "real.md").write_text((SAMPLE / "aurora-project.md").read_text())
-    (corpus / "junk.txt").write_text(("spam " * 3000 + "\n") * 20)
+    (corpus / "real.md").write_text((SAMPLE / "aurora-project.md").read_text(encoding="utf-8"))
+    (corpus / "junk.txt").write_text(("spam " * 3000 + "\n") * 20, encoding="utf-8")
     cfg = _fresh_cfg(tmp_path, "lv")
     from mta.core.digest import digest
     res = digest(cfg, [str(corpus)])
@@ -178,6 +178,62 @@ def test_entity_resolution_no_overmerge():
     a2c = res["alias_to_cid"]
     assert cid_for("Helios Energy", a2c) == cid_for("Helios", a2c)
     assert cid_for("Dr. Lena Marsh", a2c) == cid_for("Lena Marsh", a2c)
+
+
+def test_fast_mode_is_deterministic(tmp_path):
+    """Fast mode (no LLM) yields a byte-stable graph across runs (same content)."""
+    import json
+
+    def sig(cfg):
+        gd = json.loads(cfg.graph_path.read_text(encoding="utf-8"))
+        return (sorted((n["label"], n["type"]) for n in gd["nodes"]),
+                sorted((e["source"], e["target"], e["weight"]) for e in gd["edges"]),
+                [sorted(c["members"]) for c in gd["communities"]])
+
+    from mta.core.digest import digest
+    c1 = _fresh_cfg(tmp_path / "a", "f")
+    digest(c1, [str(SAMPLE)], fast=True)
+    c2 = _fresh_cfg(tmp_path / "b", "f")
+    digest(c2, [str(SAMPLE)], fast=True)
+    assert sig(c1) == sig(c2)
+    assert json.loads(c1.graph_path.read_text(encoding="utf-8"))["stats"]["mode"] == "fast"
+
+
+def test_fact_attribution_word_boundary_and_no_dup():
+    """Facts attach by word boundary (no 'Cat' in 'Category') and never duplicate."""
+    from mta.core.extract import Extraction
+    from mta.core.graph import build_graph
+    from mta.core.segment import Chunk
+
+    canonical = {"e0": {"label": "Cat", "type": "other", "aliases": [], "count": 2},
+                 "e1": {"label": "Dog", "type": "other", "aliases": [], "count": 1},
+                 "e2": {"label": "Acme Inc.", "type": "org", "aliases": [], "count": 1}}
+    alias_to_cid = {"cat": "e0", "dog": "e1", "acme inc": "e2"}
+    ch = Chunk(id="d#0", doc="d", heading_path="d", index=0,
+               text="The Category includes a Dog. Acme Inc. shipped it.")
+    # Same canonical entity referenced via two surface forms in one chunk.
+    ex = Extraction(entities=[{"name": "Cat", "type": "other"},
+                              {"name": "cat", "type": "other"},
+                              {"name": "Dog", "type": "other"},
+                              {"name": "Acme Inc.", "type": "org"}],
+                    relations=[], facts=["The Category includes a Dog.",
+                                         "Acme Inc. shipped it."])
+    g = build_graph([(ch, ex)], alias_to_cid, canonical)
+    assert len(g.nodes["e0"]["facts"]) == 0           # "Cat" not matched in "Category"
+    assert len(g.nodes["e1"]["facts"]) == 1           # "Dog" matched once, not twice
+    # Label ending in punctuation still attaches (lookaround boundary, not \b).
+    assert any("Acme Inc." in f["text"] for f in g.nodes["e2"]["facts"])
+
+
+def test_oversize_file_is_skipped(tmp_path):
+    """Files over the size cap are skipped before being read into memory."""
+    big = tmp_path / "big.txt"
+    big.write_text("x" * (2 * 1024 * 1024), encoding="utf-8")  # 2 MB
+    cfg = _fresh_cfg(tmp_path, "sz")
+    cfg.max_file_mb = 1  # cap at 1 MB
+    from mta.core.convert import convert_file
+    r = convert_file(big, tmp_path / "out", cfg)
+    assert r.status == "skipped" and r.method == "too-large", (r.status, r.method)
 
 
 def test_idle_shutdown_only_stops_ours(tmp_path):

@@ -45,11 +45,15 @@ def _cfg(project: str | None = None):
 
 
 @mcp.tool()
-def digest(paths: list[str], project: str | None = None, reset: bool = False) -> dict:
+def digest(paths: list[str], project: str | None = None, reset: bool = False,
+           fast: bool = False) -> dict:
     """Convert files/dirs/globs to Markdown locally, then build a knowledge graph
-    + layered memory. Returns ONLY counts, paths and graph stats (token-free)."""
+    + layered memory. Returns ONLY counts, paths and graph stats (token-free).
+
+    fast=True skips the local LLM (classical extraction + deterministic summaries,
+    fully reproducible); the default uses the local LLM for higher accuracy."""
     cfg = _cfg(project)
-    return run_digest(cfg, paths, reset=reset, ollama=_ollama())
+    return run_digest(cfg, paths, reset=reset, fast=fast, ollama=_ollama())
 
 
 @mcp.tool()

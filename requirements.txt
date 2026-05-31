@@ -6,6 +6,7 @@ mcp>=1.2
 numpy>=1.26
 networkx>=3.2
 rapidfuzz>=3.6
+psutil>=5.9
 
 # Local conversion stack
 markitdown[pdf,docx,pptx,xlsx,xls,outlook]>=0.1.6

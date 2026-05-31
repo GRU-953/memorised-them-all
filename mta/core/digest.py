@@ -67,12 +67,23 @@ def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager) -> list[
     out_dir.mkdir(parents=True, exist_ok=True)
     n = worker_count(cfg.workers)
     payloads = [(str(f), str(out_dir), cfg) for f in files]
-    # Parallel across performance cores; fall back to sequential on any failure.
+    # Parallel across performance cores. A single worker crash converts only that
+    # file on the main thread (not the whole batch); a broken pool degrades to
+    # fully sequential.
     if n > 1 and len(files) > 1:
+        from concurrent.futures import as_completed
         try:
+            results = []
             with ProcessPoolExecutor(max_workers=n) as ex:
-                return list(ex.map(_convert_worker, payloads))
-        except Exception:  # noqa: BLE001
+                futs = {ex.submit(_convert_worker, p): p for p in payloads}
+                for fut in as_completed(futs):
+                    try:
+                        results.append(fut.result())
+                    except Exception:  # noqa: BLE001 — isolate one bad file
+                        bad = Path(futs[fut][0])
+                        results.append(convert_file(bad, out_dir, cfg, ollama).as_dict())
+            return results
+        except Exception:  # noqa: BLE001 — pool construction / BrokenProcessPool
             pass
     return [convert_file(f, out_dir, cfg, ollama).as_dict() for f in files]
 
@@ -114,8 +125,11 @@ def _community_summary(label_facts: list[str], names: list[str], cfg: Config,
 
 # ---- main entry -------------------------------------------------------
 def digest(cfg: Config, paths: list[str], reset: bool = False,
-           ollama: OllamaManager | None = None) -> dict:
+           fast: bool = False, ollama: OllamaManager | None = None) -> dict:
     cfg.ensure_dirs()
+    if fast:
+        cfg.fast = True
+        cfg.extract_mode = "classical"
     ollama = ollama or OllamaManager(cfg)
     t0 = time.time()
 
@@ -163,13 +177,21 @@ def digest(cfg: Config, paths: list[str], reset: bool = False,
     extractions: list[tuple] = []
     mentions: list[dict] = []
     workers = max(1, min(_auto_extract_workers(cfg), len(unique_chunks))) if unique_chunks else 1
+
+    def _safe_extract(c):
+        # A mid-run model failure must not abort the whole digest after we have
+        # already written the converted markdown — degrade that chunk to empty.
+        try:
+            return (c, extract_chunk(c, cfg, ollama))
+        except Exception:  # noqa: BLE001
+            return (c, Extraction())
+
     if workers > 1:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=workers) as tp:
-            results = list(tp.map(lambda c: (c, extract_chunk(c, cfg, ollama)),
-                                  unique_chunks))
+            results = list(tp.map(_safe_extract, unique_chunks))
     else:
-        results = [(c, extract_chunk(c, cfg, ollama)) for c in unique_chunks]
+        results = [_safe_extract(c) for c in unique_chunks]
     for ch, ex in results:
         extractions.append((ch, ex))
         mentions.extend(ex.entities)
@@ -224,6 +246,7 @@ def digest(cfg: Config, paths: list[str], reset: bool = False,
             "relations": G.number_of_edges(),
             "communities": len(communities),
             "embed_mode": embedder.mode,
+            "mode": "fast" if cfg.fast else "accurate",
             "seconds": round(time.time() - t0, 1),
         },
     }
@@ -339,21 +362,31 @@ def _parse_md_header(md: Path) -> tuple[str, str]:
 
 
 def _documents(cfg: Config, all_md: list[Path], conv: list[dict]) -> list[dict]:
-    """Document manifest across the FULL corpus, plus this call's non-ok files."""
+    """Document manifest across the FULL corpus, plus this call's non-ok files.
+
+    ``output`` is stored as a basename (not an absolute path) so a copied memory
+    bundle stays portable across machines / MTA_HOME locations.
+    """
     docs = []
+    ok_names: set[str] = set()
     for md in all_md:
         src, method = _parse_md_header(md)
         try:
-            chars = max(0, len(md.read_text(encoding="utf-8", errors="replace")) - 60)
+            full = md.read_text(encoding="utf-8", errors="replace")
+            body = full.split("-->", 1)[-1].lstrip("\n") if full.startswith("<!-- source:") else full
+            chars = len(body)
         except OSError:
             chars = 0
-        docs.append({"name": src, "output": str(md), "status": "ok",
+        ok_names.add(src)
+        docs.append({"name": src, "output": md.name, "status": "ok",
                      "method": method, "chars": chars})
-    for c in conv:  # surface files that failed/were unsupported this run
+    for c in conv:  # surface files that failed/were unsupported this run (no dup)
         if c.get("status") != "ok":
-            docs.append({"name": Path(c.get("source", "")).name, "output": None,
-                         "status": c.get("status"), "method": c.get("method", ""),
-                         "chars": 0})
+            nm = Path(c.get("source", "")).name
+            if nm in ok_names:
+                continue
+            docs.append({"name": nm, "output": None, "status": c.get("status"),
+                         "method": c.get("method", ""), "chars": 0})
     return docs
 
 
