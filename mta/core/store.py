@@ -77,11 +77,18 @@ def save_vectors(cfg: Config, matrix: np.ndarray, meta: list[dict]) -> None:
     # Atomic: write the .npz to a temp handle (so np doesn't append .npz to a
     # temp name), then os.replace; write the sidecar JSON atomically too.
     tmp = cfg.vectors_path.with_name(cfg.vectors_path.name + ".tmp")
-    with open(tmp, "wb") as f:
-        np.savez_compressed(f, matrix=matrix.astype(np.float32))
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, cfg.vectors_path)
+    try:
+        with open(tmp, "wb") as f:
+            np.savez_compressed(f, matrix=matrix.astype(np.float32))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, cfg.vectors_path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     _atomic_write_text(cfg.vectors_path.with_suffix(".json"),
                        json.dumps(meta, ensure_ascii=False))
 

@@ -1,5 +1,7 @@
 [build-system]
-requires = ["hatchling"]
+# Pin below 1.27: hatchling >=1.29 emits Metadata-Version 2.5, which current
+# packaging/twine don't yet recognise (twine check fails). 1.26.x emits 2.3.
+requires = ["hatchling>=1.21,<1.27"]
 build-backend = "hatchling.build"
 
 [project]

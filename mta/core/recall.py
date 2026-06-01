@@ -54,7 +54,7 @@ def recall(cfg: Config, query: str, k: int | None = None,
     scores = cosine(qv, matrix)[0]
     order = np.argsort(-scores)[:k]
     hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3)) for i in order]
-    top = hits[0]["score"] if hits else 0.0
+    raw_top = hits[0]["score"] if hits else 0.0  # best raw score (informative)
     # Relevance signal: with real embeddings, flag weak matches and (if a floor is
     # configured) drop hits below it — so an off-topic query doesn't feed Claude
     # confident-looking junk. The hashing fallback uses a different scale → no floor.
@@ -62,7 +62,10 @@ def recall(cfg: Config, query: str, k: int | None = None,
     if embedder.mode == "ollama":
         if cfg.recall_min_score > 0:
             hits = [h for h in hits if h["score"] >= cfg.recall_min_score]
-        low_conf = (not hits) or top < 0.5
+        # Confidence reflects what's actually RETURNED: low if nothing survived
+        # the floor, or the best surviving hit is weak.
+        low_conf = (not hits) or hits[0]["score"] < 0.5
+    top = hits[0]["score"] if hits else raw_top
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
             "synopsis": (doc or {}).get("synopsis", ""),

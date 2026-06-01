@@ -20,3 +20,11 @@ venv/
 
 # Keep the bundled vendor asset, ignore stray downloads
 sample/out/
+
+# Runtime memory artifacts (must never be committed if a digest runs in the repo dir)
+/graph.json
+/memory.md
+/mindmap.html
+/vectors.json
+/vectors.npz
+/memory/
