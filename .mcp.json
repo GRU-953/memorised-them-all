@@ -11,6 +11,7 @@
         "MTA_OCR_LANG": "eng",
         "MTA_WHISPER_MODEL": "base",
         "MTA_IDLE": "300",
+        "MTA_WORKERS": "0",
         "MTA_AUTO_UPDATE": "on"
       }
     }

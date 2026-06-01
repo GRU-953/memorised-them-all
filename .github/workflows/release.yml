@@ -18,6 +18,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Assert git tag matches package version (no drift)
+        if: github.ref_type == 'tag'
+        run: python scripts/check_versions.py "${{ github.ref_name }}"
+
       - name: Build wheel + sdist
         run: |
           python -m pip install --upgrade pip build

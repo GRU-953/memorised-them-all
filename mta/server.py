@@ -44,6 +44,12 @@ def _cfg(project: str | None = None):
     return cfg
 
 
+def _err(msg: str, **extra) -> dict:
+    """Structured tool error — a bad call returns a small dict instead of crossing
+    the MCP boundary as a raw traceback (still token-free)."""
+    return {"status": "error", "error": msg, **extra}
+
+
 @mcp.tool()
 def digest(paths: list[str], project: str | None = None, reset: bool = False,
            fast: bool = False) -> dict:
@@ -52,16 +58,27 @@ def digest(paths: list[str], project: str | None = None, reset: bool = False,
 
     fast=True skips the local LLM (classical extraction + deterministic summaries,
     fully reproducible); the default uses the local LLM for higher accuracy."""
+    if not isinstance(paths, list) or not paths or not all(
+            isinstance(p, str) and p.strip() for p in paths):
+        return _err("'paths' must be a non-empty list of file/dir/glob strings")
     cfg = _cfg(project)
-    return run_digest(cfg, paths, reset=reset, fast=fast, ollama=_ollama())
+    try:
+        return run_digest(cfg, paths, reset=reset, fast=fast, ollama=_ollama())
+    except Exception as exc:  # noqa: BLE001 - never surface a raw traceback to the client
+        return _err(f"digest failed: {exc}", type=type(exc).__name__)
 
 
 @mcp.tool()
 def recall(query: str, project: str | None = None, k: int = 0) -> dict:
     """Answer from memory: returns a small, relevant slice (theme summaries +
     entity cards with provenance) — never whole documents."""
+    if not isinstance(query, str) or not query.strip():
+        return _err("'query' must be a non-empty string")
     cfg = _cfg(project)
-    return recall_mod.recall(cfg, query, k=k or None, ollama=_ollama())
+    try:
+        return recall_mod.recall(cfg, query, k=k or None, ollama=_ollama())
+    except Exception as exc:  # noqa: BLE001
+        return _err(f"recall failed: {exc}", type=type(exc).__name__)
 
 
 @mcp.tool()
@@ -74,6 +91,8 @@ def memory_overview(project: str | None = None) -> dict:
 def export_memory(dest: str, project: str | None = None) -> dict:
     """Export the memory (memory.md, per-document notes, graph.json, mind map) as
     portable Markdown files to a destination directory."""
+    if not isinstance(dest, str) or not dest.strip():
+        return _err("'dest' must be a non-empty destination directory path")
     return render.export_bundle(_cfg(project), dest)
 
 

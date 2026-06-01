@@ -4,6 +4,25 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- MCP tools (`digest`, `recall`, `export_memory`) validate their inputs and return
+  a small structured error instead of letting an exception cross the MCP boundary
+  as a raw traceback (still token-free).
+
+### Internal / CI
+- CI now exercises the **real** conversion path: a new full-deps lane installs the
+  package + Tesseract and converts PDF/DOCX/XLSX/CSV/HTML (the offline matrix
+  installed no converters, so conversion was previously untested). The `.mcpb`
+  bundle is built and smoke-tested in CI (the `mcpb` packer validates the manifest).
+- **Single source of truth for the version** (`mta/__init__.py`): `pyproject`
+  derives it dynamically, and `scripts/check_versions.py` (run in CI, and as a
+  tag==version gate at release) fails on any drift across the manifests.
+  (`CITATION.cff` had drifted to 1.3.2.)
+- `test_ocr_stdin_pipe` skips cleanly when Pillow is absent (it previously *errored*
+  under the CI dependency set); the stdio check now asserts all **8** tools.
+
 ## [1.3.3] — 2026-06-01
 
 Fixes from another multi-agent evaluation loop (live accuracy/recall benchmark,

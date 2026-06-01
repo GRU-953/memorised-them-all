@@ -1,4 +1,4 @@
-"""Verify the MCP server starts over stdio and registers all seven tools.
+"""Verify the MCP server starts over stdio and registers all eight tools.
 
 Used by CI as a lightweight integration check. Requires the ``mcp`` package.
 Runs with Ollama disabled so it never touches the network.
@@ -10,7 +10,7 @@ import os
 import sys
 
 EXPECTED = {"digest", "recall", "memory_overview", "export_memory",
-            "list_digestible", "memory_status", "open_mindmap"}
+            "list_digestible", "memory_status", "open_mindmap", "forget"}
 
 
 async def _main() -> int:
