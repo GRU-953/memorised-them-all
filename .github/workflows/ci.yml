@@ -69,10 +69,10 @@ jobs:
           python-version: "3.12"
       - name: Install Tesseract OCR
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
-      - name: Install package WITH real converters
+      - name: Install package WITH real converters + test deps
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install -e ".[dev]"
       - name: Real conversion + offline e2e (full deps)
         run: pytest tests/ -q
 
