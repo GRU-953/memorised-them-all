@@ -109,6 +109,8 @@ Tool results are hard-capped in size, so the guarantee holds even on the high-ac
 - 🔁 **Reusable named projects** — accumulate many folders into one memory; `forget` to delete one.
 - 🍎 **Apple-silicon first** — performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency. Runs on Intel macOS, Linux, and Windows too.
 - ⚙️ **Auto-installing & auto-updating** — pulls the latest MarkItDown from upstream; starts the model server on demand and **stops it after 5 minutes idle**.
+- 🌍 **Multilingual** — Unicode-aware entity resolution (Bengali, CJK, Cyrillic, accented Latin) and OCR in many languages.
+- 🛟 **Crash-safe & reusable** — memory is written atomically, so an interrupted digest never corrupts an existing project; recall reports a `low_confidence` signal so Claude can decline when the answer isn't in your docs.
 - 🔒 **Private by design** — no cloud, no API keys, no telemetry. Your files never leave your computer.
 
 ## 🧠 How it works
@@ -134,7 +136,7 @@ Eight token-free MCP tools (plus the `mta` CLI). Every result is metadata or a s
 | Tool | What it does |
 | --- | --- |
 | `digest(paths, project?, reset?, fast?)` | convert + digest files/dirs/globs; **accumulates** into the project (`reset` starts fresh, `fast` skips the LLM) |
-| `recall(query, project?, k?)` | answer from memory — a small, citable slice |
+| `recall(query, project?, k?)` | answer from memory — a small, citable slice (+ `top_score` &amp; `low_confidence` relevance signal) |
 | `memory_overview(project?)` | synopsis + themes |
 | `export_memory(dest, project?)` | export portable Markdown + graph + mind map |
 | `list_digestible(directory)` | list convertible files (paths/sizes only) |
@@ -181,6 +183,7 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_IDLE` | `300` | seconds idle before Ollama is stopped |
 | `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | `0` (auto) | parallel conversion / extraction workers |
 | `MTA_MAX_CHUNKS` / `MTA_MAX_FILE_MB` | `1500` / `200` | workload &amp; input-size caps (reported) |
+| `MTA_RECALL_MIN_SCORE` | `0` (off) | drop recall hits below this cosine score (stricter grounding) |
 | `MTA_AUTO_UPDATE` | `on` | auto-update MarkItDown &amp; dependencies |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
 
@@ -228,6 +231,10 @@ Hardened for processing untrusted files: argv-only subprocesses (no `curl | sh`)
 **Is my existing Ollama affected?** No — a running Ollama is reused and left alone. Only an instance *this tool* starts is stopped on idle.
 
 **What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, often 20–100× faster digest that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
+
+**What if the answer isn't in my documents?** Each `recall` result includes `top_score` and a `low_confidence` flag (and you can set `MTA_RECALL_MIN_SCORE` to drop weak hits), so Claude can say "that's not in your memory" instead of inventing an answer.
+
+**Does it work with non-English documents?** Yes — entity resolution is Unicode-aware (Bengali, CJK, Cyrillic, accented Latin) and OCR supports many languages via `MTA_OCR_LANG` (e.g. `eng+ben`).
 
 **Which file types are supported?** PDF (incl. scanned), DOCX, XLSX/XLS, PPTX, HTML, EPub, Outlook `.msg`, RTF, CSV/TSV, JSON/XML, Markdown/text, images (PNG/JPG/…), and audio (WAV/MP3/M4A/…).
 
