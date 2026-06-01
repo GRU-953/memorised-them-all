@@ -4,6 +4,37 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.3] — 2026-06-01
+
+Fixes from another multi-agent evaluation loop (live accuracy/recall benchmark,
+error-handling & leak stress, docs-vs-code audit, i18n/correctness sweep).
+
+### Fixed
+- **Atomic persistence** — `graph.json` and the vector store are written via
+  temp-file + `fsync` + `os.replace`, so an interrupted digest can no longer
+  truncate or desync an existing project's memory.
+- **Unicode entity resolution** — normalisation is Unicode-aware; non-Latin
+  (Bengali, CJK, Cyrillic) and accented names are no longer collapsed into one
+  node (they previously all normalised to the empty string).
+- **Numbered siblings** like `Reykjavik-1` / `Reykjavik-2` are no longer fuzzily
+  merged into a single entity.
+- Robustness: `recall` guards non-finite `k`; `export_memory` returns a status
+  instead of raising on an unwritable destination; project-name slugs are
+  length-capped; the mind map escapes `</` so an entity label can't break the
+  inline script; classical (fast-mode) entity names collapse internal whitespace.
+
+### Added
+- **Recall relevance signal** — every `recall` result reports `top_score` and
+  `low_confidence`, with an optional absolute floor (`MTA_RECALL_MIN_SCORE`, real
+  embeddings only), so an off-topic query no longer feeds confident-looking junk
+  to Claude.
+- Bengali (`।`) and CJK (`。！？`) sentence terminators recognised in segmentation.
+
+### Docs
+- Corrected the tool count (eight), added `forget` to the manifest, made the
+  "163 OCR languages" claim conditional on the language packs, and softened the
+  fast-mode speedup figure to a measured range.
+
 ## [1.3.2] — 2026-06-01
 
 ### Changed
@@ -173,6 +204,7 @@ The first public release.
 - **Distribution**: Claude Desktop `.mcpb`, Claude Code plugin/marketplace, PyPI
   package, and a Homebrew tap; CI and tagged releases with assets.
 
+[1.3.3]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.3
 [1.3.2]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.2
 [1.3.1]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.1
 [1.3.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.0

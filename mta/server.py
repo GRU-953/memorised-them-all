@@ -1,6 +1,6 @@
 """Memorised them All — MCP server (stdio) for Claude Desktop & Claude Code.
 
-Exposes seven token-free tools. Every tool returns only compact metadata or a
+Exposes eight token-free tools. Every tool returns only compact metadata or a
 small, relevant slice of memory — never document contents — so digesting and
 recalling whole folders costs ~0 Claude context tokens. All heavy work runs
 locally; the local model server (Ollama) is started on demand and stopped after

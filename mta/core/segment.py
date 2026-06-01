@@ -13,7 +13,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
-_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+# Latin (terminator + space + capital) plus non-spaced scripts: Bengali danda ও
+# CJK 。！？ split without requiring a following space.
+_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|(?<=[।。！？])\s*")
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 

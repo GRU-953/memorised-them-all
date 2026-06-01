@@ -12,6 +12,8 @@ and never collide.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -19,10 +21,32 @@ import numpy as np
 from .config import Config
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write text durably: temp file in the same dir → fsync → os.replace.
+
+    Guarantees a reader never sees a half-written file, and an interrupt
+    (crash/power loss) leaves the *previous* valid file intact rather than a
+    truncated one. utf-8 explicit (Windows defaults to cp1252).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def save_graph(cfg: Config, graph_doc: dict) -> None:
     cfg.ensure_dirs()
-    cfg.graph_path.write_text(json.dumps(graph_doc, indent=2, ensure_ascii=False),
-                              encoding="utf-8")  # explicit utf-8 (Windows defaults to cp1252)
+    _atomic_write_text(cfg.graph_path, json.dumps(graph_doc, indent=2, ensure_ascii=False))
 
 
 # Bump when the on-disk graph schema changes incompatibly.
@@ -50,9 +74,16 @@ def load_graph(cfg: Config) -> dict | None:
 
 def save_vectors(cfg: Config, matrix: np.ndarray, meta: list[dict]) -> None:
     cfg.ensure_dirs()
-    np.savez_compressed(cfg.vectors_path, matrix=matrix.astype(np.float32))
-    cfg.vectors_path.with_suffix(".json").write_text(
-        json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    # Atomic: write the .npz to a temp handle (so np doesn't append .npz to a
+    # temp name), then os.replace; write the sidecar JSON atomically too.
+    tmp = cfg.vectors_path.with_name(cfg.vectors_path.name + ".tmp")
+    with open(tmp, "wb") as f:
+        np.savez_compressed(f, matrix=matrix.astype(np.float32))
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, cfg.vectors_path)
+    _atomic_write_text(cfg.vectors_path.with_suffix(".json"),
+                       json.dumps(meta, ensure_ascii=False))
 
 
 def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:

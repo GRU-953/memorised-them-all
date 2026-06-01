@@ -101,11 +101,11 @@ Tool results are hard-capped in size, so the guarantee holds even on the high-ac
 
 ## ✨ Features
 
-- 📄 **Universal local conversion** — PDF, Word, Excel, PowerPoint, HTML, EPub, Outlook `.msg`, CSV/JSON/XML, images (OCR + vision captioning), and audio (on-device transcription) → clean Markdown. Scanned PDFs are OCR'd; 163 OCR languages.
+- 📄 **Universal local conversion** — PDF, Word, Excel, PowerPoint, HTML, EPub, Outlook `.msg`, CSV/JSON/XML, images (OCR + vision captioning), and audio (on-device transcription) → clean Markdown. Scanned PDFs are OCR'd; up to 163 OCR languages (with the Tesseract language packs installed).
 - 🕸️ **Layered knowledge graph (GraphRAG-style)** — entities, typed relations and atomic facts, grouped into **themes** by community detection, with a global synopsis and per-theme summaries — all built by local models.
 - 🧭 **Offline interactive mind map** — a single self-contained `mindmap.html` (Cytoscape inlined, zero network).
 - 📝 **Exportable, portable memory** — `graph.json`, `memory.md`, and per-document notes you can copy to any machine and reuse.
-- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and ~100× faster for large or frequently-refreshed corpora.
+- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and often 20–100× faster (scales with corpus size) for large or frequently-refreshed corpora.
 - 🔁 **Reusable named projects** — accumulate many folders into one memory; `forget` to delete one.
 - 🍎 **Apple-silicon first** — performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency. Runs on Intel macOS, Linux, and Windows too.
 - ⚙️ **Auto-installing & auto-updating** — pulls the latest MarkItDown from upstream; starts the model server on demand and **stops it after 5 minutes idle**.
@@ -129,7 +129,7 @@ Everything between *attachments* and *recall* happens on your machine. The local
 
 ## 🛠 Tools
 
-Seven token-free MCP tools (plus the `mta` CLI). Every result is metadata or a small slice — **document contents never return to the conversation**.
+Eight token-free MCP tools (plus the `mta` CLI). Every result is metadata or a small slice — **document contents never return to the conversation**.
 
 | Tool | What it does |
 | --- | --- |
@@ -172,7 +172,7 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memories are stored |
-| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic, ~100× faster) |
+| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic, often 20–100× faster) |
 | `MTA_EXTRACT_MODEL` | `qwen2.5:7b` | local LLM for extraction & summaries |
 | `MTA_EMBED_MODEL` | `nomic-embed-text` | local embedding model |
 | `MTA_VISION_MODEL` | `moondream` | image captioning |
@@ -227,7 +227,7 @@ Hardened for processing untrusted files: argv-only subprocesses (no `curl | sh`)
 
 **Is my existing Ollama affected?** No — a running Ollama is reused and left alone. Only an instance *this tool* starts is stopped on idle.
 
-**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, ~100× faster digest that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
+**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, often 20–100× faster digest that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
 
 **Which file types are supported?** PDF (incl. scanned), DOCX, XLSX/XLS, PPTX, HTML, EPub, Outlook `.msg`, RTF, CSV/TSV, JSON/XML, Markdown/text, images (PNG/JPG/…), and audio (WAV/MP3/M4A/…).
 

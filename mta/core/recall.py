@@ -34,7 +34,11 @@ def recall(cfg: Config, query: str, k: int | None = None,
            ollama: OllamaManager | None = None) -> dict:
     # Hard-clamp k so a caller can never pull the whole graph's text into Claude's
     # context — the token-free guarantee depends on recall returning a tiny slice.
-    k = max(1, min(int(k or cfg.recall_k), 50))
+    try:
+        k = int(k or cfg.recall_k)
+    except (TypeError, ValueError, OverflowError):
+        k = cfg.recall_k
+    k = max(1, min(k, 50))
     loaded = load_vectors(cfg)
     if loaded is None:
         return {"status": "no_memory", "project": cfg.project,
@@ -50,9 +54,19 @@ def recall(cfg: Config, query: str, k: int | None = None,
     scores = cosine(qv, matrix)[0]
     order = np.argsort(-scores)[:k]
     hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3)) for i in order]
+    top = hits[0]["score"] if hits else 0.0
+    # Relevance signal: with real embeddings, flag weak matches and (if a floor is
+    # configured) drop hits below it — so an off-topic query doesn't feed Claude
+    # confident-looking junk. The hashing fallback uses a different scale → no floor.
+    low_conf = False
+    if embedder.mode == "ollama":
+        if cfg.recall_min_score > 0:
+            hits = [h for h in hits if h["score"] >= cfg.recall_min_score]
+        low_conf = (not hits) or top < 0.5
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
-            "synopsis": (doc or {}).get("synopsis", ""), "hits": hits}
+            "synopsis": (doc or {}).get("synopsis", ""),
+            "top_score": top, "low_confidence": low_conf, "hits": hits}
 
 
 def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
