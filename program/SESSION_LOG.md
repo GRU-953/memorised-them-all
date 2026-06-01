@@ -29,3 +29,28 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Test/CI:** main green (not re-run locally this session).
 
 **EXACT NEXT STEP:** Await owner approval at the **plan gate** (4 open questions: Q1 auto-update default direction, Q2 new-dependency policy, Q3 release credentials/OIDC + tap automation, Q4 push authorization + encryption default). **On approval**, claim **WP-03** on branch `wp-03-ci-fidelity`: make CI install full runtime deps and run a real offline convert→digest→recall, fix `test_ocr_stdin_pipe` (guard PIL), assert all 8 tools (`mcp_stdio_check`), and single-source the version (`mta/__init__.py` via hatch `dynamic` + `scripts/check_versions.py` CI gate + bump `CITATION.cff`). Then WP-10/WP-13 (offline-correct bootstrap + integrity-verified auto-update). **Do NOT start implementation before approval.**
+
+---
+
+## Session 02 — 2026-06-02 — Implementation: WP-03 (CI fidelity + version single-source)
+
+**Session id:** S02  **Branch:** `wp-03-ci-fidelity` → **PR #5** into `develop`  **Mode:** implementation (plan approved)
+
+**Goal:** Close WP-03 — make CI honest, single-source the version, harden the MCP boundary.
+
+**Done (all six exit criteria + quick wins):**
+- (a) CI **conversion-e2e** lane: full deps + Tesseract; converts real pdf/docx/xlsx/csv/html (committed `tests/fixtures/` + `tests/test_conversion_e2e.py`). [CI-10]
+- (b) `test_ocr_stdin_pipe` skips cleanly without Pillow. [DOC-02]
+- (c) `mcp_stdio_check` asserts all 8 tools incl. `forget`. [DOC-03/MCP-08]
+- (d) Single version source: `mta/__init__.py` canonical + hatch `dynamic`; `scripts/check_versions.py` CI gate + tag==version in `release.yml`; `CITATION.cff` 1.3.2→1.3.3; marketplace dual-pin removed. [PKG-01/02, CI-07/08, PKG-05]
+- (e) `.mcpb` build + content smoke in CI (mcpb packer validates the manifest). [CI-12]
+- (f) `digest`/`recall`/`export_memory` input validation → structured error. [MCP-07]
+- Also: `.mcp.json` `MTA_WORKERS` parity (PKG-09); CI now runs on `develop` + its PRs.
+
+**Local verification:** 31 tests pass (offline + real-conversion); stdio→8 tools; isolated build (hatchling<1.27)→1.3.3 wheel+sdist, `twine check` PASSED; `build_mcpb.sh` real packer → 50-file validated bundle; `check_versions.py` green.
+
+**Deferred within WP-03 (Low, follow-up):** PIPE-04 (`stats.mode` label when no LLM ran), DOC-21 (command `.md` signatures), PKG-06 (manifest `$schema`).
+
+**Test/CI:** ✅ **CI fully green** — run 26781819576 (6-cell matrix + `build`/`.mcpb`-smoke + `version-check` + `conversion-e2e`). The *first* run (26781633221) caught a real workflow bug: the conversion-e2e lane installed core deps only, so `pytest` was missing (exit 127 `command not found`) — fixed by installing `.[dev]`. PR #5 squash-merged to `develop` (`4548d02`); `wp-03-ci-fidelity` deleted.
+
+**EXACT NEXT STEP:** WP-03 DONE + merged (`4548d02`). Begin **WP-10 + WP-13** together (theme A, ADR-004) on a fresh branch off `develop`: make a first-run digest fully offline (default PyPI-pinned MarkItDown; integrity-verified opt-in for the git-upstream pull) — closes **Critical PKG-03** + SEC-04 + DEP-01; target acceptance **A2** (offline first-run) + **A8** (integrity).
