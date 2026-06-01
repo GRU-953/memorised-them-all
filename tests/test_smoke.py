@@ -108,11 +108,14 @@ def test_accumulation_and_reset(tmp_path):
 def test_ocr_stdin_pipe(tmp_path):
     """Image OCR uses the stdin pipe and extracts exact text (local only)."""
     import shutil
+
+    import pytest
     if not shutil.which("tesseract"):
-        import pytest
         pytest.skip("tesseract not installed")
-    PIL = __import__("importlib").import_module("PIL.ImageDraw")  # noqa
-    from PIL import Image, ImageDraw
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        pytest.skip("pillow (PIL) not installed")
     img = Image.new("RGB", (640, 120), "white")
     ImageDraw.Draw(img).text((20, 40), "Helios Energy Reykjavik report", fill="black")
     p = tmp_path / "note.png"
@@ -424,3 +427,15 @@ def test_idle_shutdown_only_stops_ours(tmp_path):
     m = OllamaManager(load())
     assert m.ensure_running(wait=1) is False
     m.stop()  # no-op, must not raise
+
+
+def test_server_tool_input_validation():
+    """MCP tool handlers reject bad input with a structured error dict — a bad
+    call never crosses the boundary as a raw traceback (and has no side effects)."""
+    import mta.server as srv
+    assert srv.digest([])["status"] == "error"
+    assert srv.digest(["   "])["status"] == "error"
+    assert srv.digest("not-a-list")["status"] == "error"
+    assert srv.recall("")["status"] == "error"
+    assert srv.recall("   ")["status"] == "error"
+    assert srv.export_memory("")["status"] == "error"

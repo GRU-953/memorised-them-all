@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -43,6 +43,39 @@ jobs:
       - name: MCP stdio tool-registration check
         run: python tests/mcp_stdio_check.py
 
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Single source of truth for the version (all manifests must agree)
+        run: python scripts/check_versions.py
+
+  conversion-e2e:
+    # The offline matrix above installs NO converters (`pip install -e . --no-deps`),
+    # so it never exercises the real PDF/DOCX/XLSX/CSV/HTML path. This lane installs
+    # the full package + Tesseract and runs the conversion + OCR tests for real.
+    runs-on: ubuntu-latest
+    env:
+      MTA_NO_OLLAMA: "1"
+      MTA_AUTO_UPDATE: "off"
+      MTA_EXTRACT: "classical"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Tesseract OCR
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+      - name: Install package WITH real converters
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Real conversion + offline e2e (full deps)
+        run: pytest tests/ -q
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -50,6 +83,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Build wheel + sdist
         run: |
           python -m pip install --upgrade pip build
@@ -58,6 +94,18 @@ jobs:
         run: |
           python -m pip install twine
           twine check dist/*
+      - name: Build + smoke-test the .mcpb bundle (mcpb packer validates the manifest)
+        run: |
+          bash scripts/build_mcpb.sh
+          test -f dist/memorised-them-all.mcpb
+          python - <<'PY'
+          import zipfile
+          z = zipfile.ZipFile("dist/memorised-them-all.mcpb")
+          names = z.namelist()
+          assert "manifest.json" in names, f"mcpb missing manifest.json: {names[:20]}"
+          assert any(n.startswith("mta/") for n in names), "mcpb missing mta/ package"
+          print(f"mcpb OK: {len(names)} entries")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: dist
