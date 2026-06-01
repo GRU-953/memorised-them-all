@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it."
+title: "Memorised them All"
+abstract: >-
+  Local, token-free file-to-knowledge-graph memory MCP server and plugin for
+  Claude (Desktop and Code). Converts PDFs, Office documents, images, and audio
+  to Markdown entirely on-device, then builds a layered knowledge graph,
+  exportable Markdown memory, and an offline interactive mind map using local
+  models — costing near-zero context tokens to build or recall.
+type: software
+authors:
+  - family-names: Howlader
+    given-names: Aninda Sundar
+    alias: GRU-953
+repository-code: "https://github.com/GRU-953/memorised-them-all"
+url: "https://github.com/GRU-953/memorised-them-all"
+license: MIT
+version: "1.3.2"
+keywords:
+  - MCP
+  - Model Context Protocol
+  - Claude
+  - knowledge graph
+  - GraphRAG
+  - local RAG
+  - document memory
+  - token-free
+  - Ollama
+  - MarkItDown
+  - OCR
+  - mind map

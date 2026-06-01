@@ -4,6 +4,19 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.2] — 2026-06-01
+
+### Changed
+- **Redesigned README** — modern hero with a new social banner, SEO-optimised
+  keywords and headings, quickstart matrix, use-cases, and a comparison table.
+- **New logo / icon** (anti-aliased knowledge-graph mark) and a social-preview
+  banner (`docs/social-preview.png`).
+
+### Added
+- `CITATION.cff` and expanded repository topics for discoverability.
+
+No code or behaviour changes — packaging refreshes the bundled icon and metadata.
+
 ## [1.3.1] — 2026-06-01
 
 Fixes from a further multi-agent evaluation loop (accuracy, token-safety,
@@ -160,6 +173,7 @@ The first public release.
 - **Distribution**: Claude Desktop `.mcpb`, Claude Code plugin/marketplace, PyPI
   package, and a Homebrew tap; CI and tagged releases with assets.
 
+[1.3.2]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.2
 [1.3.1]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.1
 [1.3.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.3.0
 [1.2.0]: https://github.com/GRU-953/memorised-them-all/releases/tag/v1.2.0
