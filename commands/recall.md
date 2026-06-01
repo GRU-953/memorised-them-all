@@ -13,3 +13,5 @@ Steps:
    and entity cards with their source documents. It never returns whole documents.
 3. Answer the user's question grounded in those hits, citing the source document names
    where provided. If `status` is `no_memory`, suggest running `/memorise` first.
+4. If the result has `low_confidence: true` (or no hits clear the relevance floor),
+   tell the user the memory doesn't contain a confident answer rather than guessing.

@@ -35,7 +35,7 @@ _STOPWORDS = {
     "September", "October", "November", "December", "Monday", "Tuesday",
     "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Meeting",
 }
-_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|(?<=[।。！？])\s*")
 
 _PROMPT = (
     "You extract a knowledge graph from a text chunk. Return ONLY minified JSON "
@@ -59,7 +59,9 @@ def _classical(chunk: Chunk) -> Extraction:
     text = chunk.text
     counts: dict[str, int] = {}
     for m in _ENTITY_RE.finditer(text):
-        name = m.group(1).strip()
+        # Collapse internal whitespace/newlines so a label spanning a line break
+        # (e.g. table cells) becomes "Lena Marsh", not "Lena\nMarsh".
+        name = re.sub(r"\s+", " ", m.group(1)).strip()
         if name in _STOPWORDS or len(name) < 2:
             continue
         # Drop a leading sentence-initial single common word.

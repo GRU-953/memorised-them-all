@@ -349,6 +349,73 @@ def test_forget_deletes_project(tmp_path):
     assert r["status"] == "ok" and not cfg.project_dir.exists()
 
 
+def test_unicode_entities_not_collapsed():
+    """Non-Latin / accented names stay distinct (Unicode-aware normalisation)."""
+    import numpy as np
+    from mta.core.resolve import resolve_entities
+
+    class _Ortho:
+        def embed(self, names):
+            return np.eye(len(names), dtype=np.float32)
+
+    names = ["রহিম", "করিম", "田中太郎", "Москва", "José"]
+    res = resolve_entities([{"name": n, "type": "other"} for n in names], _Ortho())
+    assert len(res["canonical"]) == 5, res["canonical"]
+
+
+def test_numbered_siblings_not_merged():
+    """'Reykjavik-1' and 'Reykjavik-2' are distinct entities, not one node."""
+    import numpy as np
+    from mta.core.resolve import cid_for, resolve_entities
+
+    class _Ortho:
+        def embed(self, names):
+            return np.eye(len(names), dtype=np.float32)
+
+    res = resolve_entities([{"name": "Reykjavik-1", "type": "place"},
+                            {"name": "Reykjavik-2", "type": "place"}], _Ortho())
+    a2c = res["alias_to_cid"]
+    assert cid_for("Reykjavik-1", a2c) != cid_for("Reykjavik-2", a2c)
+
+
+def test_atomic_graph_write_leaves_no_temp(tmp_path):
+    cfg = _fresh_cfg(tmp_path, "atom")
+    from mta.core.digest import digest
+    from mta.core.store import load_graph
+    digest(cfg, [str(SAMPLE)])
+    assert load_graph(cfg) is not None
+    assert not list(cfg.project_dir.glob("*.tmp"))
+
+
+def test_recall_exposes_confidence(tmp_path):
+    cfg = _fresh_cfg(tmp_path, "cf")
+    from mta.core.digest import digest
+    from mta.core.recall import recall
+    digest(cfg, [str(SAMPLE)])
+    out = recall(cfg, "aurora", k=3)
+    assert "top_score" in out and "low_confidence" in out
+
+
+def test_export_to_bad_dest_returns_status(tmp_path):
+    cfg = _fresh_cfg(tmp_path, "e")
+    from mta.core.digest import digest
+    from mta.core.render import export_bundle
+    digest(cfg, [str(SAMPLE)])
+    blocker = tmp_path / "blk"
+    blocker.write_text("x", encoding="utf-8")          # a file, used as a parent dir
+    r = export_bundle(cfg, str(blocker / "sub"))
+    assert r["status"] == "error", r
+
+
+def test_long_project_name_capped(tmp_path):
+    import os
+    os.environ["MTA_HOME"] = str(tmp_path)
+    from mta.core.config import load
+    cfg = load().with_project("x" * 500)
+    cfg.ensure_dirs()                                   # must not raise OSError
+    assert len(cfg.project) <= 120
+
+
 def test_idle_shutdown_only_stops_ours(tmp_path):
     # With Ollama disabled, ensure_running is False and nothing is started/stopped.
     os.environ["MTA_HOME"] = str(tmp_path)

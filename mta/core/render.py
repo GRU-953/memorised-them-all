@@ -142,25 +142,29 @@ def write_mindmap(cfg: Config, doc: dict) -> Path:
                              "summary": c.get("summary", "")} for c in doc["communities"]],
             "project": doc["project"]}
 
+    # Escape "</" so an entity label containing "</script>" can't break out of
+    # the inline <script> data block (still valid JSON/JS).
+    data_js = json.dumps(data).replace("</", "<\\/")
     cyto = _CYTOSCAPE.read_text(encoding="utf-8") if _CYTOSCAPE.exists() else ""
     cyto_tag = (f"<script>{cyto}</script>" if cyto else
                 '<script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"></script>')
     if _TEMPLATE.exists():
         tpl = _TEMPLATE.read_text(encoding="utf-8")
         out_html = (tpl.replace("/*__CYTOSCAPE__*/", cyto_tag)
-                    .replace("/*__DATA__*/", json.dumps(data)))
+                    .replace("/*__DATA__*/", data_js))
     else:
-        out_html = _fallback_html(data, cyto_tag)
+        out_html = _fallback_html(data, cyto_tag, data_js)
     cfg.mindmap_html.write_text(out_html, encoding="utf-8")
     return cfg.mindmap_html
 
 
-def _fallback_html(data: dict, cyto_tag: str) -> str:
+def _fallback_html(data: dict, cyto_tag: str, data_js: str | None = None) -> str:
+    data_js = data_js if data_js is not None else json.dumps(data).replace("</", "<\\/")
     return ("<!doctype html><meta charset=utf-8><title>"
             + html.escape(data["project"]) + " — mind map</title>"
             + cyto_tag
             + "<div id=cy style='position:fixed;inset:0'></div><script>"
-            + "var D=" + json.dumps(data) + ";cytoscape({container:"
+            + "var D=" + data_js + ";cytoscape({container:"
             + "document.getElementById('cy'),elements:D.elements,layout:{name:'cose'},"
             + "style:[{selector:'node',style:{'background-color':'data(color)',"
             + "'label':'data(label)','width':'data(size)','height':'data(size)',"
@@ -169,19 +173,25 @@ def _fallback_html(data: dict, cyto_tag: str) -> str:
 
 def export_bundle(cfg: Config, dest: str) -> dict:
     dest_path = Path(dest).expanduser()
-    dest_path.mkdir(parents=True, exist_ok=True)
     copied = []
-    # Include the vector store so semantic recall works from the exported bundle,
-    # not just human browsing + graph reload.
-    for src in (cfg.memory_md, cfg.graph_path, cfg.mindmap_html,
-                cfg.vectors_path, cfg.vectors_path.with_suffix(".json")):
-        if src.exists():
-            shutil.copy2(src, dest_path / src.name)
-            copied.append(src.name)
-    if cfg.memory_dir.exists():
-        target = dest_path / "memory"
-        if target.exists():
-            shutil.rmtree(target)
-        shutil.copytree(cfg.memory_dir, target)
-        copied.append("memory/")
+    try:
+        dest_path.mkdir(parents=True, exist_ok=True)
+        # Include the vector store so semantic recall works from the exported
+        # bundle, not just human browsing + graph reload.
+        for src in (cfg.memory_md, cfg.graph_path, cfg.mindmap_html,
+                    cfg.vectors_path, cfg.vectors_path.with_suffix(".json")):
+            if src.exists():
+                shutil.copy2(src, dest_path / src.name)
+                copied.append(src.name)
+        if cfg.memory_dir.exists():
+            target = dest_path / "memory"
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(cfg.memory_dir, target)
+            copied.append("memory/")
+    except OSError as e:  # unwritable dest, file-as-parent, etc. — return a status
+        return {"status": "error", "dest": str(dest_path), "error": str(e),
+                "copied": copied}
+    if not copied:
+        return {"status": "no_memory", "dest": str(dest_path)}
     return {"status": "ok", "dest": str(dest_path), "copied": copied}

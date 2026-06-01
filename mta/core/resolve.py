@@ -10,13 +10,16 @@ absent.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter, defaultdict
 
 import numpy as np
 
 from .embed import Embedder, cosine
 
-_NORM_RE = re.compile(r"[^a-z0-9]+")
+# Keep any Unicode word character (CJK, Bengali, Cyrillic, …), not just ASCII —
+# a Latin-only class collapsed every non-Latin name to "" and merged them.
+_NORM_RE = re.compile(r"[^\w]+", re.UNICODE)
 
 try:
     from rapidfuzz import fuzz
@@ -26,7 +29,26 @@ except Exception:  # noqa: BLE001
 
 
 def _norm(name: str) -> str:
-    return _NORM_RE.sub(" ", name.lower()).strip()
+    # Fold accents (José → jose) but preserve non-Latin scripts.
+    s = unicodedata.normalize("NFKD", name or "")
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return _NORM_RE.sub(" ", s).lower().strip()
+
+
+def _numbered_siblings(a: str, b: str) -> bool:
+    """True if two normalised names differ only by a trailing enumerator —
+    e.g. "reykjavik 1" vs "reykjavik 2", or "site1" vs "site2". Such pairs are
+    distinct entities and must not be fuzzily merged."""
+    ta, tb = a.split(), b.split()
+    if not ta or len(ta) != len(tb):
+        return False
+    diff = [k for k in range(len(ta)) if ta[k] != tb[k]]
+    if len(diff) != 1:
+        return False
+    x, y = ta[diff[0]], tb[diff[0]]
+    if x.isdigit() and y.isdigit():
+        return True
+    return x[:-1] == y[:-1] and x[-1:].isdigit() and y[-1:].isdigit()
 
 
 class _UnionFind:
@@ -75,7 +97,9 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
     by_norm: dict[str, list[int]] = defaultdict(list)
     for i, nm in enumerate(norms):
         by_norm[nm].append(i)
-    for group in by_norm.values():
+    for key, group in by_norm.items():
+        if not key:  # don't merge names that normalise to empty (e.g. punctuation-only)
+            continue
         for k in range(1, len(group)):
             uf.union(group[0], group[k])
 
@@ -86,6 +110,8 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
                 if uf.find(i) == uf.find(j):
                     continue
                 if abs(len(norms[i]) - len(norms[j])) > 12:
+                    continue
+                if _numbered_siblings(norms[i], norms[j]):
                     continue
                 if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
                     uf.union(i, j)

@@ -24,9 +24,16 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(str(os.environ.get(name, default)).strip())
+    except (TypeError, ValueError):
+        return default
+
+
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", name.strip()).strip("-_.")
-    return slug.lower() or "default"
+    return (slug.lower() or "default")[:120]  # cap so the dir name never exceeds FS limits
 
 
 @dataclass
@@ -58,6 +65,9 @@ class Config:
     community_algo: str = field(default_factory=lambda: _env("MTA_COMMUNITY_ALGO", "auto"))  # auto|leiden|louvain|greedy
     chunk_chars: int = field(default_factory=lambda: _env_int("MTA_CHUNK_CHARS", 1200))
     recall_k: int = field(default_factory=lambda: _env_int("MTA_RECALL_K", 8))
+    # Absolute cosine floor for recall hits (real embeddings only). 0 = off
+    # (return all top-k); raise it (e.g. 0.45) for stricter grounding.
+    recall_min_score: float = field(default_factory=lambda: _env_float("MTA_RECALL_MIN_SCORE", 0.0))
     max_chunks: int = field(default_factory=lambda: _env_int("MTA_MAX_CHUNKS", 1500))
     # Skip individual files larger than this (MB) before reading them into memory,
     # bounding OOM/decompression-bomb risk. 0 disables the cap.
