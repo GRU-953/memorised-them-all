@@ -273,7 +273,10 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     if ext in _TEXT_EXTS or ext in _DATA_EXTS:
         text, method = _native_text(path)
     elif ext in _MARKITDOWN_EXTS:
-        if ext == ".zip" and not _zip_within_bounds(path, cfg):
+        # OOXML/EPUB (.docx/.xlsx/.pptx/.epub) and .zip are ALL zip containers —
+        # bomb-check every one, not just literal .zip (SEC-01). _zip_within_bounds
+        # no-ops on non-zip inputs (.pdf/.html/.xls/.doc/.msg), so this is safe.
+        if not _zip_within_bounds(path, cfg):
             res.status, res.method, res.error = "skipped", "zip-too-large", "decompression-bound"
             return res
         text, method = _try_markitdown(path, cfg)

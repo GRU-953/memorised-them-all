@@ -4,6 +4,119 @@ All notable changes to **Memorised them All** are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+## [1.4.0] — 2026-06-02
+
+### Added
+- **Configuration profiles** — `MTA_PROFILE=laptop|workstation|server|offline`
+  applies a bundle of sensible defaults (an explicit `MTA_*` variable always
+  wins). The resolved configuration is written to `state/config.json` and surfaced
+  by `mta status` / `memory_status`, which now also report the detected
+  **GPU/accelerator** (`mlx`/`cuda`/`rocm`/`none`) and whether a local **LM Studio**
+  server is running.
+- **`mta doctor`** — a dependency preflight: reports each runtime dependency and
+  the `ollama`/`tesseract`/`ffmpeg` binaries as present / outdated / missing with
+  **detected-vs-required** versions, and proposes argv-only, idempotent remediation
+  (`--dry-run` previews; `--fix` applies the safe pip upgrades; system-tool installs
+  are suggested per platform, never auto-run with sudo). Summary also in `memory_status`.
+- **Evaluation harness** (`eval/`) — a committed reference corpus + golden metrics;
+  `python eval/run_eval.py` digests offline and **gates retrieval recall@8 in CI**
+  (baseline 1.0, floor 0.75). The unbenchmarked "20–100×" / "163 languages" claims
+  are replaced with honest, measured wording.
+
+### Changed
+- **Offline-first auto-update** — the baseline MarkItDown is now the **pinned PyPI
+  build** (in `requirements.txt`), so a first-ever digest no longer needs a live
+  `git+https` fetch from upstream (restores the "100% local / works offline"
+  promise on first run). Pulling the latest upstream MarkItDown is now **opt-in**
+  (`MTA_MARKITDOWN_UPSTREAM=on`, or `MTA_AUTO_UPDATE=upstream`) and is **pinned to a
+  resolved commit** rather than a moving branch. Upgrades are import-smoke-tested
+  and **rolled back** to the previous version on failure; the throttle stamp is
+  written atomically.
+- MCP tools (`digest`, `recall`, `export_memory`) validate their inputs and return
+  a small structured error instead of letting an exception cross the MCP boundary
+  as a raw traceback (still token-free).
+- `digest` stats report `mode: "classical"` when no local LLM ran (offline / Ollama
+  unavailable) instead of mislabelling the run `"accurate"` (PIPE-04).
+- Slash commands / skill synced with the tools: `/memorise` documents `fast`, a new
+  **`/forget`** command, and `SKILL.md` lists `forget` + `fast` (DOC-21).
+- Leaner, consistent `.mcpb`: `.mcpbignore` now excludes dev/internal dirs
+  (`program/`, `eval/`, `scripts/`, `commands/`, `skills/`, …) and the zip fallback
+  packs "everything minus `.mcpbignore`" to match the official `mcpb pack` (PKG-04).
+
+### Fixed
+- **Concurrency safety** — concurrent clients sharing one memory home no longer
+  race. A digest / `forget` / reset takes an **exclusive** per-project lock and
+  recall takes a **shared** lock (cross-process via `flock` / `msvcrt`), so the
+  `graph.json` ↔ `vectors.npz` pair can never be torn and two digests on one
+  project can't interleave. The on-demand Ollama start is serialised so two apps
+  (Desktop + Code) can't both spawn a server. Lock files live under `state/locks/`
+  so `forget` can't delete a held lock.
+- **Availability** — when Ollama is installed but unreachable, the engine now
+  fast-fails after one attempt (short cooldown) instead of stalling ~20 s on every
+  model call across a digest.
+- **Schema migration** — the on-disk store is a versioned schema: an older store
+  is forward-migrated in memory (stays recall-readable after an upgrade), and a
+  store written by a *newer* build is backed up under `backups/` before any
+  overwrite — so a version downgrade can never silently lose memory.
+- **Offline recall reliability** — `low_confidence` and `MTA_RECALL_MIN_SCORE` now
+  work on the **offline/hashing** path (they were real-embeddings-only and silently
+  no-op'd there): the confidence signal falls back to lexical overlap when no model
+  is present, so an off-topic query is flagged low-confidence even fully offline.
+  `top_score` now reflects the hits actually returned (with `raw_top_score` for the
+  pre-floor best).
+
+### Release & supply chain
+- **Hardened, single-source release train** (`release.yml`): builds every artifact
+  **once**, then publishes in lockstep `build → pypi → github_release → homebrew`
+  (PyPI first, so a failure can't leave a partial release). **OIDC Trusted
+  Publishing** to PyPI (no long-lived token); every Action is **SHA-pinned** (CI too);
+  a **CycloneDX SBOM** and **cosign keyless signatures** are produced per artifact;
+  the **Homebrew tap is auto-bumped** (gated on `HOMEBREW_TAP_TOKEN`, skips cleanly
+  if absent); idempotent re-runs; tag == version gate. See `program/PUBLISH_MANIFEST.md`.
+
+### Security
+- **Decompression-bomb / size caps now cover all ZIP-container formats**
+  (`.docx`/`.xlsx`/`.pptx`/`.epub`), not just literal `.zip` (SEC-01).
+- The theme/synopsis summariser prompts fence document-derived text as data —
+  second-order prompt-injection hardening, matching the per-chunk extractor (SEC-02).
+- The vector store is loaded with `allow_pickle=False` **explicitly** (SEC-03).
+- The offline mind map has **no CDN fallback** — it makes zero network requests; a
+  missing renderer asset degrades to a static offline notice (SEC-10).
+- Added **`SECURITY.md`** (threat model + reporting). The optional GPL `graph` extra
+  is documented as not installed by the MIT core (SEC-11).
+
+### Fixed (pre-release review)
+- **Torn vector store is no longer fatal** — `load_vectors` rejects a desynced
+  `vectors.npz`/`vectors.json` pair (matrix rows ≠ meta length) and recall clamps row
+  indices, so a crash mid-write degrades to "no memory" instead of an IndexError.
+- **Config profiles are concurrency-safe** — the profile env seed/restore in
+  `config.load()` is serialised, so parallel `load()` under `MTA_PROFILE=offline`
+  can't leak `no_ollama=False` / `auto_update=True`.
+- **Offline recall stays declinable on the lexical path** — the dimension-mismatch
+  fallback now also returns `low_confidence` / `top_score` / `synopsis` (DOC-01).
+- The **synopsis** echoed by `recall`/`memory_overview` is length-capped (token-free).
+- Auto-update **rollback is re-verified** (imports) before reporting success, and the
+  pip install is serialised by a cross-process lock; `list_digestible` no longer
+  crashes on a stat() race.
+
+### Internal / CI
+- **Phase-6 E2E** — a clean-wheel-install CLI suite (`tests/test_e2e_cli.py`) drives the
+  installed `mta` binary end-to-end (offline + a real accurate-mode run via Ollama);
+  `.github/workflows/e2e.yml` runs it on the release PR. The fast-mode speedup is now
+  **benchmarked** (≈25–100×). See `program/TEST_REPORT.md`.
+- CI now exercises the **real** conversion path: a new full-deps lane installs the
+  package + Tesseract and converts PDF/DOCX/XLSX/CSV/HTML (the offline matrix
+  installed no converters, so conversion was previously untested). The `.mcpb`
+  bundle is built and smoke-tested in CI (the `mcpb` packer validates the manifest).
+- **Single source of truth for the version** (`mta/__init__.py`): `pyproject`
+  derives it dynamically, and `scripts/check_versions.py` (run in CI, and as a
+  tag==version gate at release) fails on any drift across the manifests.
+  (`CITATION.cff` had drifted to 1.3.2.)
+- `test_ocr_stdin_pipe` skips cleanly when Pillow is absent (it previously *errored*
+  under the CI dependency set); the stdio check now asserts all **8** tools.
+
 ## [1.3.3] — 2026-06-01
 
 Fixes from another multi-agent evaluation loop (live accuracy/recall benchmark,

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .core import recall as recall_mod
 from .core import render, store, updater
-from .core.config import load as load_config
+from .core.config import load as load_config, persist_config
 from .core.digest import digest as run_digest
 from .core.lifecycle import OllamaManager
 from .core.platform import summary as platform_summary
@@ -44,6 +44,12 @@ def _cfg(project: str | None = None):
     return cfg
 
 
+def _err(msg: str, **extra) -> dict:
+    """Structured tool error — a bad call returns a small dict instead of crossing
+    the MCP boundary as a raw traceback (still token-free)."""
+    return {"status": "error", "error": msg, **extra}
+
+
 @mcp.tool()
 def digest(paths: list[str], project: str | None = None, reset: bool = False,
            fast: bool = False) -> dict:
@@ -52,16 +58,27 @@ def digest(paths: list[str], project: str | None = None, reset: bool = False,
 
     fast=True skips the local LLM (classical extraction + deterministic summaries,
     fully reproducible); the default uses the local LLM for higher accuracy."""
+    if not isinstance(paths, list) or not paths or not all(
+            isinstance(p, str) and p.strip() for p in paths):
+        return _err("'paths' must be a non-empty list of file/dir/glob strings")
     cfg = _cfg(project)
-    return run_digest(cfg, paths, reset=reset, fast=fast, ollama=_ollama())
+    try:
+        return run_digest(cfg, paths, reset=reset, fast=fast, ollama=_ollama())
+    except Exception as exc:  # noqa: BLE001 - never surface a raw traceback to the client
+        return _err(f"digest failed: {exc}", type=type(exc).__name__)
 
 
 @mcp.tool()
 def recall(query: str, project: str | None = None, k: int = 0) -> dict:
     """Answer from memory: returns a small, relevant slice (theme summaries +
     entity cards with provenance) — never whole documents."""
+    if not isinstance(query, str) or not query.strip():
+        return _err("'query' must be a non-empty string")
     cfg = _cfg(project)
-    return recall_mod.recall(cfg, query, k=k or None, ollama=_ollama())
+    try:
+        return recall_mod.recall(cfg, query, k=k or None, ollama=_ollama())
+    except Exception as exc:  # noqa: BLE001
+        return _err(f"recall failed: {exc}", type=type(exc).__name__)
 
 
 @mcp.tool()
@@ -74,20 +91,32 @@ def memory_overview(project: str | None = None) -> dict:
 def export_memory(dest: str, project: str | None = None) -> dict:
     """Export the memory (memory.md, per-document notes, graph.json, mind map) as
     portable Markdown files to a destination directory."""
+    if not isinstance(dest, str) or not dest.strip():
+        return _err("'dest' must be a non-empty destination directory path")
     return render.export_bundle(_cfg(project), dest)
 
 
 @mcp.tool()
 def list_digestible(directory: str) -> dict:
     """List convertible files under a directory (paths + sizes only)."""
+    if not isinstance(directory, str) or not directory.strip():
+        return _err("'directory' must be a non-empty path")
     from .core.convert import SUPPORTED_EXTS
     base = Path(directory).expanduser()
     if not base.exists():
         return {"status": "not_found", "directory": str(base)}
-    files = [p for p in base.rglob("*") if p.is_file()
-             and p.suffix.lower() in SUPPORTED_EXTS]
-    return {"status": "ok", "directory": str(base), "count": len(files),
-            "files": [{"path": str(p), "bytes": p.stat().st_size} for p in files[:500]]}
+    try:
+        files = [p for p in base.rglob("*") if p.is_file()
+                 and p.suffix.lower() in SUPPORTED_EXTS]
+        out = []
+        for p in files[:500]:
+            try:
+                out.append({"path": str(p), "bytes": p.stat().st_size})
+            except OSError:
+                continue  # file vanished/inaccessible between rglob and stat (TOCTOU)
+        return {"status": "ok", "directory": str(base), "count": len(files), "files": out}
+    except OSError as exc:  # noqa: BLE001
+        return _err(f"could not list {base}: {exc}")
 
 
 @mcp.tool()
@@ -133,6 +162,15 @@ def _status() -> dict:
     except Exception:  # noqa: BLE001
         mid = None
     import shutil
+    try:
+        cfg_file = str(persist_config(cfg))  # snapshot the resolved config (R2)
+    except OSError:
+        cfg_file = None
+    try:
+        from .core import deps
+        dep_summary = deps.scan(cfg, probe_bin_versions=False)["summary"]
+    except Exception:  # noqa: BLE001
+        dep_summary = None
     return {
         "status": "ok",
         "ollama_running": ollama_up,
@@ -141,8 +179,11 @@ def _status() -> dict:
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "markitdown_version": mid,
         "platform": platform_summary(),
+        "profile": cfg.profile_name,
         "auto_update": cfg.auto_update,
         "idle_seconds": cfg.idle_seconds,
+        "config_file": cfg_file,
+        "dependencies": dep_summary,
         "projects": store.list_projects(cfg),
     }
 

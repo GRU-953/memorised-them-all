@@ -101,14 +101,14 @@ Tool results are hard-capped in size, so the guarantee holds even on the high-ac
 
 ## ✨ Features
 
-- 📄 **Universal local conversion** — PDF, Word, Excel, PowerPoint, HTML, EPub, Outlook `.msg`, CSV/JSON/XML, images (OCR + vision captioning), and audio (on-device transcription) → clean Markdown. Scanned PDFs are OCR'd; up to 163 OCR languages (with the Tesseract language packs installed).
+- 📄 **Universal local conversion** — PDF, Word, Excel, PowerPoint, HTML, EPub, Outlook `.msg`, CSV/JSON/XML, images (OCR + vision captioning), and audio (on-device transcription) → clean Markdown. Scanned PDFs are OCR'd; OCR in 100+ languages when the matching Tesseract language packs are installed (e.g. `eng+ben`).
 - 🕸️ **Layered knowledge graph (GraphRAG-style)** — entities, typed relations and atomic facts, grouped into **themes** by community detection, with a global synopsis and per-theme summaries — all built by local models.
 - 🧭 **Offline interactive mind map** — a single self-contained `mindmap.html` (Cytoscape inlined, zero network).
 - 📝 **Exportable, portable memory** — `graph.json`, `memory.md`, and per-document notes you can copy to any machine and reuse.
-- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and often 20–100× faster (scales with corpus size) for large or frequently-refreshed corpora.
+- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and **much faster** — it skips the per-chunk LLM, so the factor scales with corpus size and model (**benchmarked ≈25–100×** with the default 7B extractor: ≈98× on a 5-file set, ≈26× on 12 files) — ideal for large or frequently-refreshed corpora.
 - 🔁 **Reusable named projects** — accumulate many folders into one memory; `forget` to delete one.
 - 🍎 **Apple-silicon first** — performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency. Runs on Intel macOS, Linux, and Windows too.
-- ⚙️ **Auto-installing & auto-updating** — pulls the latest MarkItDown from upstream; starts the model server on demand and **stops it after 5 minutes idle**.
+- ⚙️ **Auto-installing & auto-updating** — installs a **pinned MarkItDown from PyPI** so the first run works offline, and refreshes it on a throttled daily check (import-checked, with rollback); the latest *upstream* MarkItDown is **opt-in** (`MTA_MARKITDOWN_UPSTREAM=on`, pinned to a commit). Starts the model server on demand and **stops it after 5 minutes idle**.
 - 🌍 **Multilingual** — Unicode-aware entity resolution (Bengali, CJK, Cyrillic, accented Latin) and OCR in many languages.
 - 🛟 **Crash-safe & reusable** — memory is written atomically, so an interrupted digest never corrupts an existing project; recall reports a `low_confidence` signal so Claude can decline when the answer isn't in your docs.
 - 🔒 **Private by design** — no cloud, no API keys, no telemetry. Your files never leave your computer.
@@ -144,7 +144,7 @@ Eight token-free MCP tools (plus the `mta` CLI). Every result is metadata or a s
 | `open_mindmap(project?)` | path to the offline interactive mind map |
 | `forget(project?)` | delete a project's memory |
 
-**CLI:** `mta digest <paths> [--fast] [--reset]` · `mta recall "<q>"` · `mta overview` · `mta export <dir>` · `mta mindmap --open` · `mta forget` · `mta status` · `mta update`. In Claude Code, the slash commands `/memorise`, `/recall`, `/memory-map`, `/memory-status`, `/export-memory` are also available.
+**CLI:** `mta digest <paths> [--fast] [--reset]` · `mta recall "<q>"` · `mta overview` · `mta export <dir>` · `mta mindmap --open` · `mta forget` · `mta status` · `mta update` · `mta doctor`. In Claude Code, the slash commands `/memorise`, `/recall`, `/memory-map`, `/memory-status`, `/export-memory` are also available.
 
 ## 🎯 Use cases
 
@@ -174,7 +174,7 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memories are stored |
-| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic, often 20–100× faster) |
+| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic; benchmarked ≈25–100× faster, scales with corpus/model) |
 | `MTA_EXTRACT_MODEL` | `qwen2.5:7b` | local LLM for extraction & summaries |
 | `MTA_EMBED_MODEL` | `nomic-embed-text` | local embedding model |
 | `MTA_VISION_MODEL` | `moondream` | image captioning |
@@ -184,8 +184,10 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | `0` (auto) | parallel conversion / extraction workers |
 | `MTA_MAX_CHUNKS` / `MTA_MAX_FILE_MB` | `1500` / `200` | workload &amp; input-size caps (reported) |
 | `MTA_RECALL_MIN_SCORE` | `0` (off) | drop recall hits below this cosine score (stricter grounding) |
-| `MTA_AUTO_UPDATE` | `on` | auto-update MarkItDown &amp; dependencies |
+| `MTA_AUTO_UPDATE` | `on` | daily update check: `on` (PyPI, default) · `off` · `upstream` (also pull the pinned upstream MarkItDown) |
+| `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
+| `MTA_PROFILE` | unset | tuning profile: `laptop` · `workstation` · `server` · `offline` (an explicit `MTA_*` variable always wins) |
 
 ## 💻 Platform support
 
@@ -214,6 +216,8 @@ Each project under `MTA_HOME/projects/<name>/` is self-contained and portable:
 
 A memory built once can be **copied to another machine** and reused read-only. `export_memory` bundles all of the above (including the vector store) into a folder you choose.
 
+**Versioning &amp; migration:** `graph.json` is a **versioned schema** (the project follows [SemVer](https://semver.org/) and [Keep a Changelog](CHANGELOG.md)). On upgrade, an older store is **migrated in place** so existing memories stay recall-readable; a store written by a *newer* build is **backed up** under `projects/<name>/backups/` before anything overwrites it, so a downgrade never loses data. Public CLI flags and MCP tool signatures are preserved across minor versions.
+
 ## 🔒 Privacy &amp; security
 
 100% local — no cloud APIs, no telemetry, no API keys. Your documents, the graph, the embeddings, and the memory files never leave your machine. The only network access is (a) downloading open-source dependencies/models on install and (b) a throttled once-a-day dependency-update check (disable with `MTA_AUTO_UPDATE=off`).
@@ -230,7 +234,7 @@ Hardened for processing untrusted files: argv-only subprocesses (no `curl | sh`)
 
 **Is my existing Ollama affected?** No — a running Ollama is reused and left alone. Only an instance *this tool* starts is stopped on idle.
 
-**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, often 20–100× faster digest that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
+**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, much faster digest (**benchmarked ≈25–100×** — ≈98× on a 5-file set, ≈26× on 12 files; scales with corpus and model) that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
 
 **What if the answer isn't in my documents?** Each `recall` result includes `top_score` and a `low_confidence` flag (and you can set `MTA_RECALL_MIN_SCORE` to drop weak hits), so Claude can say "that's not in your memory" instead of inventing an answer.
 
@@ -240,7 +244,7 @@ Hardened for processing untrusted files: argv-only subprocesses (no `curl | sh`)
 
 ## ✅ Quality &amp; testing
 
-Exercised hard: a multi-format corpus (Office, PDF, scanned PDF, OCR images, audio), a growing **regression suite**, green CI on three OSes, and repeated **multi-agent + GitHub Copilot reviews** covering accuracy, reliability, token-safety, reusability, cross-platform, and security. The token-free guarantee is enforced (recall slices are hard-capped) and the digest never returns document contents to the model.
+Exercised hard: a multi-format corpus (Office, PDF, scanned PDF, OCR images, audio), a growing **regression suite**, green CI on three OSes, and repeated **multi-agent + GitHub Copilot reviews** covering accuracy, reliability, token-safety, reusability, cross-platform, and security. The token-free guarantee is enforced (recall slices are hard-capped) and the digest never returns document contents to the model. A committed offline **eval harness** (`eval/run_eval.py`) digests a reference corpus and **gates retrieval recall@k in CI**, so quality regressions fail the build.
 
 ## 🙏 Acknowledgements
 

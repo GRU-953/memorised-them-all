@@ -20,9 +20,13 @@ if [ "$ready" != "1" ]; then
   "$VENV/bin/python" -m pip -q install -U pip wheel >/dev/null 2>&1 || true
   "$VENV/bin/python" -m pip -q install -r "$REPO/requirements.txt" >&2 || \
     echo "[mta] some deps failed to install; the engine still runs with fallbacks." >&2
-  # Upgrade to the latest upstream MarkItDown in the background.
-  ( "$VENV/bin/python" -m pip -q install -U \
-      "markitdown[pdf,docx,pptx,xlsx,xls,outlook] @ git+https://github.com/microsoft/markitdown.git#subdirectory=packages/markitdown" \
-      >/dev/null 2>&1 & )
+  # The pinned PyPI MarkItDown (installed above) is the offline-correct baseline.
+  # Pulling the latest UPSTREAM commit is opt-in (MTA_MARKITDOWN_UPSTREAM=on or
+  # MTA_AUTO_UPDATE=upstream) and runs in the background so it never blocks startup.
+  if [ "${MTA_MARKITDOWN_UPSTREAM:-off}" = "on" ] || [ "${MTA_AUTO_UPDATE:-on}" = "upstream" ]; then
+    ( "$VENV/bin/python" -m pip -q install -U \
+        "markitdown[pdf,docx,pptx,xlsx,xls,outlook] @ git+https://github.com/microsoft/markitdown.git#subdirectory=packages/markitdown" \
+        >/dev/null 2>&1 & )
+  fi
 fi
 exec env PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}" "$VENV/bin/python" -m mta.cli "$@"

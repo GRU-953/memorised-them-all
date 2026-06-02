@@ -35,6 +35,10 @@ def _http_ok(url: str, timeout: float = 1.5) -> bool:
 class OllamaManager:
     """Starts Ollama on demand, stops it after idle — but only if we started it."""
 
+    # After a failed start (Ollama installed but unreachable), fast-fail for this
+    # many seconds instead of re-paying the full `wait` on every call (PIPE-03).
+    _GIVEUP_COOLDOWN = 60.0
+
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.host = cfg.ollama_host.rstrip("/")
@@ -44,10 +48,13 @@ class OllamaManager:
         self._watchdog: threading.Thread | None = None
         self._stop_evt = threading.Event()
         self._lock = threading.Lock()
+        self._giveup_until = 0.0
 
-    @staticmethod
-    def _disabled() -> bool:
-        # Hard offline switch (used by tests/CI and air-gapped runs).
+    def _disabled(self) -> bool:
+        # Hard offline switch — the resolved Config flag (set directly or by the
+        # 'offline' profile), or the env var (air-gapped runs / tests / CI).
+        if getattr(self.cfg, "no_ollama", False):
+            return True
         return os.environ.get("MTA_NO_OLLAMA", "").lower() in ("1", "true", "yes", "on")
 
     # ---- availability -------------------------------------------------
@@ -78,27 +85,43 @@ class OllamaManager:
         self.touch()
         if self.is_up():
             return True
+        # PIPE-03: if a recent start attempt failed (Ollama installed but
+        # unreachable), don't re-pay the full `wait` on every call — fast-fail
+        # until the cooldown elapses.
+        if time.monotonic() < self._giveup_until:
+            return False
         with self._lock:
             if self.is_up():
                 return True
+            from . import locks
             from .platform import bootstrap_path
             bootstrap_path()
             if not _which("ollama"):
+                self._giveup_until = time.monotonic() + self._GIVEUP_COOLDOWN
                 return False
-            try:
-                self._proc = subprocess.Popen(
-                    ["ollama", "serve"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except OSError:
-                return False
-            self._started_by_us = True
-            atexit.register(self.stop)
-            deadline = time.time() + wait
-            while time.time() < deadline:
+            # Cross-process start lock: two processes (e.g. Desktop + Code) must
+            # not both spawn `ollama serve` (A5 / DEP-08). Re-check is_up inside.
+            with locks.named_lock(self.cfg, "ollama-start", exclusive=True,
+                                  timeout=max(2.0, wait)):
                 if self.is_up():
-                    self._start_watchdog()
                     return True
-                time.sleep(0.5)
+                try:
+                    self._proc = subprocess.Popen(
+                        ["ollama", "serve"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except OSError:
+                    self._giveup_until = time.monotonic() + self._GIVEUP_COOLDOWN
+                    return False
+                self._started_by_us = True
+                atexit.register(self.stop)
+                deadline = time.time() + wait
+                while time.time() < deadline:
+                    if self.is_up():
+                        self._start_watchdog()
+                        return True
+                    time.sleep(0.5)
+            # Spawned but never became reachable within `wait` → cool down.
+            self._giveup_until = time.monotonic() + self._GIVEUP_COOLDOWN
         return self.is_up()
 
     def stop(self) -> None:

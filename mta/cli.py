@@ -8,6 +8,7 @@ Subcommands:
   mta status                                     local stack health
   mta mindmap [--project P] [--open]             path to the mind map
   mta update [--force]                           update MarkItDown + deps
+  mta doctor [--fix] [--dry-run]                 scan deps; suggest or apply fixes
   mta serve                                      run the MCP server (stdio)
 """
 from __future__ import annotations
@@ -54,6 +55,10 @@ def main(argv: list[str] | None = None) -> int:
     u = sub.add_parser("update", help="update MarkItDown + dependencies")
     u.add_argument("--force", action="store_true")
 
+    dr = sub.add_parser("doctor", help="scan dependencies; suggest or apply fixes")
+    dr.add_argument("--fix", action="store_true", help="apply safe (pip) upgrades")
+    dr.add_argument("--dry-run", action="store_true", help="only show what would change")
+
     sub.add_parser("forget", help="delete a project's memory (irreversible)")
 
     sub.add_parser("serve", help="run the MCP server (stdio)")
@@ -86,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
         _print(store.delete_project(cfg))
     elif args.cmd == "update":
         _print(updater.run_check(cfg, force=args.force))
+    elif args.cmd == "doctor":
+        from .core import deps
+        _print(deps.doctor(cfg, fix=args.fix, dry_run=args.dry_run))
     elif args.cmd == "serve":
         from .server import main as serve_main
         serve_main()

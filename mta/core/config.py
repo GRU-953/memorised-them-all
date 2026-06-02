@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,6 +79,17 @@ class Config:
     idle_seconds: int = field(default_factory=lambda: _env_int("MTA_IDLE", 300))
     auto_update: bool = field(default_factory=lambda: _env("MTA_AUTO_UPDATE", "on").lower()
                               not in ("off", "0", "false", "no"))
+    # MarkItDown update source: PyPI (default — pinned, offline-correct, pip-verified)
+    # or the latest UPSTREAM commit (opt-in, pinned to a resolved SHA). Enable with
+    # MTA_AUTO_UPDATE=upstream or MTA_MARKITDOWN_UPSTREAM=on.
+    markitdown_upstream: bool = field(default_factory=lambda:
+                              _env("MTA_AUTO_UPDATE", "on").strip().lower() == "upstream"
+                              or _env("MTA_MARKITDOWN_UPSTREAM", "off").strip().lower()
+                              in ("on", "1", "true", "yes"))
+    # Hard offline switch (also set by the 'offline' profile). Resolved here so the
+    # whole engine — including the Ollama lifecycle — consults one flag.
+    no_ollama: bool = field(default_factory=lambda: _env("MTA_NO_OLLAMA", "off").strip().lower()
+                            in ("1", "true", "yes", "on"))
     ollama_host: str = field(default_factory=lambda: _env("OLLAMA_HOST", "http://127.0.0.1:11434"))
 
     # Parallelism (0/auto → decided by platform tuning).
@@ -85,6 +97,8 @@ class Config:
 
     # The active project (a named, reusable memory).
     project: str = field(default_factory=lambda: _slugify(_env("MTA_PROJECT", "default")))
+    # Active tuning profile (resolved in load(); see PROFILES).
+    profile_name: str = "default"
 
     def with_project(self, name: str | None) -> "Config":
         if name:
@@ -134,8 +148,78 @@ class Config:
             d.mkdir(parents=True, exist_ok=True)
 
 
+# Named profiles: bundles of MTA_* defaults applied when MTA_PROFILE is set. An
+# explicit env var always wins (env > profile > built-in default).
+PROFILES: dict = {
+    "offline":     {"MTA_NO_OLLAMA": "1", "MTA_EXTRACT": "classical", "MTA_AUTO_UPDATE": "off"},
+    "laptop":      {"MTA_EXTRACT_WORKERS": "1"},
+    "workstation": {"MTA_EXTRACT_WORKERS": "2"},
+    "server":      {"MTA_EXTRACT_WORKERS": "3", "MTA_AUTO_UPDATE": "off"},
+}
+
+
+def persist_config(cfg: "Config") -> Path:
+    """Write the resolved knobs to ``state/config.json`` — a readable record of
+    what the engine actually resolved (surfaced by ``mta status`` / doctor). Atomic."""
+    import json
+    import tempfile
+    cfg.state_dir.mkdir(parents=True, exist_ok=True)
+    data = {
+        "profile": cfg.profile_name, "home": str(cfg.home),
+        "extract_model": cfg.extract_model, "embed_model": cfg.embed_model,
+        "vision_model": cfg.vision_model, "whisper_model": cfg.whisper_model,
+        "ocr_lang": cfg.ocr_lang, "extract_mode": cfg.extract_mode, "fast": cfg.fast,
+        "idle_seconds": cfg.idle_seconds, "auto_update": cfg.auto_update,
+        "markitdown_upstream": cfg.markitdown_upstream, "no_ollama": cfg.no_ollama,
+        "workers": cfg.workers, "extract_workers": cfg.extract_workers,
+        "recall_k": cfg.recall_k, "recall_min_score": cfg.recall_min_score,
+        "max_chunks": cfg.max_chunks, "max_file_mb": cfg.max_file_mb,
+    }
+    path = cfg.state_dir / "config.json"
+    fd, tmp = tempfile.mkstemp(dir=str(cfg.state_dir), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+# Serialises the profile seed→construct→restore window below: that mutates
+# process-global os.environ, so concurrent load() calls (e.g. parallel digests or
+# the recall/extract thread pools) must not observe each other's temporary keys —
+# otherwise a parallel load under MTA_PROFILE=offline could resolve no_ollama=False.
+_LOAD_LOCK = threading.Lock()
+
+
 def load() -> Config:
-    cfg = Config()
+    # Apply a named profile (if any) by seeding its MTA_* defaults — but only where
+    # the user hasn't set them (env > profile > built-in). The seeded keys are
+    # captured into the Config, then removed so the process env isn't mutated for
+    # other components / subprocesses. Only the (rare) profile path touches the
+    # global env, and it's serialised; the common no-profile path is lock-free.
+    profile = _env("MTA_PROFILE", "").strip().lower()
+    defaults = PROFILES.get(profile, {})
+    if defaults:
+        with _LOAD_LOCK:
+            seeded: list[str] = []
+            for key, val in defaults.items():
+                if os.environ.get(key) in (None, ""):
+                    os.environ[key] = val
+                    seeded.append(key)
+            try:
+                cfg = Config()
+            finally:
+                for key in seeded:
+                    os.environ.pop(key, None)
+    else:
+        cfg = Config()
+    cfg.profile_name = profile or "default"
     if cfg.fast:
         cfg.extract_mode = "classical"  # no LLM extraction or summaries
     return cfg

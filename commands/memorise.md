@@ -18,3 +18,7 @@ Steps:
    converted documents back into the conversation; that would waste tokens.
 4. Report a short summary: files converted, entities, relations, themes, and where the
    outputs were written. Offer `/recall`, `/memory-map`, or `/export-memory` as next steps.
+
+Tip: for a large or frequently-refreshed corpus, pass `fast: true` to `digest` — it
+skips the local LLM for a deterministic, much faster digest (still builds the graph
+and keeps semantic recall).

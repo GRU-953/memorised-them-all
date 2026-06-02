@@ -22,10 +22,11 @@ else
     case "$line" in \#*) continue;; esac
     EXCLUDES+=("-x" "${line%/}/*" "-x" "$line")
   done < .mcpbignore
-  zip -r -q "$OUT" \
-    manifest.json launch.sh install.sh requirements.txt pyproject.toml \
-    README.md LICENSE CHANGELOG.md ACKNOWLEDGEMENTS.md \
-    mta templates assets "${EXCLUDES[@]}"
+  # Zip the whole tree MINUS .mcpbignore patterns — same content set the official
+  # `mcpb pack` produces, so the two build paths stay in parity (PKG-04). The extra
+  # globs drop NESTED __pycache__/*.pyc/*.egg-info that the per-line .mcpbignore
+  # patterns only match at the top level.
+  zip -r -q "$OUT" . "${EXCLUDES[@]}" -x "*__pycache__*" -x "*.pyc" -x "*.egg-info/*"
 fi
 
 echo "[mcpb] built $OUT ($(wc -c < "$OUT") bytes)"
