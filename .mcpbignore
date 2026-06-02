@@ -12,6 +12,7 @@ skills/
 .mcp.json
 launch.py
 SECURITY.md
+CLAUDE.md
 .gitignore
 .mcpbignore
 *.cff
