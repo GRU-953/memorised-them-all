@@ -54,3 +54,24 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Test/CI:** ✅ **CI fully green** — run 26781819576 (6-cell matrix + `build`/`.mcpb`-smoke + `version-check` + `conversion-e2e`). The *first* run (26781633221) caught a real workflow bug: the conversion-e2e lane installed core deps only, so `pytest` was missing (exit 127 `command not found`) — fixed by installing `.[dev]`. PR #5 squash-merged to `develop` (`4548d02`); `wp-03-ci-fidelity` deleted.
 
 **EXACT NEXT STEP:** WP-03 DONE + merged (`4548d02`). Begin **WP-10 + WP-13** together (theme A, ADR-004) on a fresh branch off `develop`: make a first-run digest fully offline (default PyPI-pinned MarkItDown; integrity-verified opt-in for the git-upstream pull) — closes **Critical PKG-03** + SEC-04 + DEP-01; target acceptance **A2** (offline first-run) + **A8** (integrity).
+
+---
+
+## Session 03 — 2026-06-02 — Implementation: WP-10 + WP-13 (offline-first install + safe auto-update)
+
+**Session id:** S03  **Branch:** `wp-10-offline-install` → **PR #6** (merged, squash `fd2d1d2`)  **Mode:** implementation
+
+**Goal:** Close the Critical **PKG-03** and the auto-update gaps (SEC-04, DEP-01, DEP-03, DEP-09) — theme A.
+
+**Done:**
+- **Offline-first (PKG-03):** removed the unconditional `git+https` MarkItDown pull from the install hot path (`install.sh`, `scripts/mta-launcher.sh`); the pinned PyPI build (in `requirements.txt`) is the offline-correct default. A first-ever digest no longer needs network beyond the one-time pip install.
+- **Opt-in pinned upstream (SEC-04):** `MTA_MARKITDOWN_UPSTREAM=on` / `MTA_AUTO_UPDATE=upstream` pulls upstream MarkItDown **pinned to a resolved commit SHA**; unresolvable → PyPI fallback (never an unpinned moving branch). New `config.markitdown_upstream`.
+- **Safe updates (DEP-01/03/09):** `updater.py` rewritten — import-smoke after upgrade + **rollback** to the prior version on failure; **atomic** throttle stamp; richer `run_check` result. PyPI installs are pip hash-verified.
+- Docs corrected (README feature bullet + config table — no longer claims "pulls latest upstream" by default); CHANGELOG.
+- Tests: `tests/test_updater.py` (8 tests). **39 tests pass** locally; CI run 26796840053 fully green (all 9 jobs); `bash -n` clean.
+
+**Decisions:** ADR-009 — self-update (DEP-02) stays **report-only** for v1 (Desktop/Code host `.mcpb`/plugin updates; pip users get a notice).
+**Deferred:** "no-update-during-digest" coordination → WP-14 (needs the lock); PKG-04 (`.mcpb` zip-fallback parity, Low); PIPE-04, DOC-21, PKG-06 (Low quick-wins).
+**Risks:** R-08 → **Mitigated**.
+
+**EXACT NEXT STEP:** Begin **WP-14 — lifecycle + cross-process concurrency** (closes **Critical LIFE-01**) on a fresh branch off `develop`: add cross-process single-writer/multi-reader locking (stdlib `fcntl`/`msvcrt`, or `filelock` per ADR-005) around a project's graph/vectors/markdown writes in `mta/core/store.py` / `digest.py` / `lifecycle.py`; fix the idle-watchdog cross-process coupling (LIFE-02) and the Ollama-installed-but-unreachable fast-fail (PIPE-03); fold in the deferred updater↔digest coordination. Target acceptance A5 (4-way concurrent digest → no corruption) + A6 (idle stop within tolerance; user's Ollama untouched).

@@ -8,8 +8,8 @@
 ---
 
 ## ▶ RESUME HERE
-**WP-03 DONE — merged to `develop`** (PR #5, squash `4548d02`); CI fully green (run 26781819576: 6-cell matrix + `build`/`.mcpb`-smoke + `version-check` + `conversion-e2e`). Plan + acceptance approved (S01).
-**Next: start WP-10 + WP-13 together (theme A, ADR-004)** on a fresh branch off `develop` (e.g. `wp-10-offline-install`): make a first-run digest work **fully offline** — default to the PyPI-pinned MarkItDown, and gate the git-upstream pull behind an **integrity-verified opt-in**. Closes **Critical PKG-03** + SEC-04 + DEP-01; targets acceptance **A2** (offline first-run) + **A8** (integrity). Deferred Low follow-ups from WP-03 (fold into a later quick-win pass): PIPE-04, DOC-21, PKG-06.
+**WP-10 + WP-13 DONE — merged to `develop`** (PR #6, squash `fd2d1d2`); CI fully green (run 26796840053, all 9 jobs). **Critical PKG-03 closed** (offline-first install); SEC-04/DEP-01/DEP-03/DEP-09 closed (opt-in, commit-pinned upstream + import-smoke/rollback + atomic stamp). **One Critical remains: LIFE-01.**
+**Next: WP-14 — lifecycle + cross-process concurrency** on a fresh branch off `develop`. Closes **Critical LIFE-01** (no cross-process lock → concurrent clients race on a shared project) + LIFE-02 (idle-watchdog cross-process coupling) + PIPE-03 (Ollama-installed-but-unreachable fast-fail). Add stdlib `fcntl`/`msvcrt` (or `filelock`, ADR-005) single-writer/multi-reader locking around a project's writes (`store.py`/`digest.py`/`lifecycle.py`); also fold in the deferred WP-13 "no-update-during-digest" coordination. Target acceptance **A5** (4-way concurrent digest → no corruption) + **A6** (idle stop within tolerance; user's Ollama untouched). Deferred Low follow-ups: PIPE-04, DOC-21, PKG-06, PKG-04.
 
 ---
 
@@ -21,8 +21,8 @@
 | WP-01 | Deep audit → AUDIT.md | 1 | v1 | **DONE** | develop | 06-02 | — |
 | WP-02 | Plan + risks + acceptance (**plan gate**) | 1–2 | v1 | **DONE** | develop | 06-02 | approved (S02) |
 | WP-03 | CI fidelity + single version source + quick-win hygiene | 2 | v1 | **DONE** | merged #5 → develop (4548d02) | 06-02 | CI green; deferred PIPE-04/DOC-21/PKG-06 |
-| WP-10 | Install simplicity + **offline-correct bootstrap** (R1) | 2 | v1 | TODO | — | — | closes **PKG-03 (Crit)**, PKG-04 |
-| WP-13 | Safe auto-update: integrity+atomic+rollback (R4) | 2 | v1 | TODO | — | — | closes DEP-01(High), SEC-04 |
+| WP-10 | Install simplicity + **offline-correct bootstrap** (R1) | 2 | v1 | **DONE** | merged #6 → develop (fd2d1d2) | 06-02 | PKG-03 closed; PKG-04 (Low) deferred |
+| WP-13 | Safe auto-update: integrity+atomic+rollback (R4) | 2 | v1 | **DONE** | merged #6 → develop | 06-02 | SEC-04/DEP-01/03/09 closed; DEP-02 report-only (ADR-009) |
 | WP-14 | Lifecycle + **cross-process concurrency** (R5) | 2 | v1 | TODO | — | — | closes **LIFE-01 (Crit)**, LIFE-02, PIPE-03 |
 | WP-15 | Compatibility / versioning / **data migration** (R6) | 2 | v1 | TODO | — | — | closes LIFE-03(High) |
 | WP-11 | Auto-configuration: profiles, persist, GPU/LM-Studio (R2) | 2 | v1 | TODO | — | — | closes DEP-05/06/07 |

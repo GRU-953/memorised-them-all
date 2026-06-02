@@ -35,3 +35,7 @@ Each entry: decision · why · alternatives weighed. Includes deliberately-decli
 
 ## ADR-008 — Encryption-at-rest default = opt-in (assumption; owner may override)
 **Decided (assumption, not separately asked):** memory store stays **unencrypted by default** to protect simplest-install + the copy-to-another-machine portability promise; an **opt-in passphrase** + secure-delete `forget` is a **v1.x+** roadmap item. Flag for owner correction if encryption-by-default is desired.
+
+## ADR-009 — Self-update (DEP-02) is report-only for v1
+**Decided (S03):** the auto-updater applies *dependency* updates (MarkItDown — PyPI-pinned and verified, or commit-pinned upstream if opted in) but **does not self-replace the extension/plugin**; it only **reports** when a newer release exists (`latest_release`).
+**Why:** the `.mcpb` (Claude Desktop) and Claude Code plugin channels are updated by the host's own extension manager, and pip users run `pip install -U memorised-them-all`. In-place self-replacement of the running package is risky and redundant with those mechanisms. This closes the DEP-02 gap as a **deliberate scope choice**, not an omission. Revisit if a CLI-driven `mta self-update` proves worthwhile.
