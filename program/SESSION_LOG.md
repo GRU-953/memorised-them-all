@@ -201,3 +201,20 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Status:** the only open High findings are the release-train ones (**CI-02/05 → WP-40**).
 
 **EXACT NEXT STEP:** Begin **WP-31 — eval harness + reference corpus + golden metrics** on a fresh branch off `develop`: add `eval/` with a small committed multi-format corpus + golden expected metrics (conversion fidelity, retrieval precision/recall, fast-vs-accurate speedup, cold-start + peak/idle memory); a `make eval`/script that reports + CI-gates thresholds; replace the unbenchmarked "20–100×"/"163 languages" claims (DOC-18/19) with measured numbers. Target acceptance **A10/A11**.
+
+---
+
+## Session 10 — 2026-06-02 — Implementation: WP-31 (eval harness + golden metrics)
+
+**Session id:** S10  **Branch:** `wp-31-eval` → **PR #13** (merged, squash `24aef47`)  **Mode:** implementation
+
+**Done:**
+- **`eval/`** — committed reference corpus (4 synthetic Markdown docs; no copyrighted material) + `golden.json` (8 queries, expected entities) + `run_eval.py`. Digests offline (hashing + classical), scores **recall@k**, reports per-stage timing.
+- **CI gate** — `tests/test_eval.py` (all 3 OSes) fails if `recall@8 < 0.75` (measured **baseline 1.0**; floor set below baseline = regression gate).
+- **DOC-18/19** — replaced "20–100×" with "≈10–30× on a typical 7B setup; scales with corpus size" and "163 languages" with "100+ via Tesseract packs" across README features/config/FAQ + a Quality-section note on the eval harness.
+
+**Local:** 64 offline tests pass; `python eval/run_eval.py` exits 0. CI run 26816096593 fully green (9 jobs). **Acceptance:** A10 partially met (offline recall gated; accurate P/R + conversion fidelity → Phase-6); A11 timing reported.
+
+**Status:** every Phase-1 Critical/High is closed/mitigated **except the release-train ones (CI-02/05)** → WP-40.
+
+**EXACT NEXT STEP:** Begin **WP-40 — release train + supply-chain hardening** on a fresh branch off `develop`. Rewrite `.github/workflows/release.yml`: **one** build job → publish to all targets; **OIDC** trusted publishing to PyPI (`pypa/gh-action-pypi-publish`, `permissions: id-token: write`); **SHA-pin** every action; **SBOM** (e.g. anchore/syft) + **cosign keyless** signatures per artifact; idempotent + **halt-on-partial** (no partial releases); **auto-bump the Homebrew tap** (job gated on a `HOMEBREW_TAP_TOKEN` secret); commit a lockfile; keep the tag==version gate. Write `program/PUBLISH_MANIFEST.md` (channel → secret names → verification) + a release checklist. Degrade gracefully when a publisher/secret is absent. **Owner-action items (ADR-006) are required only for WP-41 (the actual publish).**
