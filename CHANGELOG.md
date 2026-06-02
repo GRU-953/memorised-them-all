@@ -30,6 +30,10 @@ adheres to [Semantic Versioning](https://semver.org/) and
 - **Availability** — when Ollama is installed but unreachable, the engine now
   fast-fails after one attempt (short cooldown) instead of stalling ~20 s on every
   model call across a digest.
+- **Schema migration** — the on-disk store is a versioned schema: an older store
+  is forward-migrated in memory (stays recall-readable after an upgrade), and a
+  store written by a *newer* build is backed up under `backups/` before any
+  overwrite — so a version downgrade can never silently lose memory.
 
 ### Internal / CI
 - CI now exercises the **real** conversion path: a new full-deps lane installs the

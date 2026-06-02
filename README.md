@@ -215,6 +215,8 @@ Each project under `MTA_HOME/projects/<name>/` is self-contained and portable:
 
 A memory built once can be **copied to another machine** and reused read-only. `export_memory` bundles all of the above (including the vector store) into a folder you choose.
 
+**Versioning &amp; migration:** `graph.json` is a **versioned schema** (the project follows [SemVer](https://semver.org/) and [Keep a Changelog](CHANGELOG.md)). On upgrade, an older store is **migrated in place** so existing memories stay recall-readable; a store written by a *newer* build is **backed up** under `projects/<name>/backups/` before anything overwrites it, so a downgrade never loses data. Public CLI flags and MCP tool signatures are preserved across minor versions.
+
 ## 🔒 Privacy &amp; security
 
 100% local — no cloud APIs, no telemetry, no API keys. Your documents, the graph, the embeddings, and the memory files never leave your machine. The only network access is (a) downloading open-source dependencies/models on install and (b) a throttled once-a-day dependency-update check (disable with `MTA_AUTO_UPDATE=off`).

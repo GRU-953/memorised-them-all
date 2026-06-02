@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -46,11 +48,65 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
 def save_graph(cfg: Config, graph_doc: dict) -> None:
     cfg.ensure_dirs()
+    # If the existing store is a NEWER, incompatible schema than this build, back
+    # it up before overwriting so a version downgrade can't silently destroy it.
+    if cfg.graph_path.exists():
+        try:
+            existing = json.loads(cfg.graph_path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict) and int(existing.get("version", 1)) > SCHEMA_VERSION:
+                _backup_store(cfg, f"pre-overwrite-v{int(existing.get('version', 1))}")
+        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+            pass
     _atomic_write_text(cfg.graph_path, json.dumps(graph_doc, indent=2, ensure_ascii=False))
 
 
 # Bump when the on-disk graph schema changes incompatibly.
 SCHEMA_VERSION = 1
+
+# Registry of forward migrations: from_version -> fn(doc) -> doc that upgrades a
+# store from `from_version` to the next version. Empty today (only v1 exists); a
+# future incompatible schema bump registers its step here. Migrations are pure.
+_MIGRATIONS: dict = {}
+
+
+def migrate_doc(doc: dict) -> dict:
+    """Forward-migrate a store doc toward SCHEMA_VERSION using the registry.
+
+    Pure (writes nothing) → safe to call under a shared read lock. If no step
+    exists for a gap, the doc is returned as-is (still readable).
+    """
+    try:
+        v = int(doc.get("version", 1))
+    except (TypeError, ValueError):
+        return doc
+    steps = 0
+    while v < SCHEMA_VERSION and v in _MIGRATIONS and steps < 100:
+        doc = _MIGRATIONS[v](doc)
+        try:
+            v = int(doc.get("version", v + 1))
+        except (TypeError, ValueError):
+            break
+        steps += 1
+    return doc
+
+
+def _backup_store(cfg: Config, reason: str) -> Path | None:
+    """Copy the on-disk store into project_dir/backups/<ts>-<reason>/ so an
+    incompatible overwrite (e.g. a version downgrade) can never lose data.
+    Best-effort; never raises into the caller.
+    """
+    import time
+    try:
+        dest = cfg.project_dir / "backups" / f"{time.strftime('%Y%m%d-%H%M%S')}-{reason}"
+        dest.mkdir(parents=True, exist_ok=True)
+        for src in (cfg.graph_path, cfg.vectors_path,
+                    cfg.vectors_path.with_suffix(".json"), cfg.memory_md):
+            if src.exists():
+                shutil.copy2(src, dest / src.name)
+        print(f"[mta] backed up existing memory to {dest}", file=sys.stderr)
+        return dest
+    except OSError:
+        return None
 
 
 def load_graph(cfg: Config) -> dict | None:
@@ -60,15 +116,20 @@ def load_graph(cfg: Config) -> dict | None:
         doc = json.loads(cfg.graph_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
-    # Refuse to mis-read a future, incompatible schema rather than silently
-    # returning garbage; older/equal versions load fine. graph.json is user-
-    # editable, so coerce the version defensively (a non-numeric value won't crash).
-    if isinstance(doc, dict):
-        try:
-            if int(doc.get("version", 1)) > SCHEMA_VERSION:
-                return None
-        except (TypeError, ValueError):
-            return None
+    if not isinstance(doc, dict):
+        return None
+    try:
+        v = int(doc.get("version", 1))
+    except (TypeError, ValueError):
+        return None  # corrupt / non-numeric version → don't trust the file
+    if v < SCHEMA_VERSION:
+        # Forward-migrate older stores IN MEMORY so old memories stay
+        # read-recallable after an upgrade (disk is rewritten at the next digest).
+        doc = migrate_doc(doc)
+    # A *newer* store than this build understands is no longer dropped (that
+    # previously surfaced as "no memory" and let a digest overwrite it). Return it
+    # best-effort so recall still works; save_graph() backs it up before any
+    # overwrite, so a version downgrade can't silently destroy it (R6 / LIFE-03).
     return doc
 
 
