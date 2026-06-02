@@ -105,7 +105,7 @@ Tool results are hard-capped in size, so the guarantee holds even on the high-ac
 - 🕸️ **Layered knowledge graph (GraphRAG-style)** — entities, typed relations and atomic facts, grouped into **themes** by community detection, with a global synopsis and per-theme summaries — all built by local models.
 - 🧭 **Offline interactive mind map** — a single self-contained `mindmap.html` (Cytoscape inlined, zero network).
 - 📝 **Exportable, portable memory** — `graph.json`, `memory.md`, and per-document notes you can copy to any machine and reuse.
-- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and **much faster** — it skips the per-chunk LLM, so the factor scales with corpus size and model (≈10–30× on a typical corpus with the default 7B extractor) — ideal for large or frequently-refreshed corpora.
+- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and **much faster** — it skips the per-chunk LLM, so the factor scales with corpus size and model (**benchmarked ≈25–100×** with the default 7B extractor: ≈98× on a 5-file set, ≈26× on 12 files) — ideal for large or frequently-refreshed corpora.
 - 🔁 **Reusable named projects** — accumulate many folders into one memory; `forget` to delete one.
 - 🍎 **Apple-silicon first** — performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency. Runs on Intel macOS, Linux, and Windows too.
 - ⚙️ **Auto-installing & auto-updating** — installs a **pinned MarkItDown from PyPI** so the first run works offline, and refreshes it on a throttled daily check (import-checked, with rollback); the latest *upstream* MarkItDown is **opt-in** (`MTA_MARKITDOWN_UPSTREAM=on`, pinned to a commit). Starts the model server on demand and **stops it after 5 minutes idle**.
@@ -174,7 +174,7 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memories are stored |
-| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic; ≈10–30× faster on a typical 7B setup) |
+| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic; benchmarked ≈25–100× faster, scales with corpus/model) |
 | `MTA_EXTRACT_MODEL` | `qwen2.5:7b` | local LLM for extraction & summaries |
 | `MTA_EMBED_MODEL` | `nomic-embed-text` | local embedding model |
 | `MTA_VISION_MODEL` | `moondream` | image captioning |
@@ -234,7 +234,7 @@ Hardened for processing untrusted files: argv-only subprocesses (no `curl | sh`)
 
 **Is my existing Ollama affected?** No — a running Ollama is reused and left alone. Only an instance *this tool* starts is stopped on idle.
 
-**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, much faster digest (≈10–30× on a typical 7B setup; scales with corpus size) that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
+**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, much faster digest (**benchmarked ≈25–100×** — ≈98× on a 5-file set, ≈26× on 12 files; scales with corpus and model) that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
 
 **What if the answer isn't in my documents?** Each `recall` result includes `top_score` and a `low_confidence` flag (and you can set `MTA_RECALL_MIN_SCORE` to drop weak hits), so Claude can say "that's not in your memory" instead of inventing an answer.
 
