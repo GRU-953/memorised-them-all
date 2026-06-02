@@ -284,6 +284,22 @@ The backend defaults to **loopback** — pointing it at a non-local URL sends co
 your machine (your explicit choice; a one-time warning is printed). If the backend is
 unreachable, a digest still succeeds via the classical/offline fallback.
 
+## 🐳 Run in Docker
+
+A multi-arch image (`linux/amd64` + `linux/arm64`) is published to GHCR. It serves the
+eight tools over MCP **Streamable HTTP**; a bearer token is generated and printed on
+first start:
+
+```bash
+docker run -d --name mta -p 127.0.0.1:8765:8765 -v mta-data:/data \
+  ghcr.io/gru-953/memorised-them-all:latest
+docker logs mta          # copy the printed token + the ready-to-paste `claude mcp add …`
+```
+
+Ollama isn't bundled — set `MTA_BACKEND_URL` to a model server, or run fully offline
+(classical + hashing). The `/data` volume holds your memory; mount documents read-only
+(`-v /path/to/docs:/docs:ro`) and `digest` the in-container path.
+
 ## 💻 Platform support
 
 Apple M-series is the primary, most-optimised target; other platforms use portable fallbacks.

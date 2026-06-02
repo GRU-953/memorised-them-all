@@ -14,7 +14,8 @@ PyPI is first and required: if it fails, no GitHub Release is created.
 | **PyPI** | `pypa/gh-action-pypi-publish` (OIDC) | OIDC Trusted Publishing — no repo token | `pip install memorised-them-all==<v>` |
 | **GitHub Release** | `softprops/action-gh-release` | `GITHUB_TOKEN` (contents: write) | release carries wheel + sdist + `.mcpb` + SBOM + `.sig`/`.pem` |
 | **`.mcpb` (Claude Desktop)** | built in `build`, attached to the Release | — | double-click → Settings ▸ Extensions |
-| **Homebrew tap** | `homebrew` job bumps `homebrew-memorised-them-all/Formula/mta.rb` | secret `HOMEBREW_TAP_TOKEN` (skips if unset) | `brew install GRU-953/memorised-them-all/mta` |
+| **Homebrew tap** | `homebrew` job bumps `homebrew-memorised-them-all/Formula/mta.rb` | secret `HOMEBREW_TAP_TOKEN` (skips if unset; `continue-on-error`) | `brew install GRU-953/memorised-them-all/mta` |
+| **Docker (GHCR)** | `docker.yml` builds multi-arch (amd64+arm64), pushes `:<v>` + `:latest` on tag | `GITHUB_TOKEN` (packages: write) — **no extra secret** | `docker run ghcr.io/gru-953/memorised-them-all:<v> mta --help` |
 
 **Supply chain:** every Action is **SHA-pinned**; a **CycloneDX SBOM** and **cosign
 keyless** signatures (`.sig`/`.pem`) are produced per artifact; the build runs once

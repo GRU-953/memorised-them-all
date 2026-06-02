@@ -54,6 +54,12 @@ token-free, 100% local by default, no new top-level dependency).
   — composed from the transport/REST/schema seams (`mta.interop.recipes`). Backed by a
   **cross-surface conformance test** asserting stdio-MCP `tools/list`, the schema catalogue,
   the OpenAI/Gemini/OpenAPI exports, and the REST registry all expose the *same* eight tools.
+- **Docker image (GHCR).** A multi-arch image (`linux/amd64` + `linux/arm64`) at
+  `ghcr.io/gru-953/memorised-them-all` — multi-stage, runs as a non-root user, serves the
+  tools over MCP Streamable HTTP, persists memory in a `/data` volume, and ships an OCI
+  `/healthz` HEALTHCHECK. Built/validated in CI and pushed on release via the built-in
+  `GITHUB_TOKEN` (no extra secret). Ollama isn't bundled — use a backend URL or the offline
+  fallback.
 
 ### Security / supply chain
 - Committed **dependency lockfile** (`constraints.txt`, CI-09) for reproducible installs

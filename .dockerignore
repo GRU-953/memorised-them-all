@@ -1,0 +1,23 @@
+# Keep the build context small + the image clean. The wheel build needs only
+# pyproject.toml, mta/, templates/, assets/, README.md and LICENSE — everything
+# below is dev/CI/program scaffolding.
+.git
+.github
+tests
+program
+eval
+docs
+sample
+dist
+build
+*.egg-info
+__pycache__
+.pytest_cache
+.venv
+.DS_Store
+*.mcpb
+node_modules
+constraints.txt
+CLAUDE.md
+.gitignore
+.dockerignore
