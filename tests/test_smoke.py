@@ -50,6 +50,7 @@ def test_digest_end_to_end(tmp_path):
     assert stats["converted"] >= 2
     assert stats["entities"] >= 3, stats
     assert stats["embed_mode"] == "hash"  # offline fallback
+    assert stats["mode"] == "classical"   # no LLM ran offline → honest label (PIPE-04)
 
     # Artefacts exist.
     assert cfg.graph_path.exists()

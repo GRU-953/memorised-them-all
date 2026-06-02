@@ -284,7 +284,14 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
             "relations": G.number_of_edges(),
             "communities": len(communities),
             "embed_mode": embedder.mode,
-            "mode": "fast" if cfg.fast else "accurate",
+            # Honest mode label: "fast" (LLM skipped by request), "accurate" (the
+            # local LLM actually ran — Ollama reachable), else "classical" (no LLM
+            # was available, so extraction/summaries used the deterministic
+            # fallback even though fast mode wasn't requested) — PIPE-04.
+            "mode": ("fast" if cfg.fast
+                     else "accurate" if (cfg.extract_mode != "classical"
+                                         and embedder.mode == "ollama")
+                     else "classical"),
             "seconds": round(time.time() - t0, 1),
         },
     }

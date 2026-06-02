@@ -26,11 +26,12 @@ documents.
    `graph.json`, and an offline `mindmap.html`.
 
 ## Tools
-- `digest(paths, project?, reset?)` — build/refresh memory. Returns metadata only.
+- `digest(paths, project?, reset?, fast?)` — build/refresh memory (`fast` skips the local LLM: deterministic + much faster). Returns metadata only.
 - `recall(query, project?, k?)` — return a small, citable slice of memory.
 - `memory_overview(project?)` — synopsis + themes.
 - `export_memory(dest, project?)` — export portable Markdown files.
 - `list_digestible(directory)` — list convertible files (paths/sizes only).
+- `forget(project?)` — delete a project's memory (graph, markdown, vectors, mind map). Irreversible.
 - `memory_status()` — local stack health.
 - `open_mindmap(project?)` — path to the offline mind map.
 
