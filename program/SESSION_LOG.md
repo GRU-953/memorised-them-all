@@ -324,3 +324,19 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **State:** `main` = v1.4.0; `develop` ahead by CLAUDE.md + WP-20 + WP-21. No Critical/High open.
 
 **EXACT NEXT STEP:** **WP-22** — local REST gateway exposing the eight tools over the WP-21 OpenAPI-3.1 surface, reusing WP-20's bearer-auth/loopback transport seam. Branch `wp-22-rest-gateway` → PR into `develop`.
+
+---
+
+## Session 16 (cont.) — 2026-06-03 — 🎉 Phase-3 interop COMPLETE (WP-22, 23, 24); v1.5.0 staged
+
+Continued unattended ("resume and continue all remaining WPs"). Sole driver (the S16 concurrent session stayed stopped — verified clean each WP). Finished the Phase-3 arc:
+
+**WP-22 — local REST gateway (merged #21, `2cf269b`).** `mta serve --rest` serves the eight tools as plain JSON (`POST /tools/{name}`) — the exact OpenAPI 3.1 surface WP-21 describes — for non-MCP clients. New `mta/interop/rest.py`; reuses WP-20's bearer-auth + loopback + a `Host`-allowlist middleware (DNS-rebind); `/openapi.json` (live) + unauth `/healthz`; blocking calls in a threadpool. Also hardened `schemas._raw_tools` to prefer the **sync** registry (loop-safe; no coroutine leak). 18 tests; full lane 111 passed.
+
+**WP-23 — pluggable inference backends (merged #22, `07e6d96`).** `MTA_BACKEND` routes text generation + embeddings to Ollama (default, **byte-identical**) or an OpenAI-compatible `/v1` server (lmstudio/llamacpp/vllm/openai) at `MTA_BACKEND_URL`. New `mta/core/backends.py` centralises dispatch; `embed`/`digest`/`extract` delegate with **no signature changes**; classical/hashing offline fallback unchanged (a digest still succeeds with no backend). Vision/transcription stay on Ollama. Loopback default; non-local URL warned once. `memory_status` reports the backend. 14 tests (OpenAI mocked) + a real-socket smoke verified locally; full lane 125 passed.
+
+**WP-24 — per-client recipes + conformance (merged #23, `12ba7ac`).** `mta recipes [--format text|json]` prints copy-paste setup for every surface (Claude Code stdio/HTTP, Claude Desktop, REST curl, OpenAI/Gemini). New `mta/interop/recipes.py`. `tests/test_conformance.py` asserts stdio-MCP `tools/list` == schema catalogue == OpenAI/Gemini/OpenAPI exports == REST registry == the same 8 tools. Full lane 130 passed.
+
+**v1.5.0 staged (release-prep).** Bumped all 5 version strings 1.4.0→1.5.0 (`check_versions.py` green) + cut CHANGELOG `[1.5.0]`. `develop` is the release candidate; `main` still v1.4.0. No Critical/High open. 5 PRs (#19–#23) all green on the 3-OS matrix.
+
+**EXACT NEXT STEP (owner-gated release):** **rotate `HOMEBREW_TAP_TOKEN`** (the S14-exposed PAT) → then merge `develop`→`main` (PR) + `git tag v1.5.0 && git push --tags` → the train publishes PyPI + GitHub Release (+`.mcpb`) + bumps the tap → run the post-publish smoke. Everything is staged; tagging is the owner's call. (Optional after: extra channels + deferred Low/Med per `REVIEW.md`.)

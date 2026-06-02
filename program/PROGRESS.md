@@ -8,11 +8,11 @@
 ---
 
 ## ▶ RESUME HERE
-**v1.4.0 SHIPPED (all core channels: PyPI + GitHub Release + `.mcpb` + Homebrew tap); v1.x+ Phase-3 interop now UNDERWAY on `develop`.** `main` = v1.4.0; `develop` is ahead by CLAUDE.md + WP-20 + WP-21.
-**DONE this session (S16):** **WP-20** secure Streamable HTTP transport — `mta serve --http`, loopback-only + mandatory bearer + DNS-rebind, no new top-level dep (merged #19, `9e1029a`) · **WP-21** cross-AI schema exports — `mta export-schema` → OpenAI/Gemini/OpenAPI 3.1, derived from the live registry so they can't drift (merged #20, `fa86ec3`). Both green on the full 3-OS matrix.
-**▶ Next = WP-22** local REST gateway over the OpenAPI-3.1 surface (reuses WP-20's bearer/loopback transport seam + WP-21's `to_openapi()`), then **WP-23** pluggable backends, **WP-24** per-client recipes + conformance. Also available: extra publishing channels + deferred Low/Med (`REVIEW.md`: graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02). When Phase-3 (or a useful subset) lands → cut **v1.5.0** (tag from `main`; the train publishes all channels).
-**⚠ Before the next release:** rotate `HOMEBREW_TAP_TOKEN` — a fine-grained PAT was exposed in chat during the S14 release.
-**⚠ Concurrency (S16):** two unattended sessions briefly shared this one checkout (a 2nd was writing WP-20 while this did WP-21); resolved by sole-driver consolidation. **Run ONE unattended session per working tree**, or give each its own `git worktree`.
+**🎉 Phase-3 cross-AI interop COMPLETE (WP-20–24, all merged to `develop`, full 3-OS CI green). `develop` = a staged v1.5.0 release candidate.** `main` = v1.4.0 (published).
+**DONE (S16):** **WP-20** secure Streamable HTTP transport (`mta serve --http`; #19 `9e1029a`) · **WP-21** cross-AI schema exports (`mta export-schema` → OpenAI/Gemini/OpenAPI 3.1; #20 `fa86ec3`) · **WP-22** local REST gateway (`mta serve --rest`, `POST /tools/{name}`; #21 `2cf269b`) · **WP-23** pluggable backends (`MTA_BACKEND` → Ollama default or OpenAI-compatible; #22 `07e6d96`) · **WP-24** per-client recipes (`mta recipes`) + cross-surface conformance (#23 `12ba7ac`). All additive + invariant-safe (token-free, local-first, no new dependency). **Version bumped to 1.5.0 + CHANGELOG cut** (all 5 version strings agree; `scripts/check_versions.py` green).
+**▶ Next = release v1.5.0 (owner-gated):** ⚠ **first rotate `HOMEBREW_TAP_TOKEN`** (a fine-grained PAT was exposed in chat at S14 — the tap job would fail/partial-release otherwise), then merge `develop`→`main` (PR) and `git tag v1.5.0 && git push --tags` → the train publishes PyPI + GitHub Release (+`.mcpb`) + bumps the tap (`PUBLISH_MANIFEST.md`); run the post-publish smoke. The agent staged everything; tagging is the owner's call.
+**Then (optional) v1.x+ remainder:** extra publishing channels (Docker/GHCR, MCP registry, winget/scoop/AUR) + deferred Low/Med (`REVIEW.md`: graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02).
+**⚠ Concurrency (S16):** two unattended sessions briefly shared this one checkout (a 2nd wrote WP-20 while this did WP-21); resolved by sole-driver consolidation. **Run ONE unattended session per working tree**, or give each its own `git worktree`.
 
 ---
 
@@ -43,9 +43,9 @@
 | WP-90 | Convergence review & note | 6 | v1 | **DONE** | develop | 06-02 | `program/CONVERGENCE.md` — converged (code) |
 | WP-20 | Phase-3: secure Streamable HTTP transport (stdio + HTTP) | 3 | v1.x+ | **DONE** | merged #19 → develop (9e1029a) | 06-03 | `serve --http`; loopback+bearer+DNS-rebind; no new dep |
 | WP-21 | Phase-3: cross-AI schema exports (OpenAI/Gemini/OpenAPI 3.1) | 3 | v1.x+ | **DONE** | merged #20 → develop (fa86ec3) | 06-03 | `export-schema`; derived from live registry (no drift) |
-| WP-22 | Phase-3: local REST gateway over the OpenAPI-3.1 surface | 3 | v1.x+ | **TODO ▶ NEXT** | — | — | reuse WP-20 transport/auth + WP-21 `to_openapi()` |
-| WP-23 | Phase-3: pluggable backends (Ollama/LM Studio/llama.cpp/OpenAI-compat) | 3 | v1.x+ | TODO | — | — | backend seam |
-| WP-24 | Phase-3: per-client recipes + conformance tests | 3 | v1.x+ | TODO | — | — | `client_config()` seam exists (WP-20) |
+| WP-22 | Phase-3: local REST gateway over the OpenAPI-3.1 surface | 3 | v1.x+ | **DONE** | merged #21 → develop (2cf269b) | 06-03 | `serve --rest`; bearer+Host-allowlist; threadpool |
+| WP-23 | Phase-3: pluggable backends (Ollama/LM Studio/llama.cpp/OpenAI-compat) | 3 | v1.x+ | **DONE** | merged #22 → develop (07e6d96) | 06-03 | `MTA_BACKEND`; Ollama default byte-identical; fallback intact |
+| WP-24 | Phase-3: per-client recipes + conformance tests | 3 | v1.x+ | **DONE** | merged #23 → develop (12ba7ac) | 06-03 | `mta recipes`; all surfaces == same 8 tools |
 
 ## Artifacts
 `AUDIT.md` · `IMPROVEMENT_PLAN.md` · `ACCEPTANCE.md` · `RISKS.md` · `DECISIONS.md` · `SESSION_LOG.md` · `/CHANGELOG.md` · (later: `PUBLISH_MANIFEST.md`, `TEST_REPORT.md`, `SECURITY.md`)

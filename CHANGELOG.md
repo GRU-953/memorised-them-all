@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-06-03
+
+Phase-3 cross-AI interop — use the same eight local, token-free tools from non-MCP
+clients and alternative local model servers. All additive and invariant-safe (still
+token-free, 100% local by default, no new top-level dependency).
+
 ### Added
 - **Secure Streamable HTTP transport** (opt-in; Phase-3 interop). `mta serve --http`
   exposes the same eight token-free tools over MCP Streamable HTTP for non-stdio
