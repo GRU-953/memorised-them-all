@@ -23,8 +23,6 @@ try:
 except Exception as exc:  # pragma: no cover - only when mcp not installed
     raise SystemExit("The 'mcp' package is required to run the server: pip install mcp") from exc
 
-mcp = FastMCP("memorised-them-all")
-
 # One Ollama manager per process so the idle watchdog and "started-by-us" flag
 # are shared across all tool calls.
 _OLLAMA: OllamaManager | None = None
@@ -50,7 +48,6 @@ def _err(msg: str, **extra) -> dict:
     return {"status": "error", "error": msg, **extra}
 
 
-@mcp.tool()
 def digest(paths: list[str], project: str | None = None, reset: bool = False,
            fast: bool = False) -> dict:
     """Convert files/dirs/globs to Markdown locally, then build a knowledge graph
@@ -68,7 +65,6 @@ def digest(paths: list[str], project: str | None = None, reset: bool = False,
         return _err(f"digest failed: {exc}", type=type(exc).__name__)
 
 
-@mcp.tool()
 def recall(query: str, project: str | None = None, k: int = 0) -> dict:
     """Answer from memory: returns a small, relevant slice (theme summaries +
     entity cards with provenance) — never whole documents."""
@@ -81,13 +77,11 @@ def recall(query: str, project: str | None = None, k: int = 0) -> dict:
         return _err(f"recall failed: {exc}", type=type(exc).__name__)
 
 
-@mcp.tool()
 def memory_overview(project: str | None = None) -> dict:
     """Return the compact synopsis, stats and theme list for a project's memory."""
     return recall_mod.overview(_cfg(project))
 
 
-@mcp.tool()
 def export_memory(dest: str, project: str | None = None) -> dict:
     """Export the memory (memory.md, per-document notes, graph.json, mind map) as
     portable Markdown files to a destination directory."""
@@ -96,7 +90,6 @@ def export_memory(dest: str, project: str | None = None) -> dict:
     return render.export_bundle(_cfg(project), dest)
 
 
-@mcp.tool()
 def list_digestible(directory: str) -> dict:
     """List convertible files under a directory (paths + sizes only)."""
     if not isinstance(directory, str) or not directory.strip():
@@ -119,21 +112,18 @@ def list_digestible(directory: str) -> dict:
         return _err(f"could not list {base}: {exc}")
 
 
-@mcp.tool()
 def forget(project: str | None = None) -> dict:
     """Delete a project's memory (graph, converted Markdown, vectors, mind map).
     Irreversible. Pass the project name explicitly."""
     return store.delete_project(_cfg(project))
 
 
-@mcp.tool()
 def memory_status() -> dict:
     """Report the local stack: Ollama, models, Tesseract, MarkItDown version,
     platform tuning, and existing projects."""
     return _status()
 
 
-@mcp.tool()
 def open_mindmap(project: str | None = None) -> dict:
     """Return the path to the offline interactive mind map for a project."""
     cfg = _cfg(project)
@@ -188,7 +178,26 @@ def _status() -> dict:
     }
 
 
+def build_server() -> FastMCP:
+    """Construct a fresh MCP server with all eight tools registered.
+
+    A factory (not just a module singleton) so each transport owns its server +
+    session manager: the stdio launcher and an opt-in HTTP server (mta/transport.py)
+    never share session state, and tests can build/tear down repeatedly. The
+    module-level ``mcp`` below is the shared instance the stdio entrypoint
+    (``python -m mta.server``) and tooling import."""
+    srv = FastMCP("memorised-them-all")
+    for fn in (digest, recall, memory_overview, export_memory,
+               list_digestible, forget, memory_status, open_mindmap):
+        srv.tool()(fn)
+    return srv
+
+
+mcp = build_server()
+
+
 def main() -> None:
+    """stdio entrypoint (unchanged default). HTTP is opt-in via ``mta serve --http``."""
     from .core.platform import bootstrap_path
     bootstrap_path()
     mcp.run()

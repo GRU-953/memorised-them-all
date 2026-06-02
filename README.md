@@ -188,6 +188,39 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
 | `MTA_PROFILE` | unset | tuning profile: `laptop` · `workstation` · `server` · `offline` (an explicit `MTA_*` variable always wins) |
+| `MTA_HTTP_*` | off | opt-in HTTP transport — see [Remote access](#-remote-access-http-transport) |
+
+## 🌐 Remote access (HTTP transport)
+
+The server speaks **stdio** by default — how Claude Desktop and Claude Code launch it —
+and opens no network socket. For other MCP clients, or to reach one running engine from
+several tools, you can additionally serve the same eight token-free tools over MCP
+**Streamable HTTP**. It is opt-in and secure by construction:
+
+```bash
+mta serve --http          # binds 127.0.0.1:8765 and prints a bearer token
+```
+
+On start it prints a ready-to-paste connection command:
+
+```bash
+claude mcp add --transport http memorised-them-all \
+  http://127.0.0.1:8765/mcp --header "Authorization: Bearer <TOKEN>"
+```
+
+**Loopback-only** unless you pass `--allow-remote`; a **mandatory bearer token**
+(auto-generated and stored `0600` at `$MTA_HOME/state/http_token`, or set via
+`MTA_HTTP_TOKEN`); and **DNS-rebinding protection** on by default. An unauthenticated
+`GET /healthz` is the only open route. To expose it beyond localhost, terminate TLS at a
+reverse proxy first — see [SECURITY.md](SECURITY.md).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MTA_HTTP_HOST` / `MTA_HTTP_PORT` | `127.0.0.1` / `8765` | HTTP bind address (loopback-guarded) |
+| `MTA_HTTP_PATH` | `/mcp` | endpoint path |
+| `MTA_HTTP_TOKEN` | auto | bearer token (auto-generated `0600` if unset) |
+| `MTA_HTTP_ALLOW_REMOTE` | `off` | permit a non-loopback bind (network-exposed) |
+| `MTA_HTTP_ALLOWED_HOSTS` / `MTA_HTTP_ALLOWED_ORIGINS` | unset | extra `Host`/`Origin` allowlist entries (reverse proxy) |
 
 ## 💻 Platform support
 

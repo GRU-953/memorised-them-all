@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+### Added
+- **Secure Streamable HTTP transport** (opt-in; Phase-3 interop). `mta serve --http`
+  exposes the same eight token-free tools over MCP Streamable HTTP for non-stdio
+  clients, **alongside** the unchanged default stdio transport. Secure by
+  construction: binds **loopback (`127.0.0.1`) only** unless `--allow-remote`
+  (`MTA_HTTP_ALLOW_REMOTE=on`) is given explicitly; **every request requires a
+  bearer token** (auto-generated and persisted `0600`, or set `MTA_HTTP_TOKEN`) —
+  there is no unauthenticated mode; the SDK's **DNS-rebinding protection**
+  (Host/Origin allowlist) stays on. An unauthenticated `/healthz` liveness probe
+  is the only open route and never echoes the token. Knobs: `MTA_HTTP_HOST`,
+  `MTA_HTTP_PORT` (default `8765`), `MTA_HTTP_PATH`, `MTA_HTTP_ALLOWED_HOSTS`,
+  `MTA_HTTP_ALLOWED_ORIGINS`. Adds **no** new top-level dependency
+  (`starlette`/`uvicorn` already ship with `mcp`). The server is now built by a
+  `build_server()` factory so each transport owns its own session manager.
+
 ## [1.4.0] — 2026-06-02
 
 ### Added
