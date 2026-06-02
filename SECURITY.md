@@ -18,7 +18,11 @@ not put exploit details in public issues.
 (a) downloading dependencies/models when you install or run `mta doctor` / `mta update`;
 (b) a throttled (~daily) GitHub *release check* (disable with `MTA_AUTO_UPDATE=off`);
 (c) an **opt-in** pull of the latest upstream MarkItDown (`MTA_MARKITDOWN_UPSTREAM=on`),
-pinned to a resolved commit. No analytics; document contents never leave your machine.
+pinned to a resolved commit; (d) if you **opt in** to an OpenAI-compatible inference
+backend (`MTA_BACKEND`), the text being digested/queried is sent to that endpoint — which
+defaults to **loopback**, so pointing it at a non-local URL is your explicit choice (a
+one-time warning is printed). No analytics; with the defaults, document contents never
+leave your machine.
 
 **Token-free boundary.** MCP tools return only metadata or a small, hard-capped slice
 (≤ 600 chars/hit, ≤ 5 docs); document contents never return to the model.

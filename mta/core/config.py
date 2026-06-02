@@ -92,6 +92,14 @@ class Config:
                             in ("1", "true", "yes", "on"))
     ollama_host: str = field(default_factory=lambda: _env("OLLAMA_HOST", "http://127.0.0.1:11434"))
 
+    # Inference backend for text generation + embeddings (WP-23). 'auto'/'ollama'
+    # (default) use the native Ollama API + lifecycle; 'openai'/'lmstudio'/'llamacpp'/
+    # 'vllm' target an OpenAI-compatible /v1 server at backend_url (default loopback).
+    # Vision/transcription always stay on Ollama / local tools. See mta/core/backends.py.
+    backend: str = field(default_factory=lambda: _env("MTA_BACKEND", "auto"))
+    backend_url: str = field(default_factory=lambda: _env("MTA_BACKEND_URL", "").strip())
+    backend_key: str = field(default_factory=lambda: _env("MTA_BACKEND_KEY", "").strip())
+
     # Remote / HTTP transport (opt-in; the default transport stays stdio). The
     # server binds to loopback only unless http_allow_remote is set, and every
     # request must carry a bearer token (auto-generated + persisted 0600 when
