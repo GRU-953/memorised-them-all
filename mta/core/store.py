@@ -159,7 +159,10 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
     if not cfg.vectors_path.exists() or not meta_path.exists():
         return None
     try:
-        with np.load(cfg.vectors_path) as data:
+        # allow_pickle=False explicitly (don't rely on the NumPy default): the
+        # vector store is untrusted (user-editable / copied between machines), and
+        # a pickled .npz must never be able to execute code on load (SEC-03).
+        with np.load(cfg.vectors_path, allow_pickle=False) as data:
             matrix = data["matrix"]
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         return matrix, meta
