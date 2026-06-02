@@ -92,6 +92,22 @@ class Config:
                             in ("1", "true", "yes", "on"))
     ollama_host: str = field(default_factory=lambda: _env("OLLAMA_HOST", "http://127.0.0.1:11434"))
 
+    # Remote / HTTP transport (opt-in; the default transport stays stdio). The
+    # server binds to loopback only unless http_allow_remote is set, and every
+    # request must carry a bearer token (auto-generated + persisted 0600 when
+    # http_token is empty). These are just resolved values — nothing here opens a
+    # socket; mta/transport.py consumes them. See SECURITY.md.
+    http_host: str = field(default_factory=lambda: _env("MTA_HTTP_HOST", "127.0.0.1"))
+    http_port: int = field(default_factory=lambda: _env_int("MTA_HTTP_PORT", 8765))
+    http_path: str = field(default_factory=lambda: "/" + _env("MTA_HTTP_PATH", "/mcp").strip().lstrip("/"))
+    http_token: str = field(default_factory=lambda: _env("MTA_HTTP_TOKEN", "").strip())
+    http_allow_remote: bool = field(default_factory=lambda: _env("MTA_HTTP_ALLOW_REMOTE", "off")
+                                    .strip().lower() in ("1", "true", "yes", "on"))
+    # Extra comma-separated hosts/origins added to the DNS-rebinding allowlist
+    # (the bound host:port + localhost are always included). For reverse-proxy use.
+    http_allowed_hosts: str = field(default_factory=lambda: _env("MTA_HTTP_ALLOWED_HOSTS", "").strip())
+    http_allowed_origins: str = field(default_factory=lambda: _env("MTA_HTTP_ALLOWED_ORIGINS", "").strip())
+
     # Parallelism (0/auto → decided by platform tuning).
     workers: int = field(default_factory=lambda: _env_int("MTA_WORKERS", 0))
 
@@ -141,6 +157,11 @@ class Config:
     @property
     def state_dir(self) -> Path:
         return self.home / "state"
+
+    @property
+    def http_token_file(self) -> Path:
+        """Where an auto-generated HTTP bearer token is persisted (0600)."""
+        return self.state_dir / "http_token"
 
     def ensure_dirs(self) -> None:
         for d in (self.projects_dir, self.project_dir, self.markdown_dir,

@@ -9,7 +9,7 @@ Subcommands:
   mta mindmap [--project P] [--open]             path to the mind map
   mta update [--force]                           update MarkItDown + deps
   mta doctor [--fix] [--dry-run]                 scan deps; suggest or apply fixes
-  mta serve                                      run the MCP server (stdio)
+  mta serve [--http [--host H] [--port N]]        run the MCP server (stdio; --http = secure HTTP)
 """
 from __future__ import annotations
 
@@ -61,7 +61,14 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("forget", help="delete a project's memory (irreversible)")
 
-    sub.add_parser("serve", help="run the MCP server (stdio)")
+    sv = sub.add_parser("serve", help="run the MCP server (stdio by default; --http = secure Streamable HTTP)")
+    sv.add_argument("--http", action="store_true",
+                    help="serve over Streamable HTTP instead of stdio (opt-in; loopback + bearer token)")
+    sv.add_argument("--host", default=None, help="HTTP bind host (default 127.0.0.1)")
+    sv.add_argument("--port", type=int, default=None, help="HTTP bind port (default 8765)")
+    sv.add_argument("--path", default=None, help="HTTP endpoint path (default /mcp)")
+    sv.add_argument("--allow-remote", action="store_true",
+                    help="permit a non-loopback bind (exposes the server beyond this machine)")
 
     args = p.parse_args(argv)
     from .core.platform import bootstrap_path
@@ -95,8 +102,13 @@ def main(argv: list[str] | None = None) -> int:
         from .core import deps
         _print(deps.doctor(cfg, fix=args.fix, dry_run=args.dry_run))
     elif args.cmd == "serve":
-        from .server import main as serve_main
-        serve_main()
+        if args.http:
+            from .transport import serve as serve_transport
+            serve_transport(cfg, transport="http", host=args.host, port=args.port,
+                            path=args.path, allow_remote=args.allow_remote or None)
+        else:
+            from .server import main as serve_main
+            serve_main()
     return 0
 
 
