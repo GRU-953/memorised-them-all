@@ -138,3 +138,22 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Milestone:** Phase-2 **R1, R2, R4, R5, R6 done** — only **R3 (WP-12)** remains to complete Phase 2.
 
 **EXACT NEXT STEP:** Begin **WP-12 — dependency scan + guided install/upgrade + `mta doctor` (R3)** on a fresh branch off `develop`: add a preflight scanner reporting present-&-current / outdated / missing with **detected-vs-required versions** (Python deps via `importlib.metadata` vs the pyproject requirements; system bins ollama/tesseract/ffmpeg via PATH + `--version`); a guided, **argv-only, idempotent** install/upgrade per platform (pip; brew/apt/dnf/pacman; winget/choco/scoop) with **`--dry-run`** + graceful no-admin remediation; surface via a new **`mta doctor`** subcommand + `memory_status`. Tests with monkeypatched probes (detected-vs-required, dry-run). (Closes DEP-04/10; completes Phase 2.)
+
+---
+
+## Session 07 — 2026-06-02 — Implementation: WP-12 (dep-scan + `mta doctor`, R3) — Phase 2 complete
+
+**Session id:** S07  **Branch:** `wp-12-doctor` → **PR #10** (merged, squash `66ca5d6`)  **Mode:** implementation
+
+**Goal:** Close DEP-04/10 — dependency preflight scanner + `mta doctor` — completing Phase 2 (R1–R6).
+
+**Done:**
+- **`mta/core/deps.py`:** `scan()` reports Python deps **detected-vs-required** (parsed from the package's `Requires-Dist` via `importlib.metadata` — single-sourced; extras skipped) + ollama/tesseract/ffmpeg binaries (present/version). `remediation()` builds argv-only, idempotent commands per platform (pip; brew/apt/dnf/pacman/winget). `doctor(fix, dry_run)`: `--fix` runs ONLY the safe pip upgrades; system-tool installs are *suggested*, never auto-sudo; `--dry-run` previews.
+- **cli.py:** new `mta doctor [--fix] [--dry-run]`. **server.py:** `memory_status` reports a `dependencies` summary.
+- `tests/test_doctor.py` (6) on all 3 OSes; README CLI + CHANGELOG (Added). `mta doctor --dry-run` smoke verified.
+
+**Local:** 54 offline tests pass. CI run 26809008286 fully green (9 jobs).
+
+**🎉 Milestone: Phase 2 (R1–R6) COMPLETE.** All core requirements implemented; both Criticals + the R4/R5/R6 Highs closed.
+
+**EXACT NEXT STEP:** Begin **WP-30 — offline recall reliability + classical-extraction quality** on a fresh branch off `develop`. Closes **DOC-01 (High)**: in `mta/core/recall.py`, compute a calibrated **lexical-overlap confidence** + apply a (scaled) floor on the **hashing/offline** path so `low_confidence`/`MTA_RECALL_MIN_SCORE` work without Ollama (today `low_confidence` is hardcoded `False` offline); fix `top_score` to reflect the returned hits (RECALL-03); address the verbatim-classical-fact nuance (RECALL-02). Tests: an off-topic query offline → `low_confidence True`. Target acceptance **A4**.
