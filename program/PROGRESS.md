@@ -8,11 +8,11 @@
 ---
 
 ## ▶ RESUME HERE
-**🎉 Phase-3 cross-AI interop COMPLETE (WP-20–24, all merged to `develop`, full 3-OS CI green). `develop` = a staged v1.5.0 release candidate.** `main` = v1.4.0 (published).
-**DONE (S16):** **WP-20** secure Streamable HTTP transport (`mta serve --http`; #19 `9e1029a`) · **WP-21** cross-AI schema exports (`mta export-schema` → OpenAI/Gemini/OpenAPI 3.1; #20 `fa86ec3`) · **WP-22** local REST gateway (`mta serve --rest`, `POST /tools/{name}`; #21 `2cf269b`) · **WP-23** pluggable backends (`MTA_BACKEND` → Ollama default or OpenAI-compatible; #22 `07e6d96`) · **WP-24** per-client recipes (`mta recipes`) + cross-surface conformance (#23 `12ba7ac`). All additive + invariant-safe (token-free, local-first, no new dependency). **Version bumped to 1.5.0 + CHANGELOG cut** (all 5 version strings agree; `scripts/check_versions.py` green).
-**▶ Next = release v1.5.0 (owner-gated):** ⚠ **first rotate `HOMEBREW_TAP_TOKEN`** (a fine-grained PAT was exposed in chat at S14 — the tap job would fail/partial-release otherwise), then merge `develop`→`main` (PR) and `git tag v1.5.0 && git push --tags` → the train publishes PyPI + GitHub Release (+`.mcpb`) + bumps the tap (`PUBLISH_MANIFEST.md`); run the post-publish smoke. The agent staged everything; tagging is the owner's call.
-**Then (optional) v1.x+ remainder:** extra publishing channels (Docker/GHCR, MCP registry, winget/scoop/AUR) + deferred Low/Med (`REVIEW.md`: graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02).
-**⚠ Concurrency (S16):** two unattended sessions briefly shared this one checkout (a 2nd wrote WP-20 while this did WP-21); resolved by sole-driver consolidation. **Run ONE unattended session per working tree**, or give each its own `git worktree`.
+**🚢 v1.5.0 SHIPPED — Phase-3 cross-AI interop *and* the v1.x+ backlog are COMPLETE.** Tag `v1.5.0` published (release run 26844874577, all 4 jobs green) + post-publish-verified: **PyPI** 1.5.0 (OIDC; fresh-venv install ✓), **GitHub Release** `v1.5.0` (wheel + sdist + `.mcpb` + SBOM + cosign `.sig`/`.pem` per artifact), **Homebrew tap** bumped to 1.5.0, **GHCR** multi-arch image. `main` = `develop` = v1.5.0; no Critical/High open.
+**Delivered this arc (S16):** Phase-3 — WP-20 HTTP transport (#19) · WP-21 schema exports (#20) · WP-22 REST gateway (#21) · WP-23 pluggable backends (#22) · WP-24 recipes + conformance (#23). Backlog — WP-60 supply-chain + CI-09 lockfile + release tag-gate (#25) · WP-61 Docker/GHCR (#26) · WP-62 vector-store consistency + PIPE-05 (#27) · WP-63 MCP-registry `server.json` (#28). All additive + invariant-safe.
+**Owner follow-ups (one-time, NOT blocking):** rotate `HOMEBREW_TAP_TOKEN` (the S14-exposed PAT still worked for 1.5.0 but should be replaced); submit the registry manifest once (`mcp-publisher login github && mcp-publisher publish`).
+**▶ Next (optional only):** README was rewritten from scratch for novices (S16) — it surfaces on the GitHub homepage at the next release to `main`. Deferred Low/Med (`REVIEW.md`: full graph+vectors write-transaction *(accepted — a torn store is already safe via the load guard)*, PIPE-06 entity fragmentation, RECALL-02, LIFE-02 residual); directory/marketplace listings; winget/scoop noted N/A for a pip tool (`PUBLISH_MANIFEST.md`).
+**⚠ Concurrency (S16):** run ONE unattended session per working tree (or give each its own `git worktree`).
 
 ---
 
@@ -46,6 +46,11 @@
 | WP-22 | Phase-3: local REST gateway over the OpenAPI-3.1 surface | 3 | v1.x+ | **DONE** | merged #21 → develop (2cf269b) | 06-03 | `serve --rest`; bearer+Host-allowlist; threadpool |
 | WP-23 | Phase-3: pluggable backends (Ollama/LM Studio/llama.cpp/OpenAI-compat) | 3 | v1.x+ | **DONE** | merged #22 → develop (07e6d96) | 06-03 | `MTA_BACKEND`; Ollama default byte-identical; fallback intact |
 | WP-24 | Phase-3: per-client recipes + conformance tests | 3 | v1.x+ | **DONE** | merged #23 → develop (12ba7ac) | 06-03 | `mta recipes`; all surfaces == same 8 tools |
+| WP-60 | Supply-chain: lockfile (CI-09) + pip-audit/license + release tag-gate | 5 | v1.x+ | **DONE** | merged #25 → develop | 06-03 | `constraints.txt`; dispatch=dry-run; tap best-effort |
+| WP-61 | Docker image + GHCR multi-arch publishing | 5 | v1.x+ | **DONE** | merged #26 → develop | 06-03 | `Dockerfile` + `docker.yml`; GITHUB_TOKEN, no secret |
+| WP-62 | Robustness: vector-store consistency + rapidfuzz hard-dep (PIPE-05) | 4 | v1.x+ | **DONE** | merged #27 → develop | 06-03 | `store.clear_vectors`; vectors-before-graph |
+| WP-63 | MCP registry manifest (`server.json`) | 5 | v1.x+ | **DONE** | merged #28 → develop | 06-03 | version-gated; owner submits via `mcp-publisher` |
+| WP-41b | Second synchronized release (v1.5.0) | 5 | v1.x+ | **DONE 🚢** | tag v1.5.0 (run 26844874577) | 06-03 | PyPI + GitHub Release + .mcpb + tap + GHCR; smoke ✓ |
 
 ## Artifacts
 `AUDIT.md` · `IMPROVEMENT_PLAN.md` · `ACCEPTANCE.md` · `RISKS.md` · `DECISIONS.md` · `SESSION_LOG.md` · `/CHANGELOG.md` · (later: `PUBLISH_MANIFEST.md`, `TEST_REPORT.md`, `SECURITY.md`)

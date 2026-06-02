@@ -1,390 +1,331 @@
 <div align="center">
 
-<img src="docs/social-preview.png" alt="Memorised them All — local, token-free file-to-knowledge-graph memory for Claude (MCP server)" width="100%">
+<img src="https://raw.githubusercontent.com/GRU-953/memorised-them-all/main/docs/social-preview.png" alt="Memorised them All — give Claude a private, local memory of your files" width="100%">
 
 <h1>Memorised them All</h1>
 
-<h3>Local, token-free document memory for Claude — turn any folder of files into a knowledge graph you can recall, for ~0 context tokens.</h3>
+<h3>Give Claude a private memory of your files — without paying for it in tokens.</h3>
 
-<p>An <a href="https://modelcontextprotocol.io">MCP</a> server &amp; plugin for <b>Claude Desktop</b> and <b>Claude Code</b> that converts PDFs, Office docs, images, and audio to Markdown <b>on your machine</b>, then digests them into a searchable <b>knowledge graph</b> + <b>mind map</b> — privately, with no cloud and no API keys.</p>
+<p>Point it at a folder of PDFs, Word/Excel files, images, or audio. It reads and remembers them <b>entirely on your own computer</b>, so you can just <i>ask Claude</i> about them later — no copy-pasting, no uploads, no API keys, no surprise token bills.</p>
 
-[![CI](https://github.com/GRU-953/memorised-them-all/actions/workflows/ci.yml/badge.svg)](https://github.com/GRU-953/memorised-them-all/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/memorised-them-all?color=ec4899&label=pip%20install)](https://pypi.org/project/memorised-them-all/)
 [![Release](https://img.shields.io/github/v/release/GRU-953/memorised-them-all?color=6366f1&label=release)](https://github.com/GRU-953/memorised-them-all/releases/latest)
-[![PyPI](https://img.shields.io/pypi/v/memorised-them-all?color=ec4899&label=pypi)](https://pypi.org/project/memorised-them-all/)
-[![Downloads](https://img.shields.io/pypi/dm/memorised-them-all?color=f59e0b&label=downloads)](https://pypi.org/project/memorised-them-all/)
+[![CI](https://github.com/GRU-953/memorised-them-all/actions/workflows/ci.yml/badge.svg)](https://github.com/GRU-953/memorised-them-all/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://pypi.org/project/memorised-them-all/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Platforms](https://img.shields.io/badge/macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-supported-444)](#-platform-support)
-[![Token cost](https://img.shields.io/badge/Claude%20tokens-~0-10b981)](#-why-token-free)
+[![100% local](https://img.shields.io/badge/100%25-local%20%26%20private-10b981)](#-is-my-data-private)
+[![Claude tokens](https://img.shields.io/badge/Claude%20tokens-~0-10b981)](#-why-is-it-free-of-token-cost)
 
 <p>
-<a href="#-quickstart"><b>Quickstart</b></a> ·
-<a href="#-why-token-free">Why token-free</a> ·
-<a href="#-features">Features</a> ·
-<a href="#-how-it-works">How it works</a> ·
-<a href="#-tools">Tools</a> ·
-<a href="#-use-cases">Use cases</a> ·
-<a href="#-comparison">Comparison</a> ·
-<a href="#-configuration">Config</a> ·
-<a href="#-platform-support">Platforms</a> ·
-<a href="#-privacy--security">Privacy</a> ·
-<a href="#-faq">FAQ</a>
+<a href="#-what-is-this"><b>What is this?</b></a> ·
+<a href="#-get-started-in-about-a-minute"><b>Get started</b></a> ·
+<a href="#-your-first-memory">First memory</a> ·
+<a href="#-what-can-i-use-it-for">Use cases</a> ·
+<a href="#-questions--troubleshooting">FAQ</a> ·
+<a href="#-for-power-users">Advanced</a>
 </p>
-
-**100% local · free &amp; open-source · auto-installing · Apple-silicon optimised · by [GRU-953](https://github.com/GRU-953)**
 
 </div>
 
 ---
 
-> **The idea in one line:** Claude tokens are expensive; your computer's compute is free. So every heavy step — converting documents, extracting knowledge, embedding, summarising — runs **locally**, and Claude only ever gets back a tiny tool result. Digesting a 500-page folder costs **roughly zero context tokens**.
+## 🧠 What is this?
 
-Point **Memorised them All** at a folder. It converts every attachment to Markdown locally, then builds a layered **knowledge graph** — a global synopsis, per-theme summaries, per-document notes, an exportable Markdown bundle, and an offline interactive **mind map** — and lets Claude recall from it for next to nothing.
+Imagine you could hand Claude a **filing cabinet** of your documents and say *"remember all of this."* Later you just ask questions, and Claude answers from what it remembers — citing which document each fact came from.
+
+That's **Memorised them All**. It's a small add-on (an [MCP server](https://modelcontextprotocol.io)) for **Claude Desktop** and **Claude Code** that:
+
+1. **Reads your files** — PDFs, Word/Excel/PowerPoint, web pages, images (with OCR), even audio — and converts them to clean text **on your computer**.
+2. **Builds a memory** — a searchable map of the people, topics, and facts inside them (a "knowledge graph"), plus a tidy summary and an interactive **mind map**.
+3. **Lets you ask** — Claude recalls just the relevant bits when you ask, instead of you pasting whole files into the chat.
+
+> **The one-line idea:** Claude tokens cost money; your computer's effort is free. So all the heavy lifting happens locally, and Claude only ever receives a tiny answer. Memorising a 500-page folder costs **roughly zero** chat tokens.
+
+### 💬 See it in action
+
+Once it's installed, you just talk to Claude normally:
 
 ```
-"Memorise everything in ~/Documents/research."
-"What did my documents say about the Q3 budget?"
-"Open the mind map."
+You:    Memorise everything in ~/Documents/contracts.
+Claude: ✅ Digested 38 files → 421 facts across 7 themes. (took ~30s, all local)
+
+You:    Which contracts mention an auto-renewal clause, and when do they renew?
+Claude: Three do — the Globex MSA (renews 1 Jan, 60-day notice), … [cites each source]
+
+You:    Open the mind map.
+Claude: Here's your interactive map: /…/mindmap.html
 ```
 
-## 🚀 Quickstart
+Nothing left your machine. Claude never saw the 38 files — only the small answers.
 
-<table>
-<tr><th>Claude Desktop</th><th>Claude Code</th></tr>
-<tr><td>
+---
 
-Download **`memorised-them-all.mcpb`** from the
-[latest release](https://github.com/GRU-953/memorised-them-all/releases/latest)
-and double-click it (**Settings → Extensions**). It bootstraps the local stack on first launch.
+## 🚀 Get started in about a minute
 
-</td><td>
+You need **Python 3.10 or newer** (most Macs and Linux PCs already have it; Windows users can install it from [python.org](https://www.python.org/downloads/) — tick *"Add to PATH"*). Everything else installs automatically the first time you use it.
+
+Pick whichever matches how you use Claude:
+
+### ▶ Claude Desktop (easiest — no terminal)
+
+1. Download **`memorised-them-all.mcpb`** from the [**latest release**](https://github.com/GRU-953/memorised-them-all/releases/latest).
+2. **Double-click it.** Claude Desktop opens and offers to install the extension — click **Install**.
+3. Done. Start a chat and say *"Memorise my Documents folder."*
+
+### ▶ Claude Code
 
 ```bash
+claude
+# then, inside Claude Code:
 /plugin marketplace add GRU-953/memorised-them-all
 /plugin install memorised-them-all
 ```
 
-</td></tr>
-<tr><th>pip (any OS)</th><th>Homebrew (macOS/Linux)</th></tr>
-<tr><td>
+### ▶ Any other setup (pip)
 
 ```bash
 pip install memorised-them-all
-mta status
-mta digest ~/Documents/research
 ```
 
-</td><td>
+Then add it to your client's MCP config as a server that runs `mta serve`. For example, in `claude_desktop_config.json` or `~/.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "memorised-them-all": { "command": "mta", "args": ["serve"] }
+  }
+}
+```
+
+> 💡 Prefer Homebrew or Docker? `brew install GRU-953/memorised-them-all/mta`, or see [Run it in Docker](#run-it-in-docker). All paths give you the same thing.
+
+### Do I need to install AI models?
+
+**No — it works the moment it's installed.** Out of the box it uses fast, built-in techniques (no downloads, fully offline).
+
+For **sharper** summaries and search, it can optionally use a **free local AI model** via [Ollama](https://ollama.com) (still 100% on your machine). If Ollama is present it's used automatically; if not, you're never blocked. To check what you have and get one-line setup tips, run:
 
 ```bash
-brew install GRU-953/memorised-them-all/mta
+mta doctor
 ```
 
-</td></tr>
-</table>
+---
 
-> **Requirements:** Python ≥ 3.10. The installer fetches everything else (Ollama, Tesseract, ffmpeg, the latest MarkItDown, and local models) — see [Platform support](#-platform-support).
+## 📁 Your first memory
 
-## 💡 Why token-free
+1. **Tell Claude what to remember** — point it at a folder, a file, or a pattern:
+   > *"Memorise everything in ~/Documents/research."*
 
-Most "chat with your documents" tools stream document text into the model — you pay tokens to **ingest** *and* to **recall**. Memorised them All never does that:
+   (Behind the scenes Claude calls the `digest` tool. The first run may take a little longer while it sets things up.)
 
-| Step | Where it runs | Tokens to Claude |
-| --- | --- | --- |
-| Convert PDF / Office / image / audio → Markdown | your machine (MarkItDown · Tesseract · Whisper · Ollama) | **0** |
-| Extract entities · relations · facts | your machine (local LLM, classical fallback) | **0** |
-| Embed · resolve · build graph · summarise | your machine (Ollama · NetworkX) | **0** |
-| **`digest` result** | — | counts &amp; paths only (~140 tokens) |
-| **`recall` result** | — | a small, citable slice — **never the documents** |
+2. **Ask away** — in plain language:
+   > *"What do my documents say about the Q3 budget?"*
+   > *"Summarise everything about Project Apollo."*
+   > *"Who is mentioned most often, and in which files?"*
 
-Tool results are hard-capped in size, so the guarantee holds even on the high-accuracy path.
+3. **Explore visually** *(optional)*:
+   > *"Open the mind map."* — an interactive, offline map of how everything connects.
 
-## ✨ Features
+4. **Keep it tidy** — separate memories per topic with **projects**:
+   > *"Memorise ~/work/clientA into a project called clientA."*
+   > *"Using the clientA project, what were the agreed deliverables?"*
 
-- 📄 **Universal local conversion** — PDF, Word, Excel, PowerPoint, HTML, EPub, Outlook `.msg`, CSV/JSON/XML, images (OCR + vision captioning), and audio (on-device transcription) → clean Markdown. Scanned PDFs are OCR'd; OCR in 100+ languages when the matching Tesseract language packs are installed (e.g. `eng+ben`).
-- 🕸️ **Layered knowledge graph (GraphRAG-style)** — entities, typed relations and atomic facts, grouped into **themes** by community detection, with a global synopsis and per-theme summaries — all built by local models.
-- 🧭 **Offline interactive mind map** — a single self-contained `mindmap.html` (Cytoscape inlined, zero network).
-- 📝 **Exportable, portable memory** — `graph.json`, `memory.md`, and per-document notes you can copy to any machine and reuse.
-- ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and **much faster** — it skips the per-chunk LLM, so the factor scales with corpus size and model (**benchmarked ≈25–100×** with the default 7B extractor: ≈98× on a 5-file set, ≈26× on 12 files) — ideal for large or frequently-refreshed corpora.
-- 🔁 **Reusable named projects** — accumulate many folders into one memory; `forget` to delete one.
-- 🍎 **Apple-silicon first** — performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency. Runs on Intel macOS, Linux, and Windows too.
-- ⚙️ **Auto-installing & auto-updating** — installs a **pinned MarkItDown from PyPI** so the first run works offline, and refreshes it on a throttled daily check (import-checked, with rollback); the latest *upstream* MarkItDown is **opt-in** (`MTA_MARKITDOWN_UPSTREAM=on`, pinned to a commit). Starts the model server on demand and **stops it after 5 minutes idle**.
-- 🌍 **Multilingual** — Unicode-aware entity resolution (Bengali, CJK, Cyrillic, accented Latin) and OCR in many languages.
-- 🛟 **Crash-safe & reusable** — memory is written atomically, so an interrupted digest never corrupts an existing project; recall reports a `low_confidence` signal so Claude can decline when the answer isn't in your docs.
-- 🔒 **Private by design** — no cloud, no API keys, no telemetry. Your files never leave your computer.
+Your memory lives in a folder on your computer (`~/.memorised-them-all` by default) and persists between chats. Re-running *"memorise"* updates it.
 
-## 🧠 How it works
+---
 
-```
-attachments ─► CONVERT ─► SEGMENT ─► EMBED ─► EXTRACT ─► RESOLVE ─► GRAPH + COMMUNITIES ─► MATERIALISE
-  pdf/docx/   MarkItDown  structure  nomic-   local LLM  canonical  NetworkX +             graph.json
-  xlsx/img/   +Tesseract  +semantic  embed-   triples +  entities   Leiden / Louvain        memory.md
-  audio/...   +Whisper    chunking   text     facts      (embed +   community summaries     memory/<doc>.md
-              +Ollama                          (+class-   fuzzy +    (local LLM)             mindmap.html
-               vision                           ical      acronym)                           vectors store
-                                                fallback)
-                                                                              │
-   recall("…")  ◄── embed query locally ──  return ONLY a small, citable slice (themes + facts + provenance)
-```
+## 🎯 What can I use it for?
 
-Everything between *attachments* and *recall* happens on your machine. The local-LLM step has a **dependency-free classical fallback**, so a digest always succeeds — even offline, even before any model is downloaded — and gets sharper once models are present.
+- **📚 Research & study** — digest a pile of papers or a textbook, then ask for explanations, comparisons, and citations.
+- **📑 Contracts & policies** — load all your agreements and ask "which ones auto-renew?" or "what are the termination clauses?"
+- **🗂️ Personal knowledge base** — point it at years of notes, receipts, or manuals and actually *find* things.
+- **🎧 Meetings & lectures** — drop in audio recordings; it transcribes locally and remembers the content.
+- **🖼️ Scanned documents & images** — it reads text from photos and scans (OCR) so they become searchable.
+- **🔒 Sensitive material** — legal, medical, financial, or confidential files that must **never leave your machine**.
 
-## 🛠 Tools
+---
 
-Eight token-free MCP tools (plus the `mta` CLI). Every result is metadata or a small slice — **document contents never return to the conversation**.
+## ✨ Why is it free of token cost?
 
-| Tool | What it does |
+When you normally share a document with Claude, the whole thing is sent into the conversation — and you pay (in tokens) for every word, every time. A few big PDFs can blow your whole context window.
+
+Memorised them All flips that around:
+
+- **Converting, reading, and summarising** your files happens **on your computer**.
+- Claude only ever receives a **tiny result** — a count, a short summary, or a few relevant snippets (capped small).
+- So memorising a giant folder, and asking about it again and again, stays **near-zero context tokens**.
+
+It's the difference between mailing someone an entire library versus asking a librarian a question.
+
+---
+
+## 🔒 Is my data private?
+
+**Yes — that's the whole point.** By default:
+
+- ✅ **100% local.** Your files are read, converted, and remembered on your own machine. Their contents are **never** sent to Claude's servers, to us, or to anyone.
+- ✅ **No telemetry, no tracking, no accounts, no API keys.**
+- ✅ **Works fully offline.** Disconnect the internet and it still memorises and answers.
+- ✅ **Open source (MIT).** You (or anyone) can read exactly what it does.
+
+The only times anything touches the network are clearly optional and on *your* command: installing/updating software, an occasional check for a new version (turn off with `MTA_AUTO_UPDATE=off`), or *if you explicitly choose* to point it at a remote AI backend. With the defaults, **your documents stay with you.** See [SECURITY.md](SECURITY.md) for the full threat model.
+
+---
+
+## ❓ Questions & troubleshooting
+
+<details>
+<summary><b>Is it really free?</b></summary>
+
+Yes — the software is free and open-source (MIT), and it runs on your own computer, so there are no per-use fees or token charges. The only "cost" is a little of your computer's time and disk space.
+</details>
+
+<details>
+<summary><b>Claude says it doesn't have the tool / it's not showing up.</b></summary>
+
+Make sure the extension/plugin is installed **and enabled**, then fully **restart Claude Desktop** (or your Claude Code session). To confirm the engine itself works, run `mta status` in a terminal — it should print your setup. Still stuck? Run `mta doctor`.
+</details>
+
+<details>
+<summary><b>The first "memorise" was slow.</b></summary>
+
+The first run sets things up (and, if you have Ollama, may load a model). Later runs are much faster, and re-memorising only processes what changed. Add `fast` ("memorise … in fast mode") to skip the AI step entirely for a quick, fully-deterministic pass.
+</details>
+
+<details>
+<summary><b>What files can it read?</b></summary>
+
+PDFs, Word/Excel/PowerPoint, plain text/Markdown, HTML, CSV, RTF, common images (via OCR), and audio (transcribed locally) — among others. Ask Claude to *"list what's digestible in this folder"* to see.
+</details>
+
+<details>
+<summary><b>How do I delete a memory?</b></summary>
+
+Tell Claude *"forget the clientA project"* (it asks you to name the project, on purpose). It deletes that project's memory from your disk — irreversibly.
+</details>
+
+<details>
+<summary><b>Does it need an internet connection?</b></summary>
+
+No. It's built to work completely offline. Internet is only used for optional, opt-in things like installing updates.
+</details>
+
+---
+
+## 🧰 The tools Claude gets
+
+Once installed, Claude can use these eight tools on your behalf (you just talk normally — Claude picks the right one):
+
+| Tool | What it does for you |
 | --- | --- |
-| `digest(paths, project?, reset?, fast?)` | convert + digest files/dirs/globs; **accumulates** into the project (`reset` starts fresh, `fast` skips the LLM) |
-| `recall(query, project?, k?)` | answer from memory — a small, citable slice (+ `top_score` &amp; `low_confidence` relevance signal) |
-| `memory_overview(project?)` | synopsis + themes |
-| `export_memory(dest, project?)` | export portable Markdown + graph + mind map |
-| `list_digestible(directory)` | list convertible files (paths/sizes only) |
-| `memory_status()` | local stack health (Ollama, models, Tesseract, MarkItDown version) |
-| `open_mindmap(project?)` | path to the offline interactive mind map |
-| `forget(project?)` | delete a project's memory |
+| **digest** | Reads files/folders and builds (or updates) the memory. |
+| **recall** | Answers a question from memory with a few relevant, cited snippets. |
+| **memory_overview** | Gives the big picture — a synopsis and the main themes. |
+| **list_digestible** | Shows which files in a folder it can read. |
+| **open_mindmap** | Opens the interactive, offline mind map. |
+| **export_memory** | Saves the memory as portable Markdown notes you can keep or share. |
+| **memory_status** | Reports your local setup (models, tools, projects). |
+| **forget** | Deletes a project's memory (you name it explicitly). |
 
-**CLI:** `mta digest <paths> [--fast] [--reset]` · `mta recall "<q>"` · `mta overview` · `mta export <dir>` · `mta mindmap --open` · `mta forget` · `mta status` · `mta update` · `mta doctor`. In Claude Code, the slash commands `/memorise`, `/recall`, `/memory-map`, `/memory-status`, `/export-memory` are also available.
+Every tool returns only small results — never your documents' contents.
 
-## 🎯 Use cases
+---
 
-- **Private RAG / "chat with your documents" — locally**, with no cloud and no per-query token cost.
-- **Research & literature memory** — digest a folder of papers/PDFs and ask grounded questions.
-- **Knowledge base for an agent** — give Claude durable, reusable memory across sessions.
-- **Meeting & audio notes** — transcribe recordings on-device and fold them into the graph.
-- **Scanned documents & receipts** — OCR image-only PDFs and images into searchable memory.
-- **Visual exploration** — open the offline mind map to see how entities and themes connect.
+## 🛠️ For power users
 
-## ⚖️ Comparison
+You don't need any of this to use the app — but it's here if you want it.
 
-| | **Memorised them All** | Cloud "chat with docs" / hosted RAG | Stock `markitdown-mcp` |
-| --- | :---: | :---: | :---: |
-| Runs fully locally | ✅ | ❌ | ✅ (conversion only) |
-| Context-token cost to ingest **and** recall | **~0** | high | high (returns text) |
-| Knowledge graph + themes | ✅ | sometimes | ❌ |
-| Offline interactive mind map | ✅ | ❌ | ❌ |
-| Works offline / no API keys | ✅ | ❌ | ✅ |
-| Reusable, exportable memory files | ✅ | varies | ❌ |
-| Free &amp; open-source (MIT) | ✅ | varies | ✅ |
+<details>
+<summary><b>Command line (no Claude needed)</b></summary>
 
-## ⚙️ Configuration
-
-All optional, sensible defaults; set via environment (CLI) or the extension settings (Desktop).
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `MTA_HOME` | `~/.memorised-them-all` | where memories are stored |
-| `MTA_FAST` | `off` | fast mode — skip the LLM (deterministic; benchmarked ≈25–100× faster, scales with corpus/model) |
-| `MTA_EXTRACT_MODEL` | `qwen2.5:7b` | local LLM for extraction & summaries |
-| `MTA_EMBED_MODEL` | `nomic-embed-text` | local embedding model |
-| `MTA_VISION_MODEL` | `moondream` | image captioning |
-| `MTA_OCR_LANG` | `eng` | Tesseract languages, e.g. `eng+ben` |
-| `MTA_WHISPER_MODEL` | `base` | on-device transcription model |
-| `MTA_IDLE` | `300` | seconds idle before Ollama is stopped |
-| `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | `0` (auto) | parallel conversion / extraction workers |
-| `MTA_MAX_CHUNKS` / `MTA_MAX_FILE_MB` | `1500` / `200` | workload &amp; input-size caps (reported) |
-| `MTA_RECALL_MIN_SCORE` | `0` (off) | drop recall hits below this cosine score (stricter grounding) |
-| `MTA_AUTO_UPDATE` | `on` | daily update check: `on` (PyPI, default) · `off` · `upstream` (also pull the pinned upstream MarkItDown) |
-| `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
-| `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
-| `MTA_BACKEND` | `auto` | inference backend: `auto`/`ollama`, or an OpenAI-compatible server — `lmstudio` · `llamacpp` · `vllm` · `openai` (see [Use a different model server](#-use-a-different-model-server)) |
-| `MTA_BACKEND_URL` / `MTA_BACKEND_KEY` | auto / unset | base URL + bearer key for an OpenAI-compatible backend (URL defaults to the right loopback port) |
-| `MTA_PROFILE` | unset | tuning profile: `laptop` · `workstation` · `server` · `offline` (an explicit `MTA_*` variable always wins) |
-| `MTA_HTTP_*` | off | opt-in HTTP transport — see [Remote access](#-remote-access-http-transport) |
-
-## 🌐 Remote access (HTTP transport)
-
-The server speaks **stdio** by default — how Claude Desktop and Claude Code launch it —
-and opens no network socket. For other MCP clients, or to reach one running engine from
-several tools, you can additionally serve the same eight token-free tools over MCP
-**Streamable HTTP**. It is opt-in and secure by construction:
+The same engine ships as an `mta` command:
 
 ```bash
-mta serve --http          # binds 127.0.0.1:8765 and prints a bearer token
+mta digest ~/Documents/research        # build/update memory (--fast to skip the LLM)
+mta recall "what about the Q3 budget?" # query it
+mta overview                            # synopsis + themes
+mta status                              # local stack health   ·   mta doctor  (fix deps)
+mta export ./notes                      # export portable Markdown
+mta mindmap --open                      # open the mind map
 ```
+</details>
 
-On start it prints a ready-to-paste connection command:
+<details>
+<summary><b>Use it from other AI apps (OpenAI, Gemini, plain HTTP)</b></summary>
+
+The same eight tools can be served beyond Claude:
 
 ```bash
-claude mcp add --transport http memorised-them-all \
-  http://127.0.0.1:8765/mcp --header "Authorization: Bearer <TOKEN>"
+mta serve --http     # MCP over HTTP (loopback + an auto-generated bearer token)
+mta serve --rest     # plain JSON:  POST http://127.0.0.1:8765/tools/<name>
+mta export-schema    # tool schemas as OpenAI / Gemini / OpenAPI 3.1 (no drift)
+mta recipes          # copy-paste connection snippets for every client
 ```
 
-**Loopback-only** unless you pass `--allow-remote`; a **mandatory bearer token**
-(auto-generated and stored `0600` at `$MTA_HOME/state/http_token`, or set via
-`MTA_HTTP_TOKEN`); and **DNS-rebinding protection** on by default. An unauthenticated
-`GET /healthz` is the only open route. To expose it beyond localhost, terminate TLS at a
-reverse proxy first — see [SECURITY.md](SECURITY.md).
+Both HTTP modes are loopback-only by default and require a bearer token. See `mta recipes` for ready-to-paste setup.
+</details>
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `MTA_HTTP_HOST` / `MTA_HTTP_PORT` | `127.0.0.1` / `8765` | HTTP bind address (loopback-guarded) |
-| `MTA_HTTP_PATH` | `/mcp` | endpoint path |
-| `MTA_HTTP_TOKEN` | auto | bearer token (auto-generated `0600` if unset) |
-| `MTA_HTTP_ALLOW_REMOTE` | `off` | permit a non-loopback bind (network-exposed) |
-| `MTA_HTTP_ALLOWED_HOSTS` / `MTA_HTTP_ALLOWED_ORIGINS` | unset | extra `Host`/`Origin` allowlist entries (reverse proxy) |
+<details>
+<summary><b>Run it in Docker</b><a id="run-it-in-docker"></a></summary>
 
-## 🔌 Use from other AIs (tool schemas)
-
-The same eight tools can be described to **non-MCP** clients in the three dominant
-dialects, so OpenAI, Google Gemini, or any OpenAPI consumer can call this local engine.
-The schemas are generated from the live MCP tool registry — never hand-maintained — so
-they can't drift from the tools the server actually serves:
-
-```bash
-mta export-schema                    # all three dialects → stdout (JSON)
-mta export-schema --format openai    # OpenAI tools / function-calling array
-mta export-schema --format gemini    # Gemini function_declarations (OpenAPI-subset)
-mta export-schema --format openapi   # OpenAPI 3.1 document (POST /tools/{name})
-mta export-schema --out ./schemas    # write openai.json · gemini.json · openapi.json
-```
-
-Pure and offline: it only reads the in-process tool definitions and prints JSON — it
-starts no server and returns nothing through the model.
-
-To actually **call** the tools without MCP, run the local **REST gateway** — it serves
-exactly that OpenAPI 3.1 surface:
-
-```bash
-mta serve --rest     # POST http://127.0.0.1:8765/tools/{name} with a JSON arg body
-```
-
-Same hardening as `mta serve --http` (loopback-only, one mandatory bearer token shared
-with the MCP transport, Host allowlist); `GET /openapi.json` returns the live schema and
-`GET /healthz` is an unauthenticated liveness probe. Example:
-
-```bash
-curl -s http://127.0.0.1:8765/tools/recall \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"query":"deadlines","project":"contracts"}'
-```
-
-**Not sure which snippet you need?** `mta recipes` prints ready-to-paste connection setup
-for every surface — Claude Code (stdio/HTTP), Claude Desktop, the REST gateway, and
-OpenAI/Gemini — all pointing at the same eight tools.
-
-## 🧩 Use a different model server
-
-By default the LLM (extraction + summaries) and embeddings run on **Ollama**, started on
-demand and stopped when idle. To point them at another local model server instead, set
-`MTA_BACKEND` (and usually `MTA_BACKEND_URL`):
-
-```bash
-# LM Studio (defaults to http://127.0.0.1:1234/v1)
-MTA_BACKEND=lmstudio MTA_EXTRACT_MODEL=your-chat-model MTA_EMBED_MODEL=your-embed-model mta digest ./docs
-
-# llama.cpp server (http://127.0.0.1:8080/v1), or any OpenAI-compatible endpoint
-MTA_BACKEND=openai MTA_BACKEND_URL=http://127.0.0.1:8080/v1 mta digest ./docs
-```
-
-The server must speak the OpenAI API (`/v1/chat/completions` + `/v1/embeddings`). Set
-`MTA_EXTRACT_MODEL` / `MTA_EMBED_MODEL` to that server's model IDs, and `MTA_BACKEND_KEY`
-if it needs a token. Image OCR and audio transcription still use Ollama / local tools.
-The backend defaults to **loopback** — pointing it at a non-local URL sends content off
-your machine (your explicit choice; a one-time warning is printed). If the backend is
-unreachable, a digest still succeeds via the classical/offline fallback.
-
-## 🐳 Run in Docker
-
-A multi-arch image (`linux/amd64` + `linux/arm64`) is published to GHCR. It serves the
-eight tools over MCP **Streamable HTTP**; a bearer token is generated and printed on
-first start:
+A multi-arch image (`amd64` + `arm64`) is published to GHCR:
 
 ```bash
 docker run -d --name mta -p 127.0.0.1:8765:8765 -v mta-data:/data \
   ghcr.io/gru-953/memorised-them-all:latest
-docker logs mta          # copy the printed token + the ready-to-paste `claude mcp add …`
+docker logs mta     # copy the printed bearer token + the `claude mcp add …` line
 ```
 
-Ollama isn't bundled — set `MTA_BACKEND_URL` to a model server, or run fully offline
-(classical + hashing). The `/data` volume holds your memory; mount documents read-only
-(`-v /path/to/docs:/docs:ro`) and `digest` the in-container path.
+It serves the tools over MCP HTTP and keeps memory in the `/data` volume. Mount documents read-only (`-v /path/to/docs:/docs:ro`) and digest the in-container path.
+</details>
 
-## 💻 Platform support
+<details>
+<summary><b>Use a different (or remote) AI model</b></summary>
 
-Apple M-series is the primary, most-optimised target; other platforms use portable fallbacks.
+By default the optional AI step runs on local **Ollama**. To use another local server (LM Studio, llama.cpp, vLLM, …) set `MTA_BACKEND`:
 
-| Platform | Status | Notes |
+```bash
+MTA_BACKEND=lmstudio mta digest ~/docs          # OpenAI-compatible server on :1234
+MTA_BACKEND=openai MTA_BACKEND_URL=http://127.0.0.1:8080/v1 mta digest ~/docs
+```
+
+Set `MTA_EXTRACT_MODEL` / `MTA_EMBED_MODEL` to that server's model names. Pointing it at a **non-local** URL sends content off your machine — that's your explicit choice (you'll get a one-time warning).
+</details>
+
+<details>
+<summary><b>Configuration</b></summary>
+
+Everything has sensible defaults. Common knobs (set as environment variables):
+
+| Variable | Default | Meaning |
 | --- | --- | --- |
-| macOS (Apple silicon) | ✅ optimised | performance-core pool, MLX GPU Whisper, unified-memory-aware |
-| macOS (Intel) | ✅ supported | physical-core sizing via psutil, CPU Whisper |
-| Linux | ✅ supported | apt/dnf/pacman install paths, CUDA Whisper if a GPU is present |
-| Windows | 🧪 experimental | `pip install memorised-them-all` + `mta serve` (or `python launch.py`). The `.mcpb` bundle is macOS/Linux only. |
+| `MTA_HOME` | `~/.memorised-them-all` | where memory is stored |
+| `MTA_NO_OLLAMA` | unset | force fully-offline mode (no AI model) |
+| `MTA_AUTO_UPDATE` | `on` | daily update check (`off` to disable) |
+| `MTA_PROFILE` | unset | tuning preset: `laptop` · `workstation` · `server` · `offline` |
+| `MTA_BACKEND` / `MTA_BACKEND_URL` | `auto` | use another local model server (see above) |
+| `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
-CI runs the test suite across **Ubuntu, macOS, and Windows** on Python 3.10 &amp; 3.12.
+</details>
 
-## 📦 Generated files &amp; reuse
+<details>
+<summary><b>How it works under the hood</b></summary>
 
-Each project under `MTA_HOME/projects/<name>/` is self-contained and portable:
-
-| File | What it is |
-| --- | --- |
-| `graph.json` | source of truth — nodes, edges, communities, layered summaries (version-stamped, no absolute paths) |
-| `memory.md` | compact, layered digest for reading / pasting |
-| `memory/<doc>.md` | one note per source document |
-| `mindmap.html` | offline interactive graph (Cytoscape inlined) |
-| `vectors.npz` + `vectors.json` | local embeddings for recall |
-
-A memory built once can be **copied to another machine** and reused read-only. `export_memory` bundles all of the above (including the vector store) into a folder you choose.
-
-**Versioning &amp; migration:** `graph.json` is a **versioned schema** (the project follows [SemVer](https://semver.org/) and [Keep a Changelog](CHANGELOG.md)). On upgrade, an older store is **migrated in place** so existing memories stay recall-readable; a store written by a *newer* build is **backed up** under `projects/<name>/backups/` before anything overwrites it, so a downgrade never loses data. Public CLI flags and MCP tool signatures are preserved across minor versions.
-
-## 🔒 Privacy &amp; security
-
-100% local — no cloud APIs, no telemetry, no API keys. Your documents, the graph, the embeddings, and the memory files never leave your machine. The only network access is (a) downloading open-source dependencies/models on install and (b) a throttled once-a-day dependency-update check (disable with `MTA_AUTO_UPDATE=off`).
-
-Hardened for processing untrusted files: argv-only subprocesses (no `curl | sh`), path-safe and collision-free output names, per-file size + decompression-bomb caps, prompt-injection data-delimiting, `allow_pickle=False`, and hard-capped recall results. See the full threat model in the docs.
-
-## ❓ FAQ
-
-**Does it really cost no tokens?** Conversion and digestion cost **zero** Claude tokens. `recall` returns a small, hard-capped slice (a few summaries/facts), so answers are far cheaper than pasting documents into chat.
-
-**Do I need a GPU or downloaded models?** No. The classical extractor and hashing embeddings keep the pipeline working with no models and offline; quality improves once Ollama and the models are present.
-
-**Where are my files?** Under `~/.memorised-them-all/projects/<project>/`. `export_memory` copies them anywhere.
-
-**Is my existing Ollama affected?** No — a running Ollama is reused and left alone. Only an instance *this tool* starts is stopped on idle.
-
-**What's "fast mode"?** `--fast` (or `MTA_FAST=on`) skips the local LLM for a fully deterministic, much faster digest (**benchmarked ≈25–100×** — ≈98× on a 5-file set, ≈26× on 12 files; scales with corpus and model) that still builds the graph and keeps semantic recall — ideal for large or frequently-updated corpora.
-
-**What if the answer isn't in my documents?** Each `recall` result includes `top_score` and a `low_confidence` flag (and you can set `MTA_RECALL_MIN_SCORE` to drop weak hits), so Claude can say "that's not in your memory" instead of inventing an answer.
-
-**Does it work with non-English documents?** Yes — entity resolution is Unicode-aware (Bengali, CJK, Cyrillic, accented Latin) and OCR supports many languages via `MTA_OCR_LANG` (e.g. `eng+ben`).
-
-**Which file types are supported?** PDF (incl. scanned), DOCX, XLSX/XLS, PPTX, HTML, EPub, Outlook `.msg`, RTF, CSV/TSV, JSON/XML, Markdown/text, images (PNG/JPG/…), and audio (WAV/MP3/M4A/…).
-
-## ✅ Quality &amp; testing
-
-Exercised hard: a multi-format corpus (Office, PDF, scanned PDF, OCR images, audio), a growing **regression suite**, green CI on three OSes, and repeated **multi-agent + GitHub Copilot reviews** covering accuracy, reliability, token-safety, reusability, cross-platform, and security. The token-free guarantee is enforced (recall slices are hard-capped) and the digest never returns document contents to the model. A committed offline **eval harness** (`eval/run_eval.py`) digests a reference corpus and **gates retrieval recall@k in CI**, so quality regressions fail the build.
-
-## 🙏 Acknowledgements
-
-Built on the shoulders of excellent open-source work — see [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md). In particular:
-[Microsoft MarkItDown](https://github.com/microsoft/markitdown),
-[Ollama](https://github.com/ollama/ollama),
-[Tesseract](https://github.com/tesseract-ocr/tesseract),
-[OpenAI Whisper](https://github.com/openai/whisper) /
-[faster-whisper](https://github.com/SYSTRAN/faster-whisper) /
-[Apple MLX](https://github.com/ml-explore/mlx-examples),
-[NetworkX](https://github.com/networkx/networkx),
-[Leiden / igraph](https://github.com/vtraag/leidenalg), and
-[Cytoscape.js](https://github.com/cytoscape/cytoscape.js). Design inspiration from
-[graphify](https://github.com/safishamsi/graphify) and the author's own
-[markitdown-mcp](https://github.com/GRU-953/markitdown-mcp) and
-[mnemo-mcp](https://github.com/GRU-953/mnemo-mcp).
-
-## 📄 License
-
-[MIT](LICENSE) © 2026 Aninda Sundar Howlader ([GRU-953](https://github.com/GRU-953)).
-
-<div align="center">
+`convert` (files → Markdown, locally) → `extract` (entities, relations, facts) → `graph` (build + detect communities/themes) → `summarise` (layered: per-theme + a global synopsis) → `embed` (vectors for search) → `materialise` (memory.md, per-doc notes, mind map). `recall` embeds your question and returns the closest, capped, cited snippets. With no AI model available it falls back to fast classical techniques, so a digest **always** succeeds. See [`CHANGELOG.md`](CHANGELOG.md) and [`SECURITY.md`](SECURITY.md) for details.
+</details>
 
 ---
 
-<sub><b>Keywords:</b> Claude · MCP · Model Context Protocol · MCP server · Claude Desktop · Claude Code · local RAG · knowledge graph · GraphRAG · document memory · chat with your documents · token-free · offline · privacy · Ollama · MarkItDown · OCR · PDF to Markdown · Word/Excel/PowerPoint to Markdown · vector search · mind map · Apple silicon</sub>
+## 💻 Platforms
 
-<br><br>
+macOS (Apple-silicon optimised), Linux, and Windows · Python 3.10–3.12 · tested on all three in CI.
 
-If this is useful, a ⭐ helps others find it.
+## 🙏 Credits & license
 
+Built on the shoulders of [MarkItDown](https://github.com/microsoft/markitdown), [Ollama](https://ollama.com), [NetworkX](https://networkx.org), and the [Model Context Protocol](https://modelcontextprotocol.io). Optional community-detection extras (`python-igraph`, `leidenalg`) are GPL-licensed and **not** installed by the MIT core. See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
+
+**MIT licensed** · made by [GRU-953](https://github.com/GRU-953). Issues and contributions welcome — start with [`SECURITY.md`](SECURITY.md) for the security model.
+
+<div align="center">
+<sub>100% local · token-free · free &amp; open-source · your files never leave your machine.</sub>
 </div>
