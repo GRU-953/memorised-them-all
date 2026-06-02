@@ -33,6 +33,15 @@ adheres to [Semantic Versioning](https://semver.org/) and
   WP-20 hardening: loopback-only by default, the **same** mandatory bearer token, and a
   Host-header allowlist (DNS-rebinding defense). New `mta.interop.rest`; blocking calls run
   in a threadpool. No new top-level dependency.
+- **Pluggable inference backends** (Phase-3 interop). `MTA_BACKEND` selects where text
+  generation (extraction + summaries) and embeddings run: `auto`/`ollama` (default,
+  unchanged) or an **OpenAI-compatible** server (`lmstudio` · `llamacpp` · `vllm` ·
+  `openai`) at `MTA_BACKEND_URL` (`/v1/chat/completions` + `/v1/embeddings`), with optional
+  `MTA_BACKEND_KEY`. New `mta.core.backends` centralises the dispatch; the Ollama path is
+  byte-identical and the classical/hashing offline fallback is unchanged, so a digest still
+  succeeds when no backend is reachable. Vision/transcription stay on Ollama. The backend
+  defaults to loopback; a non-local URL is the user's explicit opt-in (warned once).
+  `memory_status` now reports the active backend. No new top-level dependency.
 
 ## [1.4.0] — 2026-06-02
 

@@ -161,8 +161,14 @@ def _status() -> dict:
         dep_summary = deps.scan(cfg, probe_bin_versions=False)["summary"]
     except Exception:  # noqa: BLE001
         dep_summary = None
+    try:
+        from .core import backends
+        backend_info = backends.describe(cfg)
+    except Exception:  # noqa: BLE001
+        backend_info = None
     return {
         "status": "ok",
+        "backend": backend_info,
         "ollama_running": ollama_up,
         "ollama_models": models,
         "tesseract": shutil.which("tesseract") is not None,

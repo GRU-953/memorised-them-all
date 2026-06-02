@@ -187,6 +187,8 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_AUTO_UPDATE` | `on` | daily update check: `on` (PyPI, default) · `off` · `upstream` (also pull the pinned upstream MarkItDown) |
 | `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
+| `MTA_BACKEND` | `auto` | inference backend: `auto`/`ollama`, or an OpenAI-compatible server — `lmstudio` · `llamacpp` · `vllm` · `openai` (see [Use a different model server](#-use-a-different-model-server)) |
+| `MTA_BACKEND_URL` / `MTA_BACKEND_KEY` | auto / unset | base URL + bearer key for an OpenAI-compatible backend (URL defaults to the right loopback port) |
 | `MTA_PROFILE` | unset | tuning profile: `laptop` · `workstation` · `server` · `offline` (an explicit `MTA_*` variable always wins) |
 | `MTA_HTTP_*` | off | opt-in HTTP transport — see [Remote access](#-remote-access-http-transport) |
 
@@ -256,6 +258,27 @@ curl -s http://127.0.0.1:8765/tools/recall \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"query":"deadlines","project":"contracts"}'
 ```
+
+## 🧩 Use a different model server
+
+By default the LLM (extraction + summaries) and embeddings run on **Ollama**, started on
+demand and stopped when idle. To point them at another local model server instead, set
+`MTA_BACKEND` (and usually `MTA_BACKEND_URL`):
+
+```bash
+# LM Studio (defaults to http://127.0.0.1:1234/v1)
+MTA_BACKEND=lmstudio MTA_EXTRACT_MODEL=your-chat-model MTA_EMBED_MODEL=your-embed-model mta digest ./docs
+
+# llama.cpp server (http://127.0.0.1:8080/v1), or any OpenAI-compatible endpoint
+MTA_BACKEND=openai MTA_BACKEND_URL=http://127.0.0.1:8080/v1 mta digest ./docs
+```
+
+The server must speak the OpenAI API (`/v1/chat/completions` + `/v1/embeddings`). Set
+`MTA_EXTRACT_MODEL` / `MTA_EMBED_MODEL` to that server's model IDs, and `MTA_BACKEND_KEY`
+if it needs a token. Image OCR and audio transcription still use Ollama / local tools.
+The backend defaults to **loopback** — pointing it at a non-local URL sends content off
+your machine (your explicit choice; a one-time warning is printed). If the backend is
+unreachable, a digest still succeeds via the classical/offline fallback.
 
 ## 💻 Platform support
 

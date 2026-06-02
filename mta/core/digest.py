@@ -113,23 +113,11 @@ def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager) -> list[
 
 # ---- local summarisation ---------------------------------------------
 def _llm_summarise(prompt: str, cfg: Config, ollama: OllamaManager) -> str | None:
-    if not ollama.ensure_running(wait=20):
-        return None
-    payload = json.dumps({
-        "model": cfg.extract_model, "prompt": prompt, "stream": False,
-        # Cap output length so a runaway/prompt-injected model can't inject an
-        # unbounded summary into memory.md / recall units.
-        "options": {"temperature": 0.1, "num_predict": 320},
-    }).encode()
-    try:
-        req = urllib.request.Request(f"{ollama.host}/api/generate", data=payload,
-                                     headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=180) as r:
-            data = json.loads(r.read())
-        ollama.touch()
-        return (data.get("response") or "").strip() or None
-    except Exception:  # noqa: BLE001
-        return None
+    # Routed through the pluggable backend (Ollama by default, or an OpenAI-compatible
+    # server). num_predict caps output length so a runaway/prompt-injected model can't
+    # inject an unbounded summary into memory.md / recall units.
+    from . import backends
+    return backends.generate(cfg, ollama, prompt, num_predict=320, temperature=0.1, wait=20)
 
 
 def _community_summary(label_facts: list[str], names: list[str], cfg: Config,
@@ -290,7 +278,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
             # fallback even though fast mode wasn't requested) — PIPE-04.
             "mode": ("fast" if cfg.fast
                      else "accurate" if (cfg.extract_mode != "classical"
-                                         and embedder.mode == "ollama")
+                                         and embedder.mode != "hash")
                      else "classical"),
             "seconds": round(time.time() - t0, 1),
         },
