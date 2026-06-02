@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -189,22 +190,35 @@ def persist_config(cfg: "Config") -> Path:
     return path
 
 
+# Serialises the profile seed→construct→restore window below: that mutates
+# process-global os.environ, so concurrent load() calls (e.g. parallel digests or
+# the recall/extract thread pools) must not observe each other's temporary keys —
+# otherwise a parallel load under MTA_PROFILE=offline could resolve no_ollama=False.
+_LOAD_LOCK = threading.Lock()
+
+
 def load() -> Config:
     # Apply a named profile (if any) by seeding its MTA_* defaults — but only where
     # the user hasn't set them (env > profile > built-in). The seeded keys are
-    # captured into the Config below, then removed so the process env isn't mutated
-    # for other components / subprocesses.
+    # captured into the Config, then removed so the process env isn't mutated for
+    # other components / subprocesses. Only the (rare) profile path touches the
+    # global env, and it's serialised; the common no-profile path is lock-free.
     profile = _env("MTA_PROFILE", "").strip().lower()
-    seeded: list[str] = []
-    for key, val in PROFILES.get(profile, {}).items():
-        if os.environ.get(key) in (None, ""):
-            os.environ[key] = val
-            seeded.append(key)
-    try:
+    defaults = PROFILES.get(profile, {})
+    if defaults:
+        with _LOAD_LOCK:
+            seeded: list[str] = []
+            for key, val in defaults.items():
+                if os.environ.get(key) in (None, ""):
+                    os.environ[key] = val
+                    seeded.append(key)
+            try:
+                cfg = Config()
+            finally:
+                for key in seeded:
+                    os.environ.pop(key, None)
+    else:
         cfg = Config()
-    finally:
-        for key in seeded:
-            os.environ.pop(key, None)
     cfg.profile_name = profile or "default"
     if cfg.fast:
         cfg.extract_mode = "classical"  # no LLM extraction or summaries

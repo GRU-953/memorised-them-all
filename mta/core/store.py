@@ -165,9 +165,15 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
         with np.load(cfg.vectors_path, allow_pickle=False) as data:
             matrix = data["matrix"]
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        return matrix, meta
     except (OSError, ValueError, KeyError, json.JSONDecodeError):
         return None
+    # Consistency guard: vectors.npz (matrix rows) and vectors.json (per-row meta)
+    # are two separate atomic replaces, so a crash between them can desync row count
+    # from meta length. Treat a torn pair as "no memory" rather than letting recall
+    # IndexError or mis-attribute a row to the wrong unit.
+    if not isinstance(meta, list) or int(matrix.shape[0]) != len(meta):
+        return None
+    return matrix, meta
 
 
 def delete_project(cfg: Config) -> dict:

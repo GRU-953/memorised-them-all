@@ -113,12 +113,17 @@ def update_markitdown(cfg: Config) -> dict:
     prev = _installed_version("markitdown")
     spec, commit = _markitdown_spec(cfg)
     rolled_back = False
-    ok = _pip("install", "-U", spec)
-    if ok and not _imports_ok("markitdown"):
-        # The upgrade installed but no longer imports — roll back to what worked.
-        ok = False
-        if prev and _pip("install", "--force-reinstall", "--no-deps", f"markitdown=={prev}"):
-            rolled_back = True
+    # Cross-process lock: two processes (Desktop + Code) must not race a pip install
+    # into one shared venv.
+    from . import locks
+    with locks.named_lock(cfg, "pip-update", exclusive=True, timeout=900):
+        ok = _pip("install", "-U", spec)
+        if ok and not _imports_ok("markitdown"):
+            # Installed but no longer imports — roll back, and only report rolled_back
+            # if the restored version actually imports (don't claim a fix we didn't verify).
+            ok = False
+            if prev and _pip("install", "--force-reinstall", "--no-deps", f"markitdown=={prev}"):
+                rolled_back = _imports_ok("markitdown")
     return {
         "updated": ok,
         "source": "upstream" if commit else "pypi",

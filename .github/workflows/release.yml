@@ -38,10 +38,20 @@ jobs:
           python -m pip install --upgrade pip build twine
           python -m build
           twine check dist/*
-      - name: Build + verify the .mcpb bundle
+      - name: Build + verify the .mcpb bundle (content, not just existence)
         run: |
           bash scripts/build_mcpb.sh
           test -f dist/memorised-them-all.mcpb
+          python - <<'PY'
+          import zipfile
+          n = zipfile.ZipFile("dist/memorised-them-all.mcpb").namelist()
+          assert "manifest.json" in n, "mcpb missing manifest.json"
+          assert "launch.sh" in n, "mcpb missing launch.sh"
+          assert any(e.startswith("mta/") for e in n), "mcpb missing mta/ package"
+          for bad in ("program/", "eval/", "tests/", "scripts/"):
+              assert not any(e.startswith(bad) for e in n), f"mcpb leaked {bad}"
+          print(f"mcpb OK: {len(n)} entries")
+          PY
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0
         with:

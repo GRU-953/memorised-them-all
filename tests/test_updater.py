@@ -64,13 +64,15 @@ def test_upstream_unresolvable_falls_back_to_pypi(tmp_path, monkeypatch):
 
 
 def test_failed_import_triggers_rollback(tmp_path, monkeypatch):
-    """A broken upgrade is rolled back to the previously-installed version."""
+    """A broken upgrade is rolled back to the previously-installed version, and
+    `rolled_back` is reported only after the restored version is re-verified (WP-34)."""
     from mta.core import updater
     cfg = _cfg(tmp_path)
     calls = []
     monkeypatch.setattr(updater, "_installed_version", lambda pkg: "0.1.6")
     monkeypatch.setattr(updater, "_pip", lambda *a, **k: calls.append(a) or True)
-    monkeypatch.setattr(updater, "_imports_ok", lambda m: False)  # broken after upgrade
+    seq = iter([False, True])  # post-upgrade import fails → roll back → restored import OK
+    monkeypatch.setattr(updater, "_imports_ok", lambda m: next(seq))
     res = updater.update_markitdown(cfg)
     assert res["updated"] is False
     assert res["rolled_back"] is True
