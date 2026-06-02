@@ -35,6 +35,13 @@ adheres to [Semantic Versioning](https://semver.org/) and
 - MCP tools (`digest`, `recall`, `export_memory`) validate their inputs and return
   a small structured error instead of letting an exception cross the MCP boundary
   as a raw traceback (still token-free).
+- `digest` stats report `mode: "classical"` when no local LLM ran (offline / Ollama
+  unavailable) instead of mislabelling the run `"accurate"` (PIPE-04).
+- Slash commands / skill synced with the tools: `/memorise` documents `fast`, a new
+  **`/forget`** command, and `SKILL.md` lists `forget` + `fast` (DOC-21).
+- Leaner, consistent `.mcpb`: `.mcpbignore` now excludes dev/internal dirs
+  (`program/`, `eval/`, `scripts/`, `commands/`, `skills/`, …) and the zip fallback
+  packs "everything minus `.mcpbignore`" to match the official `mcpb pack` (PKG-04).
 
 ### Fixed
 - **Concurrency safety** — concurrent clients sharing one memory home no longer

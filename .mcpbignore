@@ -3,6 +3,17 @@
 tests/
 sample/
 docs/
+program/
+eval/
+scripts/
+.claude-plugin/
+commands/
+skills/
+.mcp.json
+launch.py
+SECURITY.md
+.gitignore
+.mcpbignore
 *.cff
 *.pyc
 __pycache__/
