@@ -8,13 +8,10 @@
 ---
 
 ## ▶ RESUME HERE
-**Pre-release fresh-eyes review DONE + acted on (WP-34, PR #16, `a46a414`); CI green (run 26818417542).** The independent review (21 findings) confirmed the design is sound; the **3 High + cheap Med/Low are fixed**, the rest deferred with rationale — see **`program/REVIEW.md`**.
-**🎉 ALL autonomous build + review work is COMPLETE — 14 implementation WPs, PRs #5–#16, every one CI-green on the 3-OS matrix; `develop` is 25 commits ahead of `main`. No Critical/High open.**
-**Only OWNER-GATED / Docker items remain:**
-- **WP-41 — first synchronized release (⛔ OWNER):** configure PyPI **Trusted Publisher** + add **`HOMEBREW_TAP_TOKEN`** (`program/PUBLISH_MANIFEST.md`), then PR `develop`→`main`, move CHANGELOG *Unreleased*→the version, `git tag vX.Y.Z && git push --tags`, watch `build→pypi→github_release→homebrew`, run the post-publish smoke.
-- **WP-50-52 — Phase-6 E2E:** local **Docker** (R-01) or a CI container matrix → `program/TEST_REPORT.md`.
-- **WP-90 — convergence note:** write once WP-41 + WP-50-52 land (criteria: no Crit/High ✓ · acceptance green in CI ✓ + Phase-6 pending · last review only marginal ✓ per REVIEW.md).
-Deferred (logged, non-blocking): `program/REVIEW.md` items + CI-09 lockfile, PIPE-05/06, LIFE-02 residual.
+**🏁 v1 hardening COMPLETE & CONVERGED (code).** Phase-6 E2E done (WP-50-52, `TEST_REPORT.md`); convergence note written (WP-90, `CONVERGENCE.md`); version bumped to **1.4.0** + CHANGELOG cut. 14 WPs, PRs #5–#17, all CI-green; no Critical/High open; independently reviewed; E2E-validated (offline + accurate via live Ollama). `develop` = v1.4.0.
+**Active: WP-41 — release.** A `develop`→`main` PR is open (full CI + the `e2e.yml` Phase-6 gate). On merge, `main` is v1.4.0-release-ready.
+**⛔ Only owner action left to PUBLISH (the agent cannot — no PyPI account access):** configure a PyPI **Trusted Publisher** (repo `GRU-953/memorised-them-all`, workflow `release.yml`) + add the **`HOMEBREW_TAP_TOKEN`** repo secret (`program/PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap; run the post-publish smoke.
+**v1.x+ backlog:** Phase-3 cross-AI interop (WP-20–24) + extra channels + deferred Low/Med (`REVIEW.md`, CI-09, PIPE-05/06, LIFE-02 residual).
 
 ---
 
@@ -38,11 +35,11 @@ Deferred (logged, non-blocking): `program/REVIEW.md` items + CI-09 lockfile, PIP
 | WP-33 | Quick-win sweep (PIPE-04, DOC-21, PKG-04) | 4 | v1 | **DONE** | merged #15 → develop (d511a0d) | 06-02 | PKG-06 n/a; CI-09 deferred; RECALL-02/LIFE-02 noted |
 | WP-34 | Pre-release fresh-eyes review + fixes | 6 | v1 | **DONE** | merged #16 → develop (a46a414) | 06-02 | 21 findings; 3 High + Med/Low fixed; `program/REVIEW.md` |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | **DONE** | merged #14 → develop (abca304) | 06-02 | CI-02/03/04/05/06/11, SEC-06/07 closed; CI-09 lockfile deferred |
-| WP-41 | First synchronized v1 release | 5 | v1 | TODO | — | — | after Phase-2 green + WP-40 |
-| WP-50 | Sandbox/container harness | 6 | v1 | BLOCKED | — | — | needs Docker (R-01) |
-| WP-51 | E2E test-matrix run | 6 | v1 | TODO | — | — | after WP-50 |
-| WP-52 | Fix-and-retest loop → TEST_REPORT.md | 6 | v1 | TODO | — | — | after WP-51 |
-| WP-90 | Convergence review & note | 6 | v1 | TODO | — | — | final |
+| WP-41 | First synchronized v1 release | 5 | v1 | **PREP DONE** | develop→main PR | 06-02 | v1.4.0 cut; PUBLISH is owner-gated (PyPI publisher + tag) |
+| WP-50 | Sandbox/E2E harness | 6 | v1 | **DONE** | merged #17 → develop | 06-02 | clean-wheel CLI E2E + e2e.yml; container matrix deferred (R-01) |
+| WP-51 | E2E test-matrix run | 6 | v1 | **DONE** | merged #17 | 06-02 | offline 5/5 + accurate-mode pass (live Ollama) |
+| WP-52 | Fix-and-retest loop → TEST_REPORT.md | 6 | v1 | **DONE** | merged #17 | 06-02 | `program/TEST_REPORT.md` |
+| WP-90 | Convergence review & note | 6 | v1 | **DONE** | develop | 06-02 | `program/CONVERGENCE.md` — converged (code) |
 | WP-20…24 | Phase-3 interop (HTTP transport, schema exports, REST, backends, recipes) | 3 | v1.x+ | TODO | — | — | designed in plan; built post-v1 |
 
 ## Artifacts

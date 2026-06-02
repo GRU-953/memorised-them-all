@@ -274,3 +274,20 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **🎉 ALL autonomous build + review work is COMPLETE.** No Critical/High open; the design is independently validated. `develop` = 25 commits ahead of `main`, all CI-green.
 
 **EXACT NEXT STEP (owner-gated / Docker):** The program is paused for owner action. (1) **WP-41** — set up the PyPI Trusted Publisher + `HOMEBREW_TAP_TOKEN`, then PR `develop`→`main` + tag to ship v1. (2) **WP-50-52** — Phase-6 E2E (local Docker, R-01, or a CI container matrix) → `TEST_REPORT.md`. (3) **WP-90** — write the convergence note once both land. A fresh session resumes from this RESUME-HERE pointer.
+
+---
+
+## Session 14 — 2026-06-02 — Phase-6 E2E (WP-50-52) + release-prep (WP-41) + convergence (WP-90) — UNATTENDED
+
+**Session id:** S14  **Mode:** unattended (owner authorised proceeding without confirmation)
+
+**Done:**
+- **WP-50-52 (Phase-6 E2E):** `tests/test_e2e_cli.py` drives the clean-wheel-installed `mta` CLI end-to-end; `.github/workflows/e2e.yml` gates it on the release PR. Local run (clean wheel + live Ollama): offline **5/5 pass**; **accurate-mode pass (142 s)**; measured fast-vs-accurate **≈98×** (5 files) / ≈26× (12 files). Merged via **PR #17**. `program/TEST_REPORT.md`. README fast-mode claim corrected to the **benchmarked ≈25–100×** (WP-31 had under-sold it).
+- **WP-41 (release-prep):** bumped to **1.4.0** (all 5 version strings; `check_versions` green), cut CHANGELOG `[Unreleased]→[1.4.0]`. Opened the **`develop`→`main` release PR** (full CI + the `e2e.yml` Phase-6 gate).
+- **WP-90 (convergence):** `program/CONVERGENCE.md` — **converged for the code scope** (no Crit/High; acceptance green in CI + Phase-6; last review only marginal/declined items).
+
+**Acceptance:** A10/A11 now MET (Phase-6 measured); A8 mostly-met (the live publish is owner-gated).
+
+**🏁 v1 hardening COMPLETE & CONVERGED (code).** 14 WPs, PRs #5–#17, all CI-green on the 3-OS matrix; `develop` = v1.4.0.
+
+**EXACT NEXT STEP (owner-only — to PUBLISH):** merge the `develop`→`main` PR (ready/green), configure the PyPI **Trusted Publisher** + add `HOMEBREW_TAP_TOKEN` (`PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap. The agent cannot configure PyPI (no account access). v1.x+ backlog: Phase-3 interop (WP-20–24) + extra channels + deferred Low/Med.

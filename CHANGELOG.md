@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-02
+
 ### Added
 - **Configuration profiles** — `MTA_PROFILE=laptop|workstation|server|offline`
   applies a bundle of sensible defaults (an explicit `MTA_*` variable always
