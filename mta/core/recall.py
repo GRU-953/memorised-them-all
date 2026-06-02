@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from . import locks
 from .config import Config
 from .embed import Embedder, cosine
 from .lifecycle import OllamaManager
@@ -32,6 +33,14 @@ def _hit(u: dict, score) -> dict:
 
 def recall(cfg: Config, query: str, k: int | None = None,
            ollama: OllamaManager | None = None) -> dict:
+    # Shared (multi-reader) lock: never observe a half-updated graph<->vectors
+    # pair while a digest is persisting (LIFE-01).
+    with locks.read_lock(cfg):
+        return _recall_locked(cfg, query, k, ollama)
+
+
+def _recall_locked(cfg: Config, query: str, k: int | None,
+                   ollama: OllamaManager | None) -> dict:
     # Hard-clamp k so a caller can never pull the whole graph's text into Claude's
     # context — the token-free guarantee depends on recall returning a tiny slice.
     try:
@@ -87,7 +96,8 @@ def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
 
 
 def overview(cfg: Config) -> dict:
-    doc = load_graph(cfg)
+    with locks.read_lock(cfg):
+        doc = load_graph(cfg)
     if not doc:
         return {"status": "no_memory", "project": cfg.project}
     return {"status": "ok", "project": cfg.project,

@@ -107,11 +107,19 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
 
 
 def delete_project(cfg: Config) -> dict:
-    """Delete a project's entire memory (graph, markdown, vectors, mind map)."""
+    """Delete a project's entire memory (graph, markdown, vectors, mind map).
+
+    Takes the project's exclusive write lock so a `forget` can't race a digest
+    (the lock file lives under state/locks/, not the project dir, so it survives
+    the rmtree). See locks.py.
+    """
     import shutil
-    if not cfg.project_dir.exists():
-        return {"status": "not_found", "project": cfg.project}
-    shutil.rmtree(cfg.project_dir, ignore_errors=True)
+
+    from . import locks
+    with locks.write_lock(cfg):
+        if not cfg.project_dir.exists():
+            return {"status": "not_found", "project": cfg.project}
+        shutil.rmtree(cfg.project_dir, ignore_errors=True)
     return {"status": "ok", "project": cfg.project, "deleted": True}
 
 
