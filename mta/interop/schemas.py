@@ -43,28 +43,35 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
+def _schema_of(tool) -> dict:
+    """The input JSON-Schema for a tool, however the SDK exposes it.
+
+    The synchronous registry yields FastMCP ``Tool`` objects (``.parameters``); the
+    async protocol API yields ``mcp.types.Tool`` (``.inputSchema``) — same dict."""
+    for attr in ("inputSchema", "parameters", "input_schema"):
+        schema = getattr(tool, attr, None)
+        if isinstance(schema, dict):
+            return schema
+    return {"type": "object", "properties": {}}
+
+
 def _raw_tools() -> list[tuple[str, str, dict]]:
     """Return ``(name, description, input_schema)`` for every registered tool.
 
-    Prefers the public async ``FastMCP.list_tools()`` (protocol ``Tool`` objects
-    carrying ``inputSchema``); falls back to the synchronous tool manager when
-    called from inside a running event loop.
+    Prefers the **synchronous** FastMCP tool registry, which works whether or not an
+    event loop is already running (the REST gateway introspects from inside the ASGI
+    loop, where ``asyncio.run`` is illegal); falls back to the public async API only
+    when the registry isn't exposed.
     """
-    import asyncio
-
     from mta.server import mcp  # registers all eight tools at import time
 
-    try:
-        tools = asyncio.run(mcp.list_tools())
-    except RuntimeError:
-        # Already inside an event loop — read the registry synchronously.
-        mgr = getattr(mcp, "_tool_manager", None)
-        raw = mgr.list_tools() if mgr is not None else []
-        return [
-            (t.name, getattr(t, "description", "") or "", getattr(t, "parameters", None) or {})
-            for t in raw
-        ]
-    return [(t.name, t.description or "", t.inputSchema or {}) for t in tools]
+    mgr = getattr(mcp, "_tool_manager", None)
+    if mgr is not None and hasattr(mgr, "list_tools"):
+        return [(t.name, (getattr(t, "description", "") or ""), _schema_of(t))
+                for t in mgr.list_tools()]
+    import asyncio
+    return [(t.name, (t.description or ""), _schema_of(t))
+            for t in asyncio.run(mcp.list_tools())]
 
 
 def tool_catalogue() -> list[dict]:

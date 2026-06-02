@@ -238,8 +238,24 @@ mta export-schema --out ./schemas    # write openai.json · gemini.json · opena
 ```
 
 Pure and offline: it only reads the in-process tool definitions and prints JSON — it
-starts no server and returns nothing through the model. Pair it with `mta serve --http`
-(above) to actually drive the tools over HTTP from those clients.
+starts no server and returns nothing through the model.
+
+To actually **call** the tools without MCP, run the local **REST gateway** — it serves
+exactly that OpenAPI 3.1 surface:
+
+```bash
+mta serve --rest     # POST http://127.0.0.1:8765/tools/{name} with a JSON arg body
+```
+
+Same hardening as `mta serve --http` (loopback-only, one mandatory bearer token shared
+with the MCP transport, Host allowlist); `GET /openapi.json` returns the live schema and
+`GET /healthz` is an unauthenticated liveness probe. Example:
+
+```bash
+curl -s http://127.0.0.1:8765/tools/recall \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"deadlines","project":"contracts"}'
+```
 
 ## 💻 Platform support
 
