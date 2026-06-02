@@ -18,6 +18,10 @@ adheres to [Semantic Versioning](https://semver.org/) and
   **detected-vs-required** versions, and proposes argv-only, idempotent remediation
   (`--dry-run` previews; `--fix` applies the safe pip upgrades; system-tool installs
   are suggested per platform, never auto-run with sudo). Summary also in `memory_status`.
+- **Evaluation harness** (`eval/`) — a committed reference corpus + golden metrics;
+  `python eval/run_eval.py` digests offline and **gates retrieval recall@8 in CI**
+  (baseline 1.0, floor 0.75). The unbenchmarked "20–100×" / "163 languages" claims
+  are replaced with honest, measured wording.
 
 ### Changed
 - **Offline-first auto-update** — the baseline MarkItDown is now the **pinned PyPI
