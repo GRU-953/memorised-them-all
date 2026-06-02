@@ -108,7 +108,7 @@ Tool results are hard-capped in size, so the guarantee holds even on the high-ac
 - ⚡ **Two modes** — high-accuracy (local LLM) and **fast mode** (`--fast`): deterministic and often 20–100× faster (scales with corpus size) for large or frequently-refreshed corpora.
 - 🔁 **Reusable named projects** — accumulate many folders into one memory; `forget` to delete one.
 - 🍎 **Apple-silicon first** — performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency. Runs on Intel macOS, Linux, and Windows too.
-- ⚙️ **Auto-installing & auto-updating** — pulls the latest MarkItDown from upstream; starts the model server on demand and **stops it after 5 minutes idle**.
+- ⚙️ **Auto-installing & auto-updating** — installs a **pinned MarkItDown from PyPI** so the first run works offline, and refreshes it on a throttled daily check (import-checked, with rollback); the latest *upstream* MarkItDown is **opt-in** (`MTA_MARKITDOWN_UPSTREAM=on`, pinned to a commit). Starts the model server on demand and **stops it after 5 minutes idle**.
 - 🌍 **Multilingual** — Unicode-aware entity resolution (Bengali, CJK, Cyrillic, accented Latin) and OCR in many languages.
 - 🛟 **Crash-safe & reusable** — memory is written atomically, so an interrupted digest never corrupts an existing project; recall reports a `low_confidence` signal so Claude can decline when the answer isn't in your docs.
 - 🔒 **Private by design** — no cloud, no API keys, no telemetry. Your files never leave your computer.
@@ -184,7 +184,8 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | `0` (auto) | parallel conversion / extraction workers |
 | `MTA_MAX_CHUNKS` / `MTA_MAX_FILE_MB` | `1500` / `200` | workload &amp; input-size caps (reported) |
 | `MTA_RECALL_MIN_SCORE` | `0` (off) | drop recall hits below this cosine score (stricter grounding) |
-| `MTA_AUTO_UPDATE` | `on` | auto-update MarkItDown &amp; dependencies |
+| `MTA_AUTO_UPDATE` | `on` | daily update check: `on` (PyPI, default) · `off` · `upstream` (also pull the pinned upstream MarkItDown) |
+| `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
 
 ## 💻 Platform support

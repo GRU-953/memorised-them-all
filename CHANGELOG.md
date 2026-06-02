@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/) and
 ## [Unreleased]
 
 ### Changed
+- **Offline-first auto-update** — the baseline MarkItDown is now the **pinned PyPI
+  build** (in `requirements.txt`), so a first-ever digest no longer needs a live
+  `git+https` fetch from upstream (restores the "100% local / works offline"
+  promise on first run). Pulling the latest upstream MarkItDown is now **opt-in**
+  (`MTA_MARKITDOWN_UPSTREAM=on`, or `MTA_AUTO_UPDATE=upstream`) and is **pinned to a
+  resolved commit** rather than a moving branch. Upgrades are import-smoke-tested
+  and **rolled back** to the previous version on failure; the throttle stamp is
+  written atomically.
 - MCP tools (`digest`, `recall`, `export_memory`) validate their inputs and return
   a small structured error instead of letting an exception cross the MCP boundary
   as a raw traceback (still token-free).
