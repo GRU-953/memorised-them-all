@@ -55,6 +55,16 @@ token-free, 100% local by default, no new top-level dependency).
   **cross-surface conformance test** asserting stdio-MCP `tools/list`, the schema catalogue,
   the OpenAI/Gemini/OpenAPI exports, and the REST registry all expose the *same* eight tools.
 
+### Security / supply chain
+- Committed **dependency lockfile** (`constraints.txt`, CI-09) for reproducible installs
+  (`pip install -e ".[dev]" -c constraints.txt`); a non-blocking CI **supply-chain** job runs
+  `pip-audit` (CVE scan) + a dependency-license report and verifies the lockfile resolves.
+- **Release pipeline hardening:** the publish jobs (PyPI / GitHub Release / Homebrew) now run
+  **only on a real tag push** — a manual `workflow_dispatch` builds + signs as a dry-run but
+  never publishes (closes the tag-gate bypass). The Homebrew tap bump is now best-effort
+  (`continue-on-error`), so a missing/expired tap token can never fail a release after PyPI
+  and the GitHub Release have already shipped.
+
 ## [1.4.0] — 2026-06-02
 
 ### Added

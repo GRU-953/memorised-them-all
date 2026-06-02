@@ -13,6 +13,7 @@ skills/
 launch.py
 SECURITY.md
 CLAUDE.md
+constraints.txt
 .gitignore
 .mcpbignore
 *.cff
