@@ -117,3 +117,24 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Milestone:** Phase-2 **R4 (WP-13) + R5 (WP-14) + R6 (WP-15)** complete; both Criticals closed. Phase-2 remaining: **R2 (WP-11), R3 (WP-12)**; R1 (WP-10) done.
 
 **EXACT NEXT STEP:** Begin **WP-11 — auto-configuration (R2)** on a fresh branch off `develop`: in `mta/core/config.py` + `platform.py` + `server.py`, add **named profiles** (laptop/workstation/server/offline via `MTA_PROFILE`), **persist** the resolved config to `state/config.json` (and reload it), and **detect + surface GPU/CUDA + LM Studio** in `memory_status` / `platform.summary()`. Tests for profile resolution + persistence + detection. (Closes DEP-05/06/07.)
+
+---
+
+## Session 06 — 2026-06-02 — Implementation: WP-11 (auto-configuration, R2)
+
+**Session id:** S06  **Branch:** `wp-11-auto-config` → **PR #9** (merged, squash `81bf1c0`)  **Mode:** implementation
+
+**Goal:** Close DEP-05/06/07 — named profiles, persisted resolved config, GPU/LM-Studio detection.
+
+**Done:**
+- **config.py:** `PROFILES` (laptop/workstation/server/offline) seeded as `MTA_*` defaults with **env > profile > built-in** precedence; seeded keys are captured into the resolved `Config` then removed (no process-env leak). New `no_ollama` + `profile_name` fields. `persist_config()` writes resolved knobs to `state/config.json` (atomic).
+- **platform.py:** `detect_gpu()` (mlx/cuda/rocm/none, cached) + `lm_studio_running()` probe; both in `summary()`.
+- **lifecycle.py:** `_disabled()` consults `cfg.no_ollama` (offline profile truly disables Ollama) + the env var. (grep confirms lifecycle is the only runtime `MTA_NO_OLLAMA` reader.)
+- **server.py:** `memory_status` / `mta status` report `profile`, `gpu`, `lm_studio`, `config_file`.
+- `tests/test_autoconfig.py` (7) on all 3 OSes; README `MTA_PROFILE` row; CHANGELOG (Added).
+
+**Local:** 48 offline tests pass. CI run 26808085813 fully green (9 jobs).
+
+**Milestone:** Phase-2 **R1, R2, R4, R5, R6 done** — only **R3 (WP-12)** remains to complete Phase 2.
+
+**EXACT NEXT STEP:** Begin **WP-12 — dependency scan + guided install/upgrade + `mta doctor` (R3)** on a fresh branch off `develop`: add a preflight scanner reporting present-&-current / outdated / missing with **detected-vs-required versions** (Python deps via `importlib.metadata` vs the pyproject requirements; system bins ollama/tesseract/ffmpeg via PATH + `--version`); a guided, **argv-only, idempotent** install/upgrade per platform (pip; brew/apt/dnf/pacman; winget/choco/scoop) with **`--dry-run`** + graceful no-admin remediation; surface via a new **`mta doctor`** subcommand + `memory_status`. Tests with monkeypatched probes (detected-vs-required, dry-run). (Closes DEP-04/10; completes Phase 2.)
