@@ -254,3 +254,23 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Local:** 64 offline tests pass. CI run 26817270903 fully green (9 jobs).
 
 **EXACT NEXT STEP:** All autonomous build work is complete. The remaining v1 items are gated/large: **WP-41** (first live release — needs owner PyPI Trusted Publisher + `HOMEBREW_TAP_TOKEN`, then PR develop→main + tag); **WP-50-52** (Phase-6 E2E — needs Docker (R-01) or a CI container matrix → `TEST_REPORT.md`); **WP-90** (fresh-eyes convergence review). Pick up whichever the owner unblocks first.
+
+---
+
+## Session 13 — 2026-06-02 — Pre-release fresh-eyes review + fixes (WP-34)
+
+**Session id:** S13  **Branch:** `wp-34-review-fixes` → **PR #16** (merged, squash `a46a414`)  **Mode:** independent review (Section 5) + fixes
+
+**Did:** Ran a 4-reviewer adversarial workflow (`wf_9100244e-45f`) over all `develop` deltas vs acceptance + invariants → **21 findings (3 High, 5 Med, 8 Low, 5 Info)**. Reviewers confirmed the lock design, migration safety, offline-first, token-free caps, SEC-01, and release ordering are sound. Fixed in WP-34:
+- **H** torn vector store → `load_vectors` length guard + recall index clamp (degrades to `no_memory`, no IndexError).
+- **H** `config.load()` profile race → `_LOAD_LOCK` serialises the env seed/restore (no `no_ollama` leak under concurrency).
+- **H** DOC-01 hole → `_lexical` fallback returns the full `low_confidence`/`top_score`/`synopsis` contract.
+- **M** synopsis capped (recall+overview); updater rollback re-verified + `pip-update` cross-process lock; release `.mcpb` content-verified.
+- **L** `list_digestible` TOCTOU guard; lock degraded-mode warning; `.mcpb` nested `__pycache__` excluded.
+- Disposition + deferrals recorded in **`program/REVIEW.md`**.
+
+`tests/test_review_fixes.py` (8) on 3 OSes; updated the WP-13 rollback test to re-verify semantics. **Local: 79 passed, 1 skipped. CI run 26818417542 fully green.**
+
+**🎉 ALL autonomous build + review work is COMPLETE.** No Critical/High open; the design is independently validated. `develop` = 25 commits ahead of `main`, all CI-green.
+
+**EXACT NEXT STEP (owner-gated / Docker):** The program is paused for owner action. (1) **WP-41** — set up the PyPI Trusted Publisher + `HOMEBREW_TAP_TOKEN`, then PR `develop`→`main` + tag to ship v1. (2) **WP-50-52** — Phase-6 E2E (local Docker, R-01, or a CI container matrix) → `TEST_REPORT.md`. (3) **WP-90** — write the convergence note once both land. A fresh session resumes from this RESUME-HERE pointer.
