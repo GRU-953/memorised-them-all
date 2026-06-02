@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+### Added
+- **Configuration profiles** — `MTA_PROFILE=laptop|workstation|server|offline`
+  applies a bundle of sensible defaults (an explicit `MTA_*` variable always
+  wins). The resolved configuration is written to `state/config.json` and surfaced
+  by `mta status` / `memory_status`, which now also report the detected
+  **GPU/accelerator** (`mlx`/`cuda`/`rocm`/`none`) and whether a local **LM Studio**
+  server is running.
+
 ### Changed
 - **Offline-first auto-update** — the baseline MarkItDown is now the **pinned PyPI
   build** (in `requirements.txt`), so a first-ever digest no longer needs a live

@@ -187,6 +187,7 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_AUTO_UPDATE` | `on` | daily update check: `on` (PyPI, default) · `off` · `upstream` (also pull the pinned upstream MarkItDown) |
 | `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
+| `MTA_PROFILE` | unset | tuning profile: `laptop` · `workstation` · `server` · `offline` (an explicit `MTA_*` variable always wins) |
 
 ## 💻 Platform support
 

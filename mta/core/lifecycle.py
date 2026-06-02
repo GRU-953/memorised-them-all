@@ -50,9 +50,11 @@ class OllamaManager:
         self._lock = threading.Lock()
         self._giveup_until = 0.0
 
-    @staticmethod
-    def _disabled() -> bool:
-        # Hard offline switch (used by tests/CI and air-gapped runs).
+    def _disabled(self) -> bool:
+        # Hard offline switch — the resolved Config flag (set directly or by the
+        # 'offline' profile), or the env var (air-gapped runs / tests / CI).
+        if getattr(self.cfg, "no_ollama", False):
+            return True
         return os.environ.get("MTA_NO_OLLAMA", "").lower() in ("1", "true", "yes", "on")
 
     # ---- availability -------------------------------------------------

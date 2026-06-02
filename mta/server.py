@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .core import recall as recall_mod
 from .core import render, store, updater
-from .core.config import load as load_config
+from .core.config import load as load_config, persist_config
 from .core.digest import digest as run_digest
 from .core.lifecycle import OllamaManager
 from .core.platform import summary as platform_summary
@@ -152,6 +152,10 @@ def _status() -> dict:
     except Exception:  # noqa: BLE001
         mid = None
     import shutil
+    try:
+        cfg_file = str(persist_config(cfg))  # snapshot the resolved config (R2)
+    except OSError:
+        cfg_file = None
     return {
         "status": "ok",
         "ollama_running": ollama_up,
@@ -160,8 +164,10 @@ def _status() -> dict:
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "markitdown_version": mid,
         "platform": platform_summary(),
+        "profile": cfg.profile_name,
         "auto_update": cfg.auto_update,
         "idle_seconds": cfg.idle_seconds,
+        "config_file": cfg_file,
         "projects": store.list_projects(cfg),
     }
 

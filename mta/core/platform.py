@@ -118,6 +118,40 @@ def mlx_available() -> bool:
         return False
 
 
+@functools.lru_cache(maxsize=1)
+def detect_gpu() -> str:
+    """Best available local accelerator: 'mlx' (Apple), 'cuda', 'rocm', or 'none'.
+
+    Cached — hardware doesn't change within a run.
+    """
+    if mlx_available():
+        return "mlx"
+    import shutil
+    if shutil.which("nvidia-smi"):
+        try:
+            r = subprocess.run(["nvidia-smi", "-L"], capture_output=True,
+                               text=True, timeout=3)
+            if r.returncode == 0 and "GPU" in r.stdout:
+                return "cuda"
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if shutil.which("rocminfo"):
+        return "rocm"
+    return "none"
+
+
+def lm_studio_running(host: str = "http://127.0.0.1:1234") -> bool:
+    """Detect a local LM Studio (OpenAI-compatible) server. Best-effort, ~1s; NOT
+    cached (it's runtime service state). Used only for status/doctor reporting."""
+    import urllib.error
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{host.rstrip('/')}/v1/models", timeout=1.0) as r:
+            return r.status == 200
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
 _PATH_HEALED = False
 
 
@@ -158,4 +192,6 @@ def summary() -> dict:
         "memory_gb": memory_gb(),
         "workers": worker_count(),
         "mlx_whisper": mlx_available(),
+        "gpu": detect_gpu(),
+        "lm_studio": lm_studio_running(),
     }
