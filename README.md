@@ -259,6 +259,10 @@ curl -s http://127.0.0.1:8765/tools/recall \
   -d '{"query":"deadlines","project":"contracts"}'
 ```
 
+**Not sure which snippet you need?** `mta recipes` prints ready-to-paste connection setup
+for every surface — Claude Code (stdio/HTTP), Claude Desktop, the REST gateway, and
+OpenAI/Gemini — all pointing at the same eight tools.
+
 ## 🧩 Use a different model server
 
 By default the LLM (extraction + summaries) and embeddings run on **Ollama**, started on

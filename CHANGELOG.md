@@ -42,6 +42,12 @@ adheres to [Semantic Versioning](https://semver.org/) and
   succeeds when no backend is reachable. Vision/transcription stay on Ollama. The backend
   defaults to loopback; a non-local URL is the user's explicit opt-in (warned once).
   `memory_status` now reports the active backend. No new top-level dependency.
+- **Per-client connection recipes** (Phase-3 interop). `mta recipes [--format text|json]`
+  prints ready-to-paste setup for every surface — Claude Code (stdio/HTTP), Claude Desktop
+  (`.mcpb`/`mcp.json`), the REST gateway (curl), and OpenAI/Gemini (exported schema + gateway)
+  — composed from the transport/REST/schema seams (`mta.interop.recipes`). Backed by a
+  **cross-surface conformance test** asserting stdio-MCP `tools/list`, the schema catalogue,
+  the OpenAI/Gemini/OpenAPI exports, and the REST registry all expose the *same* eight tools.
 
 ## [1.4.0] — 2026-06-02
 
