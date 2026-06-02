@@ -237,3 +237,20 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **🎉 Status: every Phase-1 Critical/High is now closed or mitigated.**
 
 **EXACT NEXT STEP (⛔ OWNER-GATED): WP-41 — first synchronized release.** Do NOT tag a live release until the owner has (1) configured the **PyPI Trusted Publisher** (repo `GRU-953/memorised-them-all`, workflow `release.yml`) and (2) added the **`HOMEBREW_TAP_TOKEN`** repo secret. Then: PR `develop`→`main`, merge, move CHANGELOG *Unreleased*→the version, `git tag vX.Y.Z && git push --tags`, watch `build→pypi→github_release→homebrew`, run the post-publish smoke in `PUBLISH_MANIFEST.md`. **In parallel, WP-50-52 (Phase-6 sandbox E2E) can start once Docker is available (R-01), or run in CI.**
+
+---
+
+## Session 12 — 2026-06-02 — Implementation: WP-33 (quick-win sweep)
+
+**Session id:** S12  **Branch:** `wp-33-quickwins` → **PR #15** (merged, squash `d511a0d`)  **Mode:** implementation (owner chose the autonomous sweep)
+
+**Done:**
+- **PIPE-04** — `digest` stats report `mode: "classical"` when no LLM ran (offline / Ollama unavailable), instead of mislabelling `"accurate"`; asserted in the offline e2e test.
+- **DOC-21** — `/memorise` documents `fast`; new **`/forget`** command (`commands/forget.md`); `SKILL.md` tool list now includes `forget` + `fast`.
+- **PKG-04** — `.mcpbignore` excludes dev/internal dirs (`program/`, `eval/`, `scripts/`, `commands/`, `skills/`, `.mcp.json`, `launch.py`, …); the zip fallback packs "everything minus `.mcpbignore`" to match `mcpb pack`. Verified: `.mcpb` is 310 KB / 32 entries, `manifest.json`+`launch.sh`+`mta/` present, all dev dirs excluded.
+
+**Resolved by not forcing:** PKG-06 **N/A** (MCPB has no canonical hosted `$schema` URL — verified upstream); CI-09 **deferred** (a `--generate-hashes` lock = 81 pkgs with pip-install warnings → a clean reproducible lock is a deliberate v1.x+ task); RECALL-02 + LIFE-02-residual **accepted-as-noted** (bounded 600-char cap; narrow atexit race) — no code change.
+
+**Local:** 64 offline tests pass. CI run 26817270903 fully green (9 jobs).
+
+**EXACT NEXT STEP:** All autonomous build work is complete. The remaining v1 items are gated/large: **WP-41** (first live release — needs owner PyPI Trusted Publisher + `HOMEBREW_TAP_TOKEN`, then PR develop→main + tag); **WP-50-52** (Phase-6 E2E — needs Docker (R-01) or a CI container matrix → `TEST_REPORT.md`); **WP-90** (fresh-eyes convergence review). Pick up whichever the owner unblocks first.

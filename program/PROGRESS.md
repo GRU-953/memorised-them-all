@@ -8,9 +8,12 @@
 ---
 
 ## ▶ RESUME HERE
-**WP-40 DONE — merged to `develop`** (PR #14, squash `abca304`); CI fully green (run 26816551772; SHA-pinned `ci.yml` validated on all 3 OSes). Hardened `release.yml` (single build → OIDC PyPI → GitHub Release → auto-bump tap; SBOM + cosign; halt-on-partial) + `program/PUBLISH_MANIFEST.md`. CI-02/03/04/05/06/11 + SEC-06/07 closed; R-02/R-03 mitigated. **🎉 Every Phase-1 Critical/High is now closed or mitigated.**
-**Next: WP-41 — first synchronized release (⛔ OWNER-GATED — do NOT tag a live release without owner setup + confirmation).** Requires first (ADR-006 / `PUBLISH_MANIFEST.md`): (1) a **PyPI Trusted Publisher** for `GRU-953/memorised-them-all` workflow `release.yml`; (2) repo secret **`HOMEBREW_TAP_TOKEN`**. Then PR `develop`→`main`, merge, `git tag vX.Y.Z && git push --tags`, watch the Release workflow, run the post-publish smoke (`PUBLISH_MANIFEST.md` checklist).
-**In parallel: WP-50-52 (Phase-6 sandbox E2E)** — needs **Docker** (R-01) locally, else runs in CI. Then **WP-90** (convergence). Deferred: CI-09 lockfile; Low/Med PIPE-04/05/06, DOC-21, PKG-06, PKG-04, RECALL-02; LIFE-02 residual.
+**WP-33 (quick-win sweep) DONE — merged to `develop`** (PR #15, `d511a0d`); CI green (run 26817270903). Cleared PIPE-04 (honest `mode` label), DOC-21 (`/forget` + `fast` docs + SKILL sync), PKG-04 (lean/consistent `.mcpb`). PKG-06 N/A (MCPB has no `$schema`); CI-09 deferred (clean hashed lock → v1.x+); RECALL-02 + LIFE-02-residual accepted-as-noted.
+**🎉 All Phase-1 Critical/High closed or mitigated; all autonomous build work is done — 12 implementation WPs, PRs #5–#15, every one CI-green on the 3-OS matrix.** Remaining v1 is **gated / large:**
+- **WP-41 — first synchronized release (⛔ OWNER-GATED):** needs (ADR-006 / `PUBLISH_MANIFEST.md`) a **PyPI Trusted Publisher** + repo secret **`HOMEBREW_TAP_TOKEN`**, then PR `develop`→`main`, move CHANGELOG *Unreleased*→version, `git tag vX.Y.Z && git push --tags`, watch `build→pypi→github_release→homebrew`, run the post-publish smoke.
+- **WP-50-52 — Phase-6 E2E:** local **Docker** (R-01) or a CI container matrix → `program/TEST_REPORT.md`.
+- **WP-90 — convergence review** (fresh-eyes) once the above land.
+Deferred Low/Med (logged, non-blocking): CI-09 lockfile, PIPE-05/06, RECALL-02, LIFE-02 residual.
 
 ---
 
@@ -31,6 +34,7 @@
 | WP-30 | Offline recall reliability + classical quality | 4 | v1 | **DONE** | merged #11 → develop (84e8c6c) | 06-02 | DOC-01/RECALL-03 closed (A4); RECALL-02/PIPE-05/06 deferred (Med) |
 | WP-32 | Security hardening completion + SECURITY.md | 4 | v1 | **DONE** | merged #12 → develop (6c52714) | 06-02 | SEC-01/02/03/10/11 closed (A12) |
 | WP-31 | Eval harness + reference corpus + golden metrics | 4 | v1 | **DONE** | merged #13 → develop (24aef47) | 06-02 | recall@8 gated; DOC-18/19 reworded (A10 partial/A11 reported) |
+| WP-33 | Quick-win sweep (PIPE-04, DOC-21, PKG-04) | 4 | v1 | **DONE** | merged #15 → develop (d511a0d) | 06-02 | PKG-06 n/a; CI-09 deferred; RECALL-02/LIFE-02 noted |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | **DONE** | merged #14 → develop (abca304) | 06-02 | CI-02/03/04/05/06/11, SEC-06/07 closed; CI-09 lockfile deferred |
 | WP-41 | First synchronized v1 release | 5 | v1 | TODO | — | — | after Phase-2 green + WP-40 |
 | WP-50 | Sandbox/container harness | 6 | v1 | BLOCKED | — | — | needs Docker (R-01) |
