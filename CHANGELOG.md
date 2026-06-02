@@ -13,6 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/) and
   by `mta status` / `memory_status`, which now also report the detected
   **GPU/accelerator** (`mlx`/`cuda`/`rocm`/`none`) and whether a local **LM Studio**
   server is running.
+- **`mta doctor`** — a dependency preflight: reports each runtime dependency and
+  the `ollama`/`tesseract`/`ffmpeg` binaries as present / outdated / missing with
+  **detected-vs-required** versions, and proposes argv-only, idempotent remediation
+  (`--dry-run` previews; `--fix` applies the safe pip upgrades; system-tool installs
+  are suggested per platform, never auto-run with sudo). Summary also in `memory_status`.
 
 ### Changed
 - **Offline-first auto-update** — the baseline MarkItDown is now the **pinned PyPI
