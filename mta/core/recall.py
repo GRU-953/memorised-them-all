@@ -7,6 +7,8 @@ Claude gets a compact, citable slice, which is what keeps recall near-zero-token
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 from . import locks
@@ -29,6 +31,14 @@ def _hit(u: dict, score) -> dict:
     if len(docs) > _MAX_HIT_DOCS:
         out["doc_count"] = len(docs)
     return out
+
+
+def _lexical_overlap(query: str, text: str) -> int:
+    """# of distinct content words (len>2) shared by the query and a hit's text — a
+    model-free relevance signal for the offline/hashing recall path (DOC-01)."""
+    q = {w for w in re.findall(r"\w+", (query or "").lower()) if len(w) > 2}
+    t = set(re.findall(r"\w+", (text or "").lower()))
+    return len(q & t)
 
 
 def recall(cfg: Config, query: str, k: int | None = None,
@@ -63,22 +73,30 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
     scores = cosine(qv, matrix)[0]
     order = np.argsort(-scores)[:k]
     hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3)) for i in order]
-    raw_top = hits[0]["score"] if hits else 0.0  # best raw score (informative)
-    # Relevance signal: with real embeddings, flag weak matches and (if a floor is
-    # configured) drop hits below it — so an off-topic query doesn't feed Claude
-    # confident-looking junk. The hashing fallback uses a different scale → no floor.
-    low_conf = False
-    if embedder.mode == "ollama":
-        if cfg.recall_min_score > 0:
-            hits = [h for h in hits if h["score"] >= cfg.recall_min_score]
-        # Confidence reflects what's actually RETURNED: low if nothing survived
-        # the floor, or the best surviving hit is weak.
-        low_conf = (not hits) or hits[0]["score"] < 0.5
-    top = hits[0]["score"] if hits else raw_top
+    raw_top = hits[0]["score"] if hits else 0.0  # best score BEFORE the floor
+    # Apply the absolute score floor on BOTH paths. This was previously gated to
+    # real embeddings, so it was silently ignored on the offline/hashing path
+    # (DOC-01). 0 = off.
+    if cfg.recall_min_score > 0:
+        hits = [h for h in hits if h["score"] >= cfg.recall_min_score]
+    # Relevance signal so an off-topic query doesn't feed Claude confident-looking
+    # junk. Real embeddings → cosine threshold. The hashing fallback's cosine isn't
+    # calibrated, so there we use lexical overlap between the query and the best
+    # hit (no shared content words ⇒ low confidence) — this is what makes
+    # low_confidence work with no model at all (DOC-01).
+    if not hits:
+        low_conf = True
+    elif embedder.mode == "ollama":
+        low_conf = hits[0]["score"] < 0.5
+    else:
+        low_conf = _lexical_overlap(query, hits[0].get("text", "")) == 0
+    # top_score reflects what is actually RETURNED (RECALL-03); raw_top_score keeps
+    # the pre-floor best for transparency.
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
             "synopsis": (doc or {}).get("synopsis", ""),
-            "top_score": top, "low_confidence": low_conf, "hits": hits}
+            "top_score": (hits[0]["score"] if hits else 0.0),
+            "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}
 
 
 def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:

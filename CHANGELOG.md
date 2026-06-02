@@ -47,6 +47,12 @@ adheres to [Semantic Versioning](https://semver.org/) and
   is forward-migrated in memory (stays recall-readable after an upgrade), and a
   store written by a *newer* build is backed up under `backups/` before any
   overwrite — so a version downgrade can never silently lose memory.
+- **Offline recall reliability** — `low_confidence` and `MTA_RECALL_MIN_SCORE` now
+  work on the **offline/hashing** path (they were real-embeddings-only and silently
+  no-op'd there): the confidence signal falls back to lexical overlap when no model
+  is present, so an off-topic query is flagged low-confidence even fully offline.
+  `top_score` now reflects the hits actually returned (with `raw_top_score` for the
+  pre-floor best).
 
 ### Internal / CI
 - CI now exercises the **real** conversion path: a new full-deps lane installs the
