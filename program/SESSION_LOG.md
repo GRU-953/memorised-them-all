@@ -97,3 +97,23 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **🎉 Milestone:** **both Criticals (PKG-03, LIFE-01) are now closed.** Phase-2 R4 (WP-13) + R5 (WP-14) done.
 
 **EXACT NEXT STEP:** Begin **WP-15 — compatibility, versioning & data migration (R6)** on a fresh branch off `develop`: in `mta/core/store.py`, when a store's `version` ≠ `SCHEMA_VERSION`, **back it up and migrate** (forward-migrate older stores; keep them at least read-recallable) instead of returning None for a newer store; add a migration registry + tests with vN-1 fixtures; document SemVer + deprecation policy. Target acceptance **A7**.
+
+---
+
+## Session 05 — 2026-06-02 — Implementation: WP-15 (R6 schema versioning & migration)
+
+**Session id:** S05  **Branch:** `wp-15-schema-migration` → **PR #8** (merged, squash `90cfffd`)  **Mode:** implementation
+
+**Goal:** Close **LIFE-03** — versioned store with migration + backup so old memories stay read-recallable and a downgrade can't lose data.
+
+**Done (`mta/core/store.py`):**
+- `load_graph`: a **newer-than-supported** store is no longer returned as `None` (which surfaced as "no memory" and let a digest overwrite it) — returned best-effort so recall/overview still work. **Older** stores **forward-migrate in memory** via a `_MIGRATIONS` registry (pure → safe under the shared read lock). Corrupt/non-numeric version still → `None`.
+- `save_graph`: **backs up** an incompatible (newer) on-disk store under `projects/<name>/backups/<ts>-…/` before overwriting → a version downgrade can't silently destroy memory.
+- `tests/test_migration.py` (6) — run on all 3 OSes in the matrix. README versioning/migration note; CHANGELOG.
+
+**Local:** offline suites green (smoke + concurrency + migration). CI run 26806762333 fully green (9 jobs).
+**Risks:** R-12 → **Mitigated**. **Acceptance A7 → met.**
+
+**Milestone:** Phase-2 **R4 (WP-13) + R5 (WP-14) + R6 (WP-15)** complete; both Criticals closed. Phase-2 remaining: **R2 (WP-11), R3 (WP-12)**; R1 (WP-10) done.
+
+**EXACT NEXT STEP:** Begin **WP-11 — auto-configuration (R2)** on a fresh branch off `develop`: in `mta/core/config.py` + `platform.py` + `server.py`, add **named profiles** (laptop/workstation/server/offline via `MTA_PROFILE`), **persist** the resolved config to `state/config.json` (and reload it), and **detect + surface GPU/CUDA + LM Studio** in `memory_status` / `platform.summary()`. Tests for profile resolution + persistence + detection. (Closes DEP-05/06/07.)

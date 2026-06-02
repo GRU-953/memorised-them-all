@@ -8,8 +8,8 @@
 ---
 
 ## ▶ RESUME HERE
-**WP-14 DONE — merged to `develop`** (PR #7, squash `a5851ab`); CI fully green (run 26803940371, all 9 jobs incl. **both Windows cells** = the `msvcrt` lock path). **🎉 Both Criticals now closed (PKG-03 + LIFE-01).** DEP-08 + PIPE-03 closed; LIFE-02 improved (residual narrow atexit-vs-busy race deferred).
-**Next: WP-15 — compatibility, versioning & data migration (R6)** on a fresh branch off `develop`. Closes **LIFE-03 (High)**: the store is version-stamped but has no migration/backup/rollback — a newer-than-supported store is silently treated as "no memory". In `mta/core/store.py`, on a version mismatch **back up + migrate** (older stores stay at least read-recallable) instead of returning None; add a migration registry + tests with vN-1 fixtures; document SemVer + deprecation policy. Target acceptance **A7**. Then WP-11 (R2) → WP-12 (R3) → WP-30/32/31 → WP-40/41 → WP-50-52. Deferred Low: PIPE-04, DOC-21, PKG-06, PKG-04; LIFE-02 residual.
+**WP-15 DONE — merged to `develop`** (PR #8, squash `90cfffd`); CI fully green (run 26806762333, all 9 jobs). **LIFE-03 closed** (versioned store: forward-migrate older stores in memory; back up a newer store before overwrite → read-recallable, no downgrade data loss). **Phase-2 R4/R5/R6 all done; both Criticals closed.**
+**Next: WP-11 — auto-configuration (R2)** on a fresh branch off `develop`. Closes DEP-05 (named profiles laptop/workstation/server/offline via `MTA_PROFILE`), DEP-06 (persist resolved config to `state/config.json`), DEP-07 (detect + surface GPU/CUDA + LM Studio in `memory_status`/`platform.summary()`). Then WP-12 (R3 dep-scan + `mta doctor`) → WP-30/32/31 → WP-40/41 → WP-50-52 → WP-90. Deferred Low: PIPE-04, DOC-21, PKG-06, PKG-04; LIFE-02 residual.
 
 ---
 
@@ -24,7 +24,7 @@
 | WP-10 | Install simplicity + **offline-correct bootstrap** (R1) | 2 | v1 | **DONE** | merged #6 → develop (fd2d1d2) | 06-02 | PKG-03 closed; PKG-04 (Low) deferred |
 | WP-13 | Safe auto-update: integrity+atomic+rollback (R4) | 2 | v1 | **DONE** | merged #6 → develop | 06-02 | SEC-04/DEP-01/03/09 closed; DEP-02 report-only (ADR-009) |
 | WP-14 | Lifecycle + **cross-process concurrency** (R5) | 2 | v1 | **DONE** | merged #7 → develop (a5851ab) | 06-02 | LIFE-01/PIPE-03/DEP-08 closed; LIFE-02 improved |
-| WP-15 | Compatibility / versioning / **data migration** (R6) | 2 | v1 | TODO | — | — | closes LIFE-03(High) |
+| WP-15 | Compatibility / versioning / **data migration** (R6) | 2 | v1 | **DONE** | merged #8 → develop (90cfffd) | 06-02 | LIFE-03 closed; A7 met |
 | WP-11 | Auto-configuration: profiles, persist, GPU/LM-Studio (R2) | 2 | v1 | TODO | — | — | closes DEP-05/06/07 |
 | WP-12 | Dependency scan + guided install + `mta doctor` (R3) | 2 | v1 | TODO | — | — | closes DEP-04/10 |
 | WP-30 | Offline recall reliability + classical quality | 4 | v1 | TODO | — | — | closes DOC-01(High), RECALL-02/03, PIPE-05/06 |
