@@ -18,7 +18,7 @@ from pathlib import Path
 import urllib.request
 
 from . import graph as graphmod
-from . import render, store
+from . import locks, render, store
 from .config import Config
 from .convert import SUPPORTED_EXTS, convert_file
 from .embed import Embedder
@@ -156,6 +156,14 @@ def digest(cfg: Config, paths: list[str], reset: bool = False,
         cfg.fast = True
         cfg.extract_mode = "classical"
     ollama = ollama or OllamaManager(cfg)
+    # Single-writer per project: serialise concurrent digests / reset / forget so
+    # two callers can't interleave into a torn graph<->vectors pair (LIFE-01).
+    with locks.write_lock(cfg):
+        return _digest_locked(cfg, paths, reset, ollama)
+
+
+def _digest_locked(cfg: Config, paths: list[str], reset: bool,
+                   ollama: OllamaManager) -> dict:
     t0 = time.time()
 
     if reset:

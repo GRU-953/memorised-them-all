@@ -19,6 +19,18 @@ adheres to [Semantic Versioning](https://semver.org/) and
   a small structured error instead of letting an exception cross the MCP boundary
   as a raw traceback (still token-free).
 
+### Fixed
+- **Concurrency safety** — concurrent clients sharing one memory home no longer
+  race. A digest / `forget` / reset takes an **exclusive** per-project lock and
+  recall takes a **shared** lock (cross-process via `flock` / `msvcrt`), so the
+  `graph.json` ↔ `vectors.npz` pair can never be torn and two digests on one
+  project can't interleave. The on-demand Ollama start is serialised so two apps
+  (Desktop + Code) can't both spawn a server. Lock files live under `state/locks/`
+  so `forget` can't delete a held lock.
+- **Availability** — when Ollama is installed but unreachable, the engine now
+  fast-fails after one attempt (short cooldown) instead of stalling ~20 s on every
+  model call across a digest.
+
 ### Internal / CI
 - CI now exercises the **real** conversion path: a new full-deps lane installs the
   package + Tesseract and converts PDF/DOCX/XLSX/CSV/HTML (the offline matrix
