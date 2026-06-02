@@ -1,0 +1,28 @@
+# Reproducible dependency lockfile (CI-09).
+#
+# A committed, known-good pin of the core runtime + test stack, captured on
+# Python 3.12. Use it for a *reproducible* install:
+#
+#     pip install -e ".[dev]" -c constraints.txt
+#
+# It is intentionally NOT applied to the CI test matrix: that matrix installs the
+# floating ranges from pyproject so it keeps catching breakage against the latest
+# releases (and across 3.10–3.12 × 3 OSes, where the newest pins may lack wheels).
+# CI validates that THIS file still resolves, on 3.12, in the (non-blocking)
+# supply-chain job. Regenerate with `pip freeze` after a deliberate dependency bump.
+numpy==2.4.6
+networkx==3.6.1
+RapidFuzz==3.14.5
+psutil==7.2.2
+mcp==1.27.2
+# Key transitives of mcp (HTTP transport + REST gateway depend on these):
+anyio==4.13.0
+certifi==2026.5.20
+click==8.4.1
+httpx==0.28.1
+pydantic==2.13.4
+sse-starlette==3.4.4
+starlette==1.2.1
+uvicorn==0.48.0
+# Test runner
+pytest==9.0.3

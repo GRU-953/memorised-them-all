@@ -6,6 +6,82 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-06-03
+
+Phase-3 cross-AI interop — use the same eight local, token-free tools from non-MCP
+clients and alternative local model servers. All additive and invariant-safe (still
+token-free, 100% local by default, no new top-level dependency).
+
+### Added
+- **Secure Streamable HTTP transport** (opt-in; Phase-3 interop). `mta serve --http`
+  exposes the same eight token-free tools over MCP Streamable HTTP for non-stdio
+  clients, **alongside** the unchanged default stdio transport. Secure by
+  construction: binds **loopback (`127.0.0.1`) only** unless `--allow-remote`
+  (`MTA_HTTP_ALLOW_REMOTE=on`) is given explicitly; **every request requires a
+  bearer token** (auto-generated and persisted `0600`, or set `MTA_HTTP_TOKEN`) —
+  there is no unauthenticated mode; the SDK's **DNS-rebinding protection**
+  (Host/Origin allowlist) stays on. An unauthenticated `/healthz` liveness probe
+  is the only open route and never echoes the token. Knobs: `MTA_HTTP_HOST`,
+  `MTA_HTTP_PORT` (default `8765`), `MTA_HTTP_PATH`, `MTA_HTTP_ALLOWED_HOSTS`,
+  `MTA_HTTP_ALLOWED_ORIGINS`. Adds **no** new top-level dependency
+  (`starlette`/`uvicorn` already ship with `mcp`). The server is now built by a
+  `build_server()` factory so each transport owns its own session manager.
+- **Cross-AI tool-schema export** (opt-in; Phase-3 interop). `mta export-schema
+  [--format openai|gemini|openapi|all] [--out DIR]` emits the eight tools as an OpenAI
+  function-calling array, a Gemini `function_declarations` object, and an **OpenAPI 3.1**
+  document (`POST /tools/{name}`), so non-MCP clients can drive the same local engine.
+  Schemas are derived from the live FastMCP registry (no drift) via the new
+  `mta.interop.schemas` module — pure, offline, and token-free.
+- **Local REST gateway** (opt-in; Phase-3 interop). `mta serve --rest` serves the eight
+  tools as plain JSON over HTTP — `POST /tools/{name}` with an argument body returns the
+  tool's token-free result — i.e. the exact OpenAPI 3.1 surface `export-schema` describes,
+  with `GET /openapi.json` (live schema) and an unauthenticated `GET /healthz`. Reuses the
+  WP-20 hardening: loopback-only by default, the **same** mandatory bearer token, and a
+  Host-header allowlist (DNS-rebinding defense). New `mta.interop.rest`; blocking calls run
+  in a threadpool. No new top-level dependency.
+- **Pluggable inference backends** (Phase-3 interop). `MTA_BACKEND` selects where text
+  generation (extraction + summaries) and embeddings run: `auto`/`ollama` (default,
+  unchanged) or an **OpenAI-compatible** server (`lmstudio` · `llamacpp` · `vllm` ·
+  `openai`) at `MTA_BACKEND_URL` (`/v1/chat/completions` + `/v1/embeddings`), with optional
+  `MTA_BACKEND_KEY`. New `mta.core.backends` centralises the dispatch; the Ollama path is
+  byte-identical and the classical/hashing offline fallback is unchanged, so a digest still
+  succeeds when no backend is reachable. Vision/transcription stay on Ollama. The backend
+  defaults to loopback; a non-local URL is the user's explicit opt-in (warned once).
+  `memory_status` now reports the active backend. No new top-level dependency.
+- **Per-client connection recipes** (Phase-3 interop). `mta recipes [--format text|json]`
+  prints ready-to-paste setup for every surface — Claude Code (stdio/HTTP), Claude Desktop
+  (`.mcpb`/`mcp.json`), the REST gateway (curl), and OpenAI/Gemini (exported schema + gateway)
+  — composed from the transport/REST/schema seams (`mta.interop.recipes`). Backed by a
+  **cross-surface conformance test** asserting stdio-MCP `tools/list`, the schema catalogue,
+  the OpenAI/Gemini/OpenAPI exports, and the REST registry all expose the *same* eight tools.
+- **Docker image (GHCR).** A multi-arch image (`linux/amd64` + `linux/arm64`) at
+  `ghcr.io/gru-953/memorised-them-all` — multi-stage, runs as a non-root user, serves the
+  tools over MCP Streamable HTTP, persists memory in a `/data` volume, and ships an OCI
+  `/healthz` HEALTHCHECK. Built/validated in CI and pushed on release via the built-in
+  `GITHUB_TOKEN` (no extra secret). Ollama isn't bundled — use a backend URL or the offline
+  fallback.
+- **MCP registry manifest.** A version-gated `server.json` (root) describing the PyPI package
+  + stdio transport, ready for the official MCP registry (`io.github.gru-953/...` namespace).
+  Submitted once by the owner via `mcp-publisher` (see `program/PUBLISH_MANIFEST.md`).
+
+### Security / supply chain
+- Committed **dependency lockfile** (`constraints.txt`, CI-09) for reproducible installs
+  (`pip install -e ".[dev]" -c constraints.txt`); a non-blocking CI **supply-chain** job runs
+  `pip-audit` (CVE scan) + a dependency-license report and verifies the lockfile resolves.
+- **Release pipeline hardening:** the publish jobs (PyPI / GitHub Release / Homebrew) now run
+  **only on a real tag push** — a manual `workflow_dispatch` builds + signs as a dry-run but
+  never publishes (closes the tag-gate bypass). The Homebrew tap bump is now best-effort
+  (`continue-on-error`), so a missing/expired tap token can never fail a release after PyPI
+  and the GitHub Release have already shipped.
+
+### Fixed
+- **Recall-vector store consistency.** A digest now persists recall vectors (or clears them)
+  *before* writing `graph.json`, and a digest that yields **no recall units** clears any prior
+  vectors via the new `store.clear_vectors` — so a stale matrix (with refs into a previous
+  graph) can no longer linger and make `recall` and `memory_overview` disagree.
+- **PIPE-05:** `rapidfuzz` is a hard dependency, so a missing install now **warns loudly**
+  (entity resolution otherwise silently degraded to exact-match, which over-splits entities).
+
 ## [1.4.0] — 2026-06-02
 
 ### Added

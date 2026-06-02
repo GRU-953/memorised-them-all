@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "memorised-them-all",
   "display_name": "Memorised them All (local, token-free)",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally.",
   "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, images, audio, and more) to Markdown locally using Microsoft's MarkItDown (kept up to date from upstream automatically), Tesseract OCR, on-device Whisper, and a local Ollama vision model. It then runs an original local pipeline — semantic chunking, local embeddings, local-LLM (with a classical fallback) extraction of entities/relations/facts, embedding+fuzzy entity resolution, and community detection — to build a layered knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, an exportable memory bundle, and an offline interactive mind map. Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens. Everything is free and open-source and runs locally; the Ollama model server starts on demand and stops after 5 minutes idle. Tuned for Apple M-series silicon (performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency).\n\nTools: digest, recall, memory_overview, export_memory, list_digestible, forget, memory_status, open_mindmap.",
   "author": {

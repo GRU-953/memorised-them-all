@@ -8,10 +8,11 @@
 ---
 
 ## ▶ RESUME HERE
-**🏁 v1 hardening COMPLETE & CONVERGED (code).** Phase-6 E2E done (WP-50-52, `TEST_REPORT.md`); convergence note written (WP-90, `CONVERGENCE.md`); version bumped to **1.4.0** + CHANGELOG cut. 14 WPs, PRs #5–#17, all CI-green; no Critical/High open; independently reviewed; E2E-validated (offline + accurate via live Ollama). `develop` = v1.4.0.
-**Active: WP-41 — release.** A `develop`→`main` PR is open (full CI + the `e2e.yml` Phase-6 gate). On merge, `main` is v1.4.0-release-ready.
-**⛔ Only owner action left to PUBLISH (the agent cannot — no PyPI account access):** configure a PyPI **Trusted Publisher** (repo `GRU-953/memorised-them-all`, workflow `release.yml`) + add the **`HOMEBREW_TAP_TOKEN`** repo secret (`program/PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap; run the post-publish smoke.
-**v1.x+ backlog:** Phase-3 cross-AI interop (WP-20–24) + extra channels + deferred Low/Med (`REVIEW.md`, CI-09, PIPE-05/06, LIFE-02 residual).
+**🎉 Phase-3 cross-AI interop COMPLETE (WP-20–24, all merged to `develop`, full 3-OS CI green). `develop` = a staged v1.5.0 release candidate.** `main` = v1.4.0 (published).
+**DONE (S16):** **WP-20** secure Streamable HTTP transport (`mta serve --http`; #19 `9e1029a`) · **WP-21** cross-AI schema exports (`mta export-schema` → OpenAI/Gemini/OpenAPI 3.1; #20 `fa86ec3`) · **WP-22** local REST gateway (`mta serve --rest`, `POST /tools/{name}`; #21 `2cf269b`) · **WP-23** pluggable backends (`MTA_BACKEND` → Ollama default or OpenAI-compatible; #22 `07e6d96`) · **WP-24** per-client recipes (`mta recipes`) + cross-surface conformance (#23 `12ba7ac`). All additive + invariant-safe (token-free, local-first, no new dependency). **Version bumped to 1.5.0 + CHANGELOG cut** (all 5 version strings agree; `scripts/check_versions.py` green).
+**▶ Next = release v1.5.0 (owner-gated):** ⚠ **first rotate `HOMEBREW_TAP_TOKEN`** (a fine-grained PAT was exposed in chat at S14 — the tap job would fail/partial-release otherwise), then merge `develop`→`main` (PR) and `git tag v1.5.0 && git push --tags` → the train publishes PyPI + GitHub Release (+`.mcpb`) + bumps the tap (`PUBLISH_MANIFEST.md`); run the post-publish smoke. The agent staged everything; tagging is the owner's call.
+**Then (optional) v1.x+ remainder:** extra publishing channels (Docker/GHCR, MCP registry, winget/scoop/AUR) + deferred Low/Med (`REVIEW.md`: graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02).
+**⚠ Concurrency (S16):** two unattended sessions briefly shared this one checkout (a 2nd wrote WP-20 while this did WP-21); resolved by sole-driver consolidation. **Run ONE unattended session per working tree**, or give each its own `git worktree`.
 
 ---
 
@@ -35,12 +36,16 @@
 | WP-33 | Quick-win sweep (PIPE-04, DOC-21, PKG-04) | 4 | v1 | **DONE** | merged #15 → develop (d511a0d) | 06-02 | PKG-06 n/a; CI-09 deferred; RECALL-02/LIFE-02 noted |
 | WP-34 | Pre-release fresh-eyes review + fixes | 6 | v1 | **DONE** | merged #16 → develop (a46a414) | 06-02 | 21 findings; 3 High + Med/Low fixed; `program/REVIEW.md` |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | **DONE** | merged #14 → develop (abca304) | 06-02 | CI-02/03/04/05/06/11, SEC-06/07 closed; CI-09 lockfile deferred |
-| WP-41 | First synchronized v1 release | 5 | v1 | **PREP DONE** | develop→main PR | 06-02 | v1.4.0 cut; PUBLISH is owner-gated (PyPI publisher + tag) |
+| WP-41 | First synchronized v1 release | 5 | v1 | **DONE 🚢** | v1.4.0 tag (run 26835623380) | 06-02 | PUBLISHED: PyPI + GitHub Release + .mcpb + Homebrew tap; smoke ✓ |
 | WP-50 | Sandbox/E2E harness | 6 | v1 | **DONE** | merged #17 → develop | 06-02 | clean-wheel CLI E2E + e2e.yml; container matrix deferred (R-01) |
 | WP-51 | E2E test-matrix run | 6 | v1 | **DONE** | merged #17 | 06-02 | offline 5/5 + accurate-mode pass (live Ollama) |
 | WP-52 | Fix-and-retest loop → TEST_REPORT.md | 6 | v1 | **DONE** | merged #17 | 06-02 | `program/TEST_REPORT.md` |
 | WP-90 | Convergence review & note | 6 | v1 | **DONE** | develop | 06-02 | `program/CONVERGENCE.md` — converged (code) |
-| WP-20…24 | Phase-3 interop (HTTP transport, schema exports, REST, backends, recipes) | 3 | v1.x+ | TODO | — | — | designed in plan; built post-v1 |
+| WP-20 | Phase-3: secure Streamable HTTP transport (stdio + HTTP) | 3 | v1.x+ | **DONE** | merged #19 → develop (9e1029a) | 06-03 | `serve --http`; loopback+bearer+DNS-rebind; no new dep |
+| WP-21 | Phase-3: cross-AI schema exports (OpenAI/Gemini/OpenAPI 3.1) | 3 | v1.x+ | **DONE** | merged #20 → develop (fa86ec3) | 06-03 | `export-schema`; derived from live registry (no drift) |
+| WP-22 | Phase-3: local REST gateway over the OpenAPI-3.1 surface | 3 | v1.x+ | **DONE** | merged #21 → develop (2cf269b) | 06-03 | `serve --rest`; bearer+Host-allowlist; threadpool |
+| WP-23 | Phase-3: pluggable backends (Ollama/LM Studio/llama.cpp/OpenAI-compat) | 3 | v1.x+ | **DONE** | merged #22 → develop (07e6d96) | 06-03 | `MTA_BACKEND`; Ollama default byte-identical; fallback intact |
+| WP-24 | Phase-3: per-client recipes + conformance tests | 3 | v1.x+ | **DONE** | merged #23 → develop (12ba7ac) | 06-03 | `mta recipes`; all surfaces == same 8 tools |
 
 ## Artifacts
 `AUDIT.md` · `IMPROVEMENT_PLAN.md` · `ACCEPTANCE.md` · `RISKS.md` · `DECISIONS.md` · `SESSION_LOG.md` · `/CHANGELOG.md` · (later: `PUBLISH_MANIFEST.md`, `TEST_REPORT.md`, `SECURITY.md`)

@@ -79,6 +79,9 @@ jobs:
   # release never leaves a published GitHub Release behind (no partial release).
   pypi:
     needs: build
+    # Publish ONLY on a real tag push. A manual workflow_dispatch run therefore
+    # builds + signs as a dry-run but never publishes (closes the tag-gate bypass).
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       id-token: write   # PyPI Trusted Publishing — no long-lived token in the repo
@@ -99,6 +102,7 @@ jobs:
 
   github_release:
     needs: pypi
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the release + upload assets
@@ -127,6 +131,11 @@ jobs:
   # skips cleanly (the core PyPI + GitHub Release still shipped). Idempotent.
   homebrew:
     needs: github_release
+    if: github.ref_type == 'tag'
+    # Best-effort: a missing/revoked tap token must never fail the release — PyPI
+    # and the GitHub Release have already shipped. The tap is bumped on the next
+    # run (or manually) once the token is valid.
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - name: Gate on the tap token

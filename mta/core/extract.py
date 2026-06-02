@@ -1,21 +1,21 @@
 """Knowledge extraction — entities, typed relations, and atomic facts per chunk.
 
-Primary path: a local LLM via Ollama (``qwen2.5:7b`` by default) is asked for a
-strict JSON object of entities/relations/facts. Fallback path: a dependency-free
-classical extractor (capitalised noun-phrase + acronym detection for entities,
-intra-chunk co-occurrence for relations, sentences as facts). The classical pass
-guarantees a usable graph offline and in CI; the LLM pass makes it sharp.
+Primary path: a local LLM (Ollama ``qwen2.5:7b`` by default, or any configured
+OpenAI-compatible backend — see :mod:`mta.core.backends`) is asked for a strict
+JSON object of entities/relations/facts. Fallback path: a dependency-free classical
+extractor (capitalised noun-phrase + acronym detection for entities, intra-chunk
+co-occurrence for relations, sentences as facts). The classical pass guarantees a
+usable graph offline and in CI; the LLM pass makes it sharp.
 
-This module never sends anything to a remote service and never returns document
-text to Claude — its output feeds the local graph builder only.
+By default this stays on-device and never returns document text to Claude — its
+output feeds the local graph builder only. (A non-local backend URL is the user's
+explicit opt-in.)
 """
 from __future__ import annotations
 
 import json
 import re
 from dataclasses import dataclass, field
-
-import urllib.request
 
 from .config import Config
 from .lifecycle import OllamaManager
@@ -80,24 +80,29 @@ def _classical(chunk: Chunk) -> Extraction:
     return Extraction(entities=entities, relations=relations, facts=facts)
 
 
-def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
-    if not ollama.ensure_running(wait=25):
-        return None
-    payload = json.dumps({
-        "model": cfg.extract_model,
-        "prompt": _PROMPT + chunk.text[:6000] + "\n<<<END>>>",
-        "stream": False,
-        "format": "json",
-        "options": {"temperature": 0.0, "num_predict": 700},
-    }).encode()
+def _loads_json_object(text: str) -> dict | None:
+    """Parse a JSON object from a model response, tolerating ```json code fences."""
+    s = (text or "").strip()
+    if s.startswith("```"):
+        s = s.split("\n", 1)[1] if "\n" in s else ""
+        if s.rstrip().endswith("```"):
+            s = s.rsplit("```", 1)[0]
     try:
-        req = urllib.request.Request(f"{ollama.host}/api/generate", data=payload,
-                                     headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=180) as r:
-            data = json.loads(r.read())
-        ollama.touch()
-        obj = json.loads(data.get("response") or "{}")
-    except Exception:  # noqa: BLE001
+        obj = json.loads(s or "{}")
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
+    from . import backends
+    resp = backends.generate(
+        cfg, ollama, _PROMPT + chunk.text[:6000] + "\n<<<END>>>",
+        json_format=True, num_predict=700, temperature=0.0, wait=25)
+    if not resp:
+        return None
+    obj = _loads_json_object(resp)
+    if obj is None:
         return None
 
     def _clean_entities(raw) -> list[dict]:

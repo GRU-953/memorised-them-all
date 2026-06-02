@@ -18,7 +18,11 @@ not put exploit details in public issues.
 (a) downloading dependencies/models when you install or run `mta doctor` / `mta update`;
 (b) a throttled (~daily) GitHub *release check* (disable with `MTA_AUTO_UPDATE=off`);
 (c) an **opt-in** pull of the latest upstream MarkItDown (`MTA_MARKITDOWN_UPSTREAM=on`),
-pinned to a resolved commit. No analytics; document contents never leave your machine.
+pinned to a resolved commit; (d) if you **opt in** to an OpenAI-compatible inference
+backend (`MTA_BACKEND`), the text being digested/queried is sent to that endpoint — which
+defaults to **loopback**, so pointing it at a non-local URL is your explicit choice (a
+one-time warning is printed). No analytics; with the defaults, document contents never
+leave your machine.
 
 **Token-free boundary.** MCP tools return only metadata or a small, hard-capped slice
 (≤ 600 chars/hit, ≤ 5 docs); document contents never return to the model.
@@ -47,6 +51,33 @@ Attachments are untrusted input. Mitigations:
   `curl | sh`); the Ollama installer is downloaded to a temp file and only run after a
   complete download.
 
+### Remote access (opt-in HTTP transport)
+
+By default the MCP server speaks **stdio** and opens no socket. `mta serve --http`
+additionally exposes the tools over MCP **Streamable HTTP**, hardened so the inbound
+listener is safe to run:
+
+- **Loopback by default** — binds `127.0.0.1` and *refuses* a non-loopback host unless
+  you pass `--allow-remote` (or set `MTA_HTTP_ALLOW_REMOTE=on`), which prints a warning.
+  No `0.0.0.0` by accident.
+- **Authentication is mandatory** — every request must send `Authorization: Bearer
+  <token>`. The token comes from `MTA_HTTP_TOKEN`, or is auto-generated and stored at
+  `MTA_HOME/state/http_token` (`0600`). There is no unauthenticated mode; the token is
+  compared in constant time and is never returned by any tool or by the `/healthz` probe.
+- **DNS-rebinding protection** — the `Host`/`Origin` headers are validated against an
+  allowlist (the bound `host:port` plus loopback aliases; extend via
+  `MTA_HTTP_ALLOWED_HOSTS` / `MTA_HTTP_ALLOWED_ORIGINS` for a reverse proxy), so a
+  malicious web page cannot drive your local server through your browser.
+- **No built-in TLS** — loopback traffic doesn't need it. To expose the server beyond
+  localhost, terminate TLS at a reverse proxy, treat the bearer token as a password, and
+  never place it on an untrusted network.
+
+The optional **REST gateway** (`mta serve --rest` — plain JSON `POST /tools/{name}` for
+non-MCP clients) enforces the *same* controls: loopback-only by default with the identical
+non-loopback refusal, the **same** mandatory bearer token (shared `state/http_token`), and
+a `Host`-header allowlist. Only `GET /healthz` is unauthenticated; `GET /openapi.json` and
+every tool call require the token.
+
 ### Supply chain
 
 - Releases build from committed sources; the version is single-sourced and CI fails on drift
@@ -56,5 +87,6 @@ Attachments are untrusted input. Mitigations:
   `mta doctor` reports detected-vs-required dependency versions.
 - The optional `graph` extra (`python-igraph`, `leidenalg`) is **GPL-licensed** and is *not*
   installed by the MIT core, which falls back to NetworkX Louvain.
-- On the roadmap (tracked in `program/`): OIDC/trusted publishing, SBOM, and Sigstore-signed
-  releases.
+- Releases use **OIDC trusted publishing** to PyPI (no long-lived token), ship a
+  **CycloneDX SBOM**, and are **Sigstore/cosign-signed** (a `.sig` + `.pem` per artifact);
+  every GitHub Action is SHA-pinned.

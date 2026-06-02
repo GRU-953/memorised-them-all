@@ -11,11 +11,7 @@ Nothing here returns text to the caller; embeddings are numeric vectors only.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
-
-import urllib.error
-import urllib.request
 
 import numpy as np
 
@@ -58,19 +54,6 @@ class Embedder:
             self.embed(["probe"])
         return self._mode or "hash"
 
-    def _ollama_embed(self, text: str) -> list[float] | None:
-        url = f"{self.ollama.host}/api/embeddings"
-        payload = json.dumps({"model": self.cfg.embed_model, "prompt": text}).encode()
-        req = urllib.request.Request(url, data=payload,
-                                     headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                data = json.loads(r.read())
-            emb = data.get("embedding")
-            return emb if emb else None
-        except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
-            return None
-
     def _prefix(self, kind: str) -> str:
         # nomic-embed-text is trained with task prefixes; without them short
         # strings embed almost identically. Other models get no prefix.
@@ -87,23 +70,16 @@ class Embedder:
         if not texts:
             return np.zeros((0, _FALLBACK_DIM), dtype=np.float32)
 
-        use_ollama = self.cfg.embed_model and self.ollama.ensure_running(wait=20)
-        if use_ollama:
-            self.ollama.touch()
-            prefix = self._prefix(kind)
-            vecs: list[list[float]] = []
-            ok = True
-            for t in texts:
-                emb = self._ollama_embed((prefix + t)[:8000])
-                if emb is None:
-                    ok = False
-                    break
-                vecs.append(emb)
-            if ok and vecs:
-                self._mode = "ollama"
-                mat = np.asarray(vecs, dtype=np.float32)
-                self._dim = mat.shape[1]
-                return _normalize(mat)
+        from . import backends
+        prefix = self._prefix(kind)
+        vecs = backends.embed(self.cfg, self.ollama,
+                              [(prefix + t)[:8000] for t in texts])
+        if vecs:
+            # "ollama" | "openai" — used downstream to label real vs hashing embeddings.
+            self._mode = backends.backend_kind(self.cfg)
+            mat = np.asarray(vecs, dtype=np.float32)
+            self._dim = mat.shape[1]
+            return _normalize(mat)
 
         # Fallback: deterministic hashing embedding.
         self._mode = "hash"

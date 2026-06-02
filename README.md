@@ -187,7 +187,118 @@ All optional, sensible defaults; set via environment (CLI) or the extension sett
 | `MTA_AUTO_UPDATE` | `on` | daily update check: `on` (PyPI, default) · `off` · `upstream` (also pull the pinned upstream MarkItDown) |
 | `MTA_MARKITDOWN_UPSTREAM` | `off` | pull the latest upstream MarkItDown commit (pinned to a SHA) instead of the PyPI build |
 | `MTA_NO_OLLAMA` | unset | hard offline switch (classical + hashing) |
+| `MTA_BACKEND` | `auto` | inference backend: `auto`/`ollama`, or an OpenAI-compatible server — `lmstudio` · `llamacpp` · `vllm` · `openai` (see [Use a different model server](#-use-a-different-model-server)) |
+| `MTA_BACKEND_URL` / `MTA_BACKEND_KEY` | auto / unset | base URL + bearer key for an OpenAI-compatible backend (URL defaults to the right loopback port) |
 | `MTA_PROFILE` | unset | tuning profile: `laptop` · `workstation` · `server` · `offline` (an explicit `MTA_*` variable always wins) |
+| `MTA_HTTP_*` | off | opt-in HTTP transport — see [Remote access](#-remote-access-http-transport) |
+
+## 🌐 Remote access (HTTP transport)
+
+The server speaks **stdio** by default — how Claude Desktop and Claude Code launch it —
+and opens no network socket. For other MCP clients, or to reach one running engine from
+several tools, you can additionally serve the same eight token-free tools over MCP
+**Streamable HTTP**. It is opt-in and secure by construction:
+
+```bash
+mta serve --http          # binds 127.0.0.1:8765 and prints a bearer token
+```
+
+On start it prints a ready-to-paste connection command:
+
+```bash
+claude mcp add --transport http memorised-them-all \
+  http://127.0.0.1:8765/mcp --header "Authorization: Bearer <TOKEN>"
+```
+
+**Loopback-only** unless you pass `--allow-remote`; a **mandatory bearer token**
+(auto-generated and stored `0600` at `$MTA_HOME/state/http_token`, or set via
+`MTA_HTTP_TOKEN`); and **DNS-rebinding protection** on by default. An unauthenticated
+`GET /healthz` is the only open route. To expose it beyond localhost, terminate TLS at a
+reverse proxy first — see [SECURITY.md](SECURITY.md).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MTA_HTTP_HOST` / `MTA_HTTP_PORT` | `127.0.0.1` / `8765` | HTTP bind address (loopback-guarded) |
+| `MTA_HTTP_PATH` | `/mcp` | endpoint path |
+| `MTA_HTTP_TOKEN` | auto | bearer token (auto-generated `0600` if unset) |
+| `MTA_HTTP_ALLOW_REMOTE` | `off` | permit a non-loopback bind (network-exposed) |
+| `MTA_HTTP_ALLOWED_HOSTS` / `MTA_HTTP_ALLOWED_ORIGINS` | unset | extra `Host`/`Origin` allowlist entries (reverse proxy) |
+
+## 🔌 Use from other AIs (tool schemas)
+
+The same eight tools can be described to **non-MCP** clients in the three dominant
+dialects, so OpenAI, Google Gemini, or any OpenAPI consumer can call this local engine.
+The schemas are generated from the live MCP tool registry — never hand-maintained — so
+they can't drift from the tools the server actually serves:
+
+```bash
+mta export-schema                    # all three dialects → stdout (JSON)
+mta export-schema --format openai    # OpenAI tools / function-calling array
+mta export-schema --format gemini    # Gemini function_declarations (OpenAPI-subset)
+mta export-schema --format openapi   # OpenAPI 3.1 document (POST /tools/{name})
+mta export-schema --out ./schemas    # write openai.json · gemini.json · openapi.json
+```
+
+Pure and offline: it only reads the in-process tool definitions and prints JSON — it
+starts no server and returns nothing through the model.
+
+To actually **call** the tools without MCP, run the local **REST gateway** — it serves
+exactly that OpenAPI 3.1 surface:
+
+```bash
+mta serve --rest     # POST http://127.0.0.1:8765/tools/{name} with a JSON arg body
+```
+
+Same hardening as `mta serve --http` (loopback-only, one mandatory bearer token shared
+with the MCP transport, Host allowlist); `GET /openapi.json` returns the live schema and
+`GET /healthz` is an unauthenticated liveness probe. Example:
+
+```bash
+curl -s http://127.0.0.1:8765/tools/recall \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"deadlines","project":"contracts"}'
+```
+
+**Not sure which snippet you need?** `mta recipes` prints ready-to-paste connection setup
+for every surface — Claude Code (stdio/HTTP), Claude Desktop, the REST gateway, and
+OpenAI/Gemini — all pointing at the same eight tools.
+
+## 🧩 Use a different model server
+
+By default the LLM (extraction + summaries) and embeddings run on **Ollama**, started on
+demand and stopped when idle. To point them at another local model server instead, set
+`MTA_BACKEND` (and usually `MTA_BACKEND_URL`):
+
+```bash
+# LM Studio (defaults to http://127.0.0.1:1234/v1)
+MTA_BACKEND=lmstudio MTA_EXTRACT_MODEL=your-chat-model MTA_EMBED_MODEL=your-embed-model mta digest ./docs
+
+# llama.cpp server (http://127.0.0.1:8080/v1), or any OpenAI-compatible endpoint
+MTA_BACKEND=openai MTA_BACKEND_URL=http://127.0.0.1:8080/v1 mta digest ./docs
+```
+
+The server must speak the OpenAI API (`/v1/chat/completions` + `/v1/embeddings`). Set
+`MTA_EXTRACT_MODEL` / `MTA_EMBED_MODEL` to that server's model IDs, and `MTA_BACKEND_KEY`
+if it needs a token. Image OCR and audio transcription still use Ollama / local tools.
+The backend defaults to **loopback** — pointing it at a non-local URL sends content off
+your machine (your explicit choice; a one-time warning is printed). If the backend is
+unreachable, a digest still succeeds via the classical/offline fallback.
+
+## 🐳 Run in Docker
+
+A multi-arch image (`linux/amd64` + `linux/arm64`) is published to GHCR. It serves the
+eight tools over MCP **Streamable HTTP**; a bearer token is generated and printed on
+first start:
+
+```bash
+docker run -d --name mta -p 127.0.0.1:8765:8765 -v mta-data:/data \
+  ghcr.io/gru-953/memorised-them-all:latest
+docker logs mta          # copy the printed token + the ready-to-paste `claude mcp add …`
+```
+
+Ollama isn't bundled — set `MTA_BACKEND_URL` to a model server, or run fully offline
+(classical + hashing). The `/data` volume holds your memory; mount documents read-only
+(`-v /path/to/docs:/docs:ro`) and `digest` the in-container path.
 
 ## 💻 Platform support
 

@@ -291,3 +291,52 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **🏁 v1 hardening COMPLETE & CONVERGED (code).** 14 WPs, PRs #5–#17, all CI-green on the 3-OS matrix; `develop` = v1.4.0.
 
 **EXACT NEXT STEP (owner-only — to PUBLISH):** merge the `develop`→`main` PR (ready/green), configure the PyPI **Trusted Publisher** + add `HOMEBREW_TAP_TOKEN` (`PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap. The agent cannot configure PyPI (no account access). v1.x+ backlog: Phase-3 interop (WP-20–24) + extra channels + deferred Low/Med.
+
+---
+
+## Session 15 — 2026-06-02 — 🚢 v1.4.0 RELEASED (WP-41 complete)
+
+**Mode:** unattended. Owner completed the two gated actions (PyPI Trusted Publisher + `HOMEBREW_TAP_TOKEN` secret).
+
+**Done:** Verified the secret is set + `main` at v1.4.0 (CI green); tagged **`v1.4.0`** on `d5ff2d9` and pushed → **Release run 26835623380, all 4 jobs green** (`build → pypi → github_release → homebrew`). **Post-publish smoke ✓:**
+- **PyPI** — `latest 1.4.0`; fresh-venv `pip install memorised-them-all==1.4.0` imports, reports 1.4.0.
+- **GitHub Release `v1.4.0`** — wheel + sdist + `.mcpb` + `sbom.cyclonedx.json` + a cosign `.sig`/`.pem` for every artifact.
+- **Homebrew tap** — `Formula/mta.rb` auto-bumped: `url …/v1.4.0.tar.gz`, new `sha256`, `version "1.4.0"`. (R-02 **Resolved**.)
+
+**🎉 v1 PROGRAM OBJECTIVE COMPLETE** — audit → 14 WPs → independent review → Phase-6 E2E → signed, SBOM'd, multi-channel v1.4.0 release. No Critical/High open.
+
+**⚠ Action for the owner:** **rotate `HOMEBREW_TAP_TOKEN`** — a fine-grained PAT was pasted in chat (compromised); replace the secret with a fresh token before the next release.
+
+**EXACT NEXT STEP:** None required for v1. When desired, start the **v1.x+ backlog** (Phase-3 cross-AI interop WP-20–24; extra publishing channels; deferred Low/Med per `REVIEW.md`) — a fresh session resumes from PROGRESS ▶ RESUME HERE.
+
+---
+
+## Session 16 — 2026-06-03 — v1.x+ Phase-3 interop begins (WP-20 + WP-21); concurrency incident
+
+**Mode:** unattended ("Resume & Continue"). Began the v1.x+ backlog (post-ship by ADR-002), starting Phase-3 cross-AI interop.
+
+**⚠ Concurrency incident (resolved).** Partway into starting WP-21, a **second unattended session** was found writing **WP-20** (HTTP transport) into *this same checkout* — same working tree + git HEAD. Detected via the reflog (`develop → wp-20-http-transport → wp-21-schema-exports`, no commits) and a live `git status` delta (transport.py/test_transport.py/server.py/… appearing mid-turn). Halted all mutations (a shared HEAD makes any git op a race), backed WP-21 up outside git, and surfaced it to the user, who chose **"I drive solo."** A background watcher confirmed the other session went quiet (~72 s stable), then I consolidated as sole driver — no work lost on either side. **Lesson recorded in PROGRESS:** run ONE unattended session per working tree, or isolate with `git worktree`.
+
+**WP-20 — secure Streamable HTTP transport (merged #19, `9e1029a`).** Preserved the concurrent session's work onto `wp-20-http-transport` (explicit paths, never `git add -A`), reviewed it (loopback-only default + non-loopback refusal; mandatory bearer w/ constant-time compare in a pure-ASGI gate; SDK DNS-rebind protection; atomic `0600` token; **no new top-level dep** — starlette/uvicorn ship with mcp, verified), ran it green locally (84 passed; 8-tool stdio check intact after the `build_server()` refactor), PR → full 3-OS CI green → squash-merged. Adds `mta serve --http`, `server.build_server()`, `client_config()` (WP-24 seam).
+
+**WP-21 — cross-AI schema exports (merged #20, `fa86ec3`).** Rebuilt cleanly on top of merged develop. `mta export-schema [--format openai|gemini|openapi|all] [--out DIR]` → new `mta/interop/schemas.py`, **derived from the live FastMCP registry** (a test asserts names/descriptions == the server, so no drift). Gemini normalised to its OpenAPI-3.0 subset (nullable `anyOf` collapsed, JSON-Schema-only keys stripped, no-arg tools omit `parameters`); OpenAPI **3.1** doc (`POST /tools/{name}`) seeds WP-22. Pure/offline/token-free; dispatched before any config load. 10 tests in the offline lane; full lane **94 passed, 1 skipped**; PR → 3-OS CI green → squash-merged.
+
+**State:** `main` = v1.4.0; `develop` ahead by CLAUDE.md + WP-20 + WP-21. No Critical/High open.
+
+**EXACT NEXT STEP:** **WP-22** — local REST gateway exposing the eight tools over the WP-21 OpenAPI-3.1 surface, reusing WP-20's bearer-auth/loopback transport seam. Branch `wp-22-rest-gateway` → PR into `develop`.
+
+---
+
+## Session 16 (cont.) — 2026-06-03 — 🎉 Phase-3 interop COMPLETE (WP-22, 23, 24); v1.5.0 staged
+
+Continued unattended ("resume and continue all remaining WPs"). Sole driver (the S16 concurrent session stayed stopped — verified clean each WP). Finished the Phase-3 arc:
+
+**WP-22 — local REST gateway (merged #21, `2cf269b`).** `mta serve --rest` serves the eight tools as plain JSON (`POST /tools/{name}`) — the exact OpenAPI 3.1 surface WP-21 describes — for non-MCP clients. New `mta/interop/rest.py`; reuses WP-20's bearer-auth + loopback + a `Host`-allowlist middleware (DNS-rebind); `/openapi.json` (live) + unauth `/healthz`; blocking calls in a threadpool. Also hardened `schemas._raw_tools` to prefer the **sync** registry (loop-safe; no coroutine leak). 18 tests; full lane 111 passed.
+
+**WP-23 — pluggable inference backends (merged #22, `07e6d96`).** `MTA_BACKEND` routes text generation + embeddings to Ollama (default, **byte-identical**) or an OpenAI-compatible `/v1` server (lmstudio/llamacpp/vllm/openai) at `MTA_BACKEND_URL`. New `mta/core/backends.py` centralises dispatch; `embed`/`digest`/`extract` delegate with **no signature changes**; classical/hashing offline fallback unchanged (a digest still succeeds with no backend). Vision/transcription stay on Ollama. Loopback default; non-local URL warned once. `memory_status` reports the backend. 14 tests (OpenAI mocked) + a real-socket smoke verified locally; full lane 125 passed.
+
+**WP-24 — per-client recipes + conformance (merged #23, `12ba7ac`).** `mta recipes [--format text|json]` prints copy-paste setup for every surface (Claude Code stdio/HTTP, Claude Desktop, REST curl, OpenAI/Gemini). New `mta/interop/recipes.py`. `tests/test_conformance.py` asserts stdio-MCP `tools/list` == schema catalogue == OpenAI/Gemini/OpenAPI exports == REST registry == the same 8 tools. Full lane 130 passed.
+
+**v1.5.0 staged (release-prep).** Bumped all 5 version strings 1.4.0→1.5.0 (`check_versions.py` green) + cut CHANGELOG `[1.5.0]`. `develop` is the release candidate; `main` still v1.4.0. No Critical/High open. 5 PRs (#19–#23) all green on the 3-OS matrix.
+
+**EXACT NEXT STEP (owner-gated release):** **rotate `HOMEBREW_TAP_TOKEN`** (the S14-exposed PAT) → then merge `develop`→`main` (PR) + `git tag v1.5.0 && git push --tags` → the train publishes PyPI + GitHub Release (+`.mcpb`) + bumps the tap → run the post-publish smoke. Everything is staged; tagging is the owner's call. (Optional after: extra channels + deferred Low/Med per `REVIEW.md`.)
