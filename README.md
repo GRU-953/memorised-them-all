@@ -222,6 +222,25 @@ reverse proxy first — see [SECURITY.md](SECURITY.md).
 | `MTA_HTTP_ALLOW_REMOTE` | `off` | permit a non-loopback bind (network-exposed) |
 | `MTA_HTTP_ALLOWED_HOSTS` / `MTA_HTTP_ALLOWED_ORIGINS` | unset | extra `Host`/`Origin` allowlist entries (reverse proxy) |
 
+## 🔌 Use from other AIs (tool schemas)
+
+The same eight tools can be described to **non-MCP** clients in the three dominant
+dialects, so OpenAI, Google Gemini, or any OpenAPI consumer can call this local engine.
+The schemas are generated from the live MCP tool registry — never hand-maintained — so
+they can't drift from the tools the server actually serves:
+
+```bash
+mta export-schema                    # all three dialects → stdout (JSON)
+mta export-schema --format openai    # OpenAI tools / function-calling array
+mta export-schema --format gemini    # Gemini function_declarations (OpenAPI-subset)
+mta export-schema --format openapi   # OpenAPI 3.1 document (POST /tools/{name})
+mta export-schema --out ./schemas    # write openai.json · gemini.json · openapi.json
+```
+
+Pure and offline: it only reads the in-process tool definitions and prints JSON — it
+starts no server and returns nothing through the model. Pair it with `mta serve --http`
+(above) to actually drive the tools over HTTP from those clients.
+
 ## 💻 Platform support
 
 Apple M-series is the primary, most-optimised target; other platforms use portable fallbacks.

@@ -10,6 +10,7 @@ Subcommands:
   mta update [--force]                           update MarkItDown + deps
   mta doctor [--fix] [--dry-run]                 scan deps; suggest or apply fixes
   mta serve [--http [--host H] [--port N]]        run the MCP server (stdio; --http = secure HTTP)
+  mta export-schema [--format F] [--out DIR]     export tool schemas (OpenAI/Gemini/OpenAPI 3.1)
 """
 from __future__ import annotations
 
@@ -70,7 +71,28 @@ def main(argv: list[str] | None = None) -> int:
     sv.add_argument("--allow-remote", action="store_true",
                     help="permit a non-loopback bind (exposes the server beyond this machine)")
 
+    es = sub.add_parser("export-schema",
+                        help="export tool schemas for other AIs (OpenAI/Gemini/OpenAPI)")
+    es.add_argument("--format", choices=["openai", "gemini", "openapi", "all"],
+                    default="all", help="schema dialect to emit (default: all)")
+    es.add_argument("--out", default=None,
+                    help="write <format>.json into this directory (default: print to stdout)")
+
     args = p.parse_args(argv)
+
+    # export-schema is pure + offline (it only reads the in-process tool registry),
+    # so it needs no config load or PATH bootstrap — dispatch before the engine wiring.
+    if args.cmd == "export-schema":
+        from .interop import schemas
+        data = schemas.export(args.format)
+        if args.out:
+            written = schemas.write_files(data, args.out, args.format)
+            _print({"status": "ok", "format": args.format,
+                    "written": [str(w) for w in written]})
+        else:
+            _print(data)
+        return 0
+
     from .core.platform import bootstrap_path
     bootstrap_path()
     cfg = load_config().with_project(args.project)

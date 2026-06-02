@@ -20,6 +20,12 @@ adheres to [Semantic Versioning](https://semver.org/) and
   `MTA_HTTP_ALLOWED_ORIGINS`. Adds **no** new top-level dependency
   (`starlette`/`uvicorn` already ship with `mcp`). The server is now built by a
   `build_server()` factory so each transport owns its own session manager.
+- **Cross-AI tool-schema export** (opt-in; Phase-3 interop). `mta export-schema
+  [--format openai|gemini|openapi|all] [--out DIR]` emits the eight tools as an OpenAI
+  function-calling array, a Gemini `function_declarations` object, and an **OpenAPI 3.1**
+  document (`POST /tools/{name}`), so non-MCP clients can drive the same local engine.
+  Schemas are derived from the live FastMCP registry (no drift) via the new
+  `mta.interop.schemas` module — pure, offline, and token-free.
 
 ## [1.4.0] — 2026-06-02
 
