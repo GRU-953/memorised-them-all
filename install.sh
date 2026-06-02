@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Memorised them All — idempotent installer.
 # Installs every dependency: Homebrew apps (Ollama, Tesseract, ffmpeg, igraph),
-# a Python venv with the latest MarkItDown from upstream, and the local models.
+# a Python venv with MarkItDown (pinned PyPI by default; upstream is opt-in), and
+# the local models.
 # Safe to re-run; only does work that is actually missing. Apple-silicon first,
 # but degrades cleanly on Intel/Linux.
 set -uo pipefail
@@ -37,11 +38,20 @@ log "Installing Python dependencies…"
 "$PYBIN" -m pip install --quiet -r "$DIR/requirements.txt" || \
   log "Some core deps failed — the engine still runs with fallbacks."
 
-# Always pull the LATEST MarkItDown straight from upstream (requirement #1).
-log "Installing latest MarkItDown from microsoft/markitdown…"
-"$PYBIN" -m pip install --quiet -U \
-  "markitdown[pdf,docx,pptx,xlsx,xls,outlook] @ git+https://github.com/microsoft/markitdown.git#subdirectory=packages/markitdown" \
-  || log "Upstream MarkItDown install failed; PyPI MarkItDown remains in use."
+# Baseline MarkItDown is the pinned PyPI build (installed from requirements.txt
+# above) so the first run works offline and reproducibly. Pulling the LATEST
+# upstream commit is opt-in and needs network: MTA_MARKITDOWN_UPSTREAM=on (or
+# MTA_AUTO_UPDATE=upstream).
+_up="${MTA_MARKITDOWN_UPSTREAM:-off}"
+if [ "$_up" = "on" ] || [ "$_up" = "1" ] || [ "$_up" = "true" ] || [ "$_up" = "yes" ] \
+   || [ "${MTA_AUTO_UPDATE:-on}" = "upstream" ]; then
+  log "Pulling latest upstream MarkItDown (opt-in)…"
+  "$PYBIN" -m pip install --quiet -U \
+    "markitdown[pdf,docx,pptx,xlsx,xls,outlook] @ git+https://github.com/microsoft/markitdown.git#subdirectory=packages/markitdown" \
+    || log "Upstream MarkItDown pull failed; the PyPI MarkItDown remains in use."
+else
+  log "Using the pinned PyPI MarkItDown (offline-correct); set MTA_MARKITDOWN_UPSTREAM=on for the latest upstream build."
+fi
 
 # Optional accelerators (best-effort; engine falls back if they fail to build).
 if [ "$(uname -m)" = "arm64" ] && [ "$(uname -s)" = "Darwin" ]; then

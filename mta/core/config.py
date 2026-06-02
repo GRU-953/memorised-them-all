@@ -78,6 +78,13 @@ class Config:
     idle_seconds: int = field(default_factory=lambda: _env_int("MTA_IDLE", 300))
     auto_update: bool = field(default_factory=lambda: _env("MTA_AUTO_UPDATE", "on").lower()
                               not in ("off", "0", "false", "no"))
+    # MarkItDown update source: PyPI (default — pinned, offline-correct, pip-verified)
+    # or the latest UPSTREAM commit (opt-in, pinned to a resolved SHA). Enable with
+    # MTA_AUTO_UPDATE=upstream or MTA_MARKITDOWN_UPSTREAM=on.
+    markitdown_upstream: bool = field(default_factory=lambda:
+                              _env("MTA_AUTO_UPDATE", "on").strip().lower() == "upstream"
+                              or _env("MTA_MARKITDOWN_UPSTREAM", "off").strip().lower()
+                              in ("on", "1", "true", "yes"))
     ollama_host: str = field(default_factory=lambda: _env("OLLAMA_HOST", "http://127.0.0.1:11434"))
 
     # Parallelism (0/auto → decided by platform tuning).
