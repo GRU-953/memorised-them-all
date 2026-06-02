@@ -5,7 +5,7 @@ Likelihood × Impact, with mitigation + status. Updated whenever risks change. (
 | id | risk | likelihood | impact | mitigation | status |
 |----|------|-----------|--------|------------|--------|
 | R-01 | Docker **not installed** on the dev machine → Phase-6 container / clean-image install matrix cannot run locally | High | Med | Install Docker Desktop, or use `venv` + a UTM/VM sandbox for clean-env tests; run the container matrix in CI instead | Open |
-| R-02 | Homebrew tap formula **stale at v1.2.0** (latest is 1.3.3) → `brew install` delivers a 2-release-old build | **Confirmed** | High | Automate tap-formula bump in the release train (WP-40); backfill at next release | **Mitigated** (WP-40 auto-bump; live at WP-41) |
+| R-02 | Homebrew tap formula **stale at v1.2.0** (latest is 1.3.3) → `brew install` delivers a 2-release-old build | **Confirmed** | High | Automate tap-formula bump in the release train (WP-40); backfill at next release | **Resolved** — tap auto-bumped to v1.4.0 at the v1.4.0 release (run 26835623380) |
 | R-03 | Release pipeline lacks **OIDC/trusted-publishing, signing, SBOM, hash-pinned actions**; double-builds artifacts | **Confirmed** | High | Harden `release.yml` in WP-40 (Phase 5); single build → publish | **Mitigated** (WP-40, abca304; lockfile CI-09 deferred) |
 | R-04 | Very new project, single maintainer, **rapid churn** (7 tags in ~2 days) → regression risk | High | Med | Acceptance criteria + CI gates + eval harness | Open |
 | R-05 | PyPI / general web flaky from dev machine (python `urllib` failed once; `curl` ok) | Med | Low | Prefer `curl`/`gh`; retry network steps; treat as transient | Monitoring |

@@ -291,3 +291,20 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **🏁 v1 hardening COMPLETE & CONVERGED (code).** 14 WPs, PRs #5–#17, all CI-green on the 3-OS matrix; `develop` = v1.4.0.
 
 **EXACT NEXT STEP (owner-only — to PUBLISH):** merge the `develop`→`main` PR (ready/green), configure the PyPI **Trusted Publisher** + add `HOMEBREW_TAP_TOKEN` (`PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap. The agent cannot configure PyPI (no account access). v1.x+ backlog: Phase-3 interop (WP-20–24) + extra channels + deferred Low/Med.
+
+---
+
+## Session 15 — 2026-06-02 — 🚢 v1.4.0 RELEASED (WP-41 complete)
+
+**Mode:** unattended. Owner completed the two gated actions (PyPI Trusted Publisher + `HOMEBREW_TAP_TOKEN` secret).
+
+**Done:** Verified the secret is set + `main` at v1.4.0 (CI green); tagged **`v1.4.0`** on `d5ff2d9` and pushed → **Release run 26835623380, all 4 jobs green** (`build → pypi → github_release → homebrew`). **Post-publish smoke ✓:**
+- **PyPI** — `latest 1.4.0`; fresh-venv `pip install memorised-them-all==1.4.0` imports, reports 1.4.0.
+- **GitHub Release `v1.4.0`** — wheel + sdist + `.mcpb` + `sbom.cyclonedx.json` + a cosign `.sig`/`.pem` for every artifact.
+- **Homebrew tap** — `Formula/mta.rb` auto-bumped: `url …/v1.4.0.tar.gz`, new `sha256`, `version "1.4.0"`. (R-02 **Resolved**.)
+
+**🎉 v1 PROGRAM OBJECTIVE COMPLETE** — audit → 14 WPs → independent review → Phase-6 E2E → signed, SBOM'd, multi-channel v1.4.0 release. No Critical/High open.
+
+**⚠ Action for the owner:** **rotate `HOMEBREW_TAP_TOKEN`** — a fine-grained PAT was pasted in chat (compromised); replace the secret with a fresh token before the next release.
+
+**EXACT NEXT STEP:** None required for v1. When desired, start the **v1.x+ backlog** (Phase-3 cross-AI interop WP-20–24; extra publishing channels; deferred Low/Med per `REVIEW.md`) — a fresh session resumes from PROGRESS ▶ RESUME HERE.

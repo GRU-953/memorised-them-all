@@ -8,10 +8,10 @@
 ---
 
 ## ▶ RESUME HERE
-**🏁 v1 hardening COMPLETE & CONVERGED (code).** Phase-6 E2E done (WP-50-52, `TEST_REPORT.md`); convergence note written (WP-90, `CONVERGENCE.md`); version bumped to **1.4.0** + CHANGELOG cut. 14 WPs, PRs #5–#17, all CI-green; no Critical/High open; independently reviewed; E2E-validated (offline + accurate via live Ollama). `develop` = v1.4.0.
-**WP-41 — release: `develop`→`main` MERGED (`d5ff2d9`); `main` = v1.4.0, release-ready.** Release PR #18 passed the full CI matrix + the Phase-6 `e2e-offline` gate. No tag yet — tagging before the PyPI Trusted Publisher exists would just fail the publish.
-**⛔ Only owner action left to PUBLISH (the agent cannot — no PyPI account access):** configure a PyPI **Trusted Publisher** (repo `GRU-953/memorised-them-all`, workflow `release.yml`) + add the **`HOMEBREW_TAP_TOKEN`** repo secret (`program/PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap; run the post-publish smoke.
-**v1.x+ backlog:** Phase-3 cross-AI interop (WP-20–24) + extra channels + deferred Low/Med (`REVIEW.md`, CI-09, PIPE-05/06, LIFE-02 residual).
+**🚢 v1.4.0 SHIPPED — the v1 program objective is COMPLETE.** Tag `v1.4.0` published in lockstep to all core channels (Release run 26835623380, all 4 jobs green) and **post-publish-verified**: **PyPI** (OIDC; 1.4.0 live + fresh-venv `pip install` smoke ✓), **GitHub Release** `v1.4.0` (wheel + sdist + `.mcpb` + `sbom.cyclonedx.json` + a cosign `.sig`/`.pem` for every artifact), **Homebrew tap** auto-bumped to 1.4.0. `main` = `develop` = v1.4.0.
+**Full arc done:** audit → 14 WPs → independent fresh-eyes review → Phase-6 E2E → signed, SBOM'd, multi-channel release. No Critical/High open (`CONVERGENCE.md`).
+**Next — only when desired = v1.x+ backlog** (post-ship by ADR-002): Phase-3 cross-AI interop (WP-20–24: secure HTTP/REST transport · OpenAI/Gemini/OpenAPI schema exports · REST gateway · pluggable backends · per-client recipes); extra channels (Docker/GHCR · MCP registry + directories · winget/choco/scoop · snap/flatpak/AUR); deferred Low/Med (`REVIEW.md`: full graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02 residual). A fresh session resumes any of these from here.
+**⚠ Maintenance:** rotate `HOMEBREW_TAP_TOKEN` — a fine-grained PAT was exposed in chat during the S14 release; the next release needs a fresh token in that secret.
 
 ---
 
@@ -35,7 +35,7 @@
 | WP-33 | Quick-win sweep (PIPE-04, DOC-21, PKG-04) | 4 | v1 | **DONE** | merged #15 → develop (d511a0d) | 06-02 | PKG-06 n/a; CI-09 deferred; RECALL-02/LIFE-02 noted |
 | WP-34 | Pre-release fresh-eyes review + fixes | 6 | v1 | **DONE** | merged #16 → develop (a46a414) | 06-02 | 21 findings; 3 High + Med/Low fixed; `program/REVIEW.md` |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | **DONE** | merged #14 → develop (abca304) | 06-02 | CI-02/03/04/05/06/11, SEC-06/07 closed; CI-09 lockfile deferred |
-| WP-41 | First synchronized v1 release | 5 | v1 | **READY** | main=v1.4.0 (#18 merged, d5ff2d9) | 06-02 | PUBLISH owner-gated: PyPI publisher + `git tag v1.4.0` |
+| WP-41 | First synchronized v1 release | 5 | v1 | **DONE 🚢** | v1.4.0 tag (run 26835623380) | 06-02 | PUBLISHED: PyPI + GitHub Release + .mcpb + Homebrew tap; smoke ✓ |
 | WP-50 | Sandbox/E2E harness | 6 | v1 | **DONE** | merged #17 → develop | 06-02 | clean-wheel CLI E2E + e2e.yml; container matrix deferred (R-01) |
 | WP-51 | E2E test-matrix run | 6 | v1 | **DONE** | merged #17 | 06-02 | offline 5/5 + accurate-mode pass (live Ollama) |
 | WP-52 | Fix-and-retest loop → TEST_REPORT.md | 6 | v1 | **DONE** | merged #17 | 06-02 | `program/TEST_REPORT.md` |
