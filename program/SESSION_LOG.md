@@ -157,3 +157,25 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **🎉 Milestone: Phase 2 (R1–R6) COMPLETE.** All core requirements implemented; both Criticals + the R4/R5/R6 Highs closed.
 
 **EXACT NEXT STEP:** Begin **WP-30 — offline recall reliability + classical-extraction quality** on a fresh branch off `develop`. Closes **DOC-01 (High)**: in `mta/core/recall.py`, compute a calibrated **lexical-overlap confidence** + apply a (scaled) floor on the **hashing/offline** path so `low_confidence`/`MTA_RECALL_MIN_SCORE` work without Ollama (today `low_confidence` is hardcoded `False` offline); fix `top_score` to reflect the returned hits (RECALL-03); address the verbatim-classical-fact nuance (RECALL-02). Tests: an off-topic query offline → `low_confidence True`. Target acceptance **A4**.
+
+---
+
+## Session 08 — 2026-06-02 — Implementation: WP-30 (offline recall reliability, DOC-01)
+
+**Session id:** S08  **Branch:** `wp-30-offline-recall` → **PR #11** (merged, squash `84e8c6c`)  **Mode:** implementation
+
+**Goal:** Close **DOC-01 (High)** — `low_confidence`/`MTA_RECALL_MIN_SCORE` work on the offline/hashing path + fix `top_score` (RECALL-03).
+
+**Done (`mta/core/recall.py`):**
+- The `MTA_RECALL_MIN_SCORE` floor is applied on **both** embedding paths (was real-embeddings-only → silently ignored offline).
+- `low_confidence`: real embeddings keep cosine<0.5; the hashing/offline path now uses **lexical overlap** between the query and the top hit (`_lexical_overlap`) — an off-topic query with no shared content words is flagged low-confidence with **no model at all**.
+- `top_score` reflects the **returned** hits (0.0 when the floor empties them); added `raw_top_score` (pre-floor best) — RECALL-03.
+- `tests/test_recall_offline.py` (4) on all 3 OSes; CHANGELOG.
+
+**Local:** 58 offline tests pass. CI run 26810293268 fully green (9 jobs).
+**Risks:** R-10 → **Mitigated**. **Acceptance A4 → met.**
+
+**Status:** No Critical/High remains except **SEC-01** (WP-32) and release-train **CI-02/05** (WP-40).
+**Deferred (Med):** RECALL-02 (verbatim-fact nuance — bounded by the 600-char cap), PIPE-05 (rapidfuzz hard-dep), PIPE-06 (classical-extractor quality).
+
+**EXACT NEXT STEP:** Begin **WP-32 — security hardening completion + `SECURITY.md`** on a fresh branch off `develop`: extend the decompression-bomb/size cap in `mta/core/convert.py` to ALL ZIP-container formats (.docx/.xlsx/.pptx/.epub — SEC-01); delimit attacker-influenced text in the summary/synopsis prompts in `digest.py` (SEC-02); set `allow_pickle=False` explicitly on the `np.load` in `store.py` (SEC-03/DOC-04/LIFE-05); remove the unpkg CDN fallback in `templates/mindmap.html.j2`/`render.py` (SEC-10 → literally zero-network); note GPL optional libs (SEC-11); write `SECURITY.md` + threat model. Tests: bomb cap rejects an oversized .docx; allow_pickle explicit; mindmap has no external URL. Target acceptance **A12**.

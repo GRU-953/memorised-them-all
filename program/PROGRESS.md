@@ -8,8 +8,8 @@
 ---
 
 ## ▶ RESUME HERE
-**WP-12 DONE — merged to `develop`** (PR #10, squash `66ca5d6`); CI fully green (run 26809008286, all 9 jobs). DEP-04/10 closed (`mta doctor`: detected-vs-required dep scan + argv-only per-platform remediation; pip auto-fix, system tools suggested). **🎉 Phase 2 (R1–R6) COMPLETE.**
-**Next: WP-30 — offline recall reliability + classical-extraction quality** on a fresh branch off `develop`. Closes **DOC-01 (High)**: `low_confidence`/`MTA_RECALL_MIN_SCORE` only work with Ollama embeddings — on the hashing/offline path `low_confidence` is hardcoded `False` and the floor is ignored, so an off-topic query offline can't be declined. Add a calibrated lexical-overlap confidence on the hashing path; fix `top_score`↔returned-hits consistency (RECALL-03); address the verbatim-classical-fact nuance (RECALL-02). Target acceptance **A4**. Then WP-32 (security: SEC-01/02/03/10/11 + SECURITY.md) → WP-31 (eval harness → A10/A11) → WP-40/41 (release train) → WP-50-52 (Phase-6; needs Docker, R-01) → WP-90. Deferred Low: PIPE-04, DOC-21, PKG-06, PKG-04; LIFE-02 residual.
+**WP-30 DONE — merged to `develop`** (PR #11, squash `84e8c6c`); CI fully green (run 26810293268, all 9 jobs). **DOC-01 closed** — `low_confidence`/`MTA_RECALL_MIN_SCORE` work offline (lexical-overlap confidence on the hashing path); `top_score` reflects returned hits (RECALL-03). **A4 met. No Critical/High remains except SEC-01 (→ WP-32) and release-train CI-02/05 (→ WP-40).**
+**Next: WP-32 — security hardening completion + `SECURITY.md`** on a fresh branch off `develop`. Closes **SEC-01 (High)** — extend the decompression-bomb/size cap to ALL ZIP-container formats (.docx/.xlsx/.pptx/.epub, not just literal .zip) — plus SEC-02 (delimit attacker text in the summary/synopsis prompts — second-order injection), SEC-03/DOC-04/LIFE-05 (`allow_pickle=False` explicit), SEC-10 (remove the mindmap unpkg CDN fallback → literally zero-network), SEC-11 (note GPL optional libs); write `SECURITY.md` + threat model. Target acceptance **A12**. Then WP-31 (eval harness → A10/A11) → WP-40/41 (release train) → WP-50-52 (Phase-6; needs Docker, R-01) → WP-90. Deferred Low/Med: PIPE-04/05/06, DOC-21, PKG-06, PKG-04, RECALL-02; LIFE-02 residual.
 
 ---
 
@@ -27,7 +27,7 @@
 | WP-15 | Compatibility / versioning / **data migration** (R6) | 2 | v1 | **DONE** | merged #8 → develop (90cfffd) | 06-02 | LIFE-03 closed; A7 met |
 | WP-11 | Auto-configuration: profiles, persist, GPU/LM-Studio (R2) | 2 | v1 | **DONE** | merged #9 → develop (81bf1c0) | 06-02 | DEP-05/06/07 closed |
 | WP-12 | Dependency scan + guided install + `mta doctor` (R3) | 2 | v1 | **DONE** | merged #10 → develop (66ca5d6) | 06-02 | DEP-04/10 closed; **Phase 2 ✅** |
-| WP-30 | Offline recall reliability + classical quality | 4 | v1 | TODO | — | — | closes DOC-01(High), RECALL-02/03, PIPE-05/06 |
+| WP-30 | Offline recall reliability + classical quality | 4 | v1 | **DONE** | merged #11 → develop (84e8c6c) | 06-02 | DOC-01/RECALL-03 closed (A4); RECALL-02/PIPE-05/06 deferred (Med) |
 | WP-32 | Security hardening completion + SECURITY.md | 4 | v1 | TODO | — | — | closes SEC-01(High)/02/03/10/11 |
 | WP-31 | Eval harness + reference corpus + golden metrics | 4 | v1 | TODO | — | — | supplies A10/A11; closes DOC-18/19 |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | TODO | — | — | closes CI-02..09/11, SEC-05/06/07 |
