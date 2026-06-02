@@ -38,7 +38,7 @@ jobs:
           pip install -e . --no-deps
 
       - name: Run offline smoke + concurrency tests (all 3 OSes)
-        run: pytest tests/test_smoke.py tests/test_concurrency.py tests/test_migration.py tests/test_autoconfig.py tests/test_doctor.py -q
+        run: pytest tests/test_smoke.py tests/test_concurrency.py tests/test_migration.py tests/test_autoconfig.py tests/test_doctor.py tests/test_recall_offline.py -q
 
       - name: MCP stdio tool-registration check
         run: python tests/mcp_stdio_check.py
