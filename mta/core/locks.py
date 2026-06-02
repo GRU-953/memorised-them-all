@@ -96,6 +96,13 @@ def named_lock(cfg: Config, key: str, *, exclusive: bool = True,
             if _BACKEND is None or time.monotonic() >= deadline:
                 break
             time.sleep(0.1)
+        if not acquired and _BACKEND is not None:
+            # Timed out (not "no backend"): we proceed WITHOUT the lock rather than
+            # hang — but say so, since the single-writer guarantee isn't held here.
+            import sys
+            print(f"[mta] warning: timed out acquiring "
+                  f"{'exclusive' if exclusive else 'shared'} lock '{key}' after "
+                  f"{timeout:.0f}s — proceeding without it.", file=sys.stderr)
         yield acquired
     finally:
         if acquired:

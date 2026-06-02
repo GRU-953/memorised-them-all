@@ -22,6 +22,9 @@ from .store import load_graph, load_vectors
 # accurate path, not just the classical one.
 _MAX_HIT_TEXT = 600
 _MAX_HIT_DOCS = 5
+# The synopsis is an LLM-generated summary that recall/overview echo back, so bound
+# it too — the token-free guarantee must cap every field that can grow with input.
+_MAX_SYNOPSIS = 1200
 
 
 def _hit(u: dict, score) -> dict:
@@ -72,7 +75,8 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
 
     scores = cosine(qv, matrix)[0]
     order = np.argsort(-scores)[:k]
-    hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3)) for i in order]
+    hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3))
+            for i in order if int(i) < len(meta)]  # never index past meta (torn-store safety)
     raw_top = hits[0]["score"] if hits else 0.0  # best score BEFORE the floor
     # Apply the absolute score floor on BOTH paths. This was previously gated to
     # real embeddings, so it was silently ignored on the offline/hashing path
@@ -94,12 +98,17 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
     # the pre-floor best for transparency.
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
-            "synopsis": (doc or {}).get("synopsis", ""),
+            "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
             "top_score": (hits[0]["score"] if hits else 0.0),
             "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}
 
 
 def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
+    """Fallback when the query embedding's dimension != the stored matrix (e.g. the
+    embedding backend changed since digest — an offline hash store queried with
+    Ollama up). It keeps the SAME relevance contract as the main path so an
+    off-topic query stays declinable (DOC-01): `low_confidence`, `top_score`,
+    `raw_top_score`, and a (capped) `synopsis` are all present."""
     q = set(query.lower().split())
     scored = []
     for u in meta:
@@ -109,8 +118,12 @@ def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
             scored.append((overlap, u))
     scored.sort(key=lambda x: -x[0])
     hits = [_hit(u, s) for s, u in scored[:k]]
-    return {"status": "ok", "project": cfg.project, "query": query,
-            "mode": "lexical", "hits": hits}
+    top = hits[0]["score"] if hits else 0   # integer lexical-overlap scale (mode=lexical)
+    doc = load_graph(cfg)
+    return {"status": "ok", "project": cfg.project, "query": query, "mode": "lexical",
+            "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            "top_score": top, "raw_top_score": top,
+            "low_confidence": not hits, "hits": hits}
 
 
 def overview(cfg: Config) -> dict:
@@ -119,6 +132,8 @@ def overview(cfg: Config) -> dict:
     if not doc:
         return {"status": "no_memory", "project": cfg.project}
     return {"status": "ok", "project": cfg.project,
-            "synopsis": doc.get("synopsis", ""), "stats": doc.get("stats", {}),
-            "themes": [{"label": c["label"], "summary": c.get("summary", "")}
+            "synopsis": (doc.get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            "stats": doc.get("stats", {}),
+            "themes": [{"label": c["label"],
+                        "summary": (c.get("summary", "") or "")[:_MAX_HIT_TEXT]}
                        for c in doc.get("communities", [])][:20]}

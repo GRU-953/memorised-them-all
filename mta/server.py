@@ -99,14 +99,24 @@ def export_memory(dest: str, project: str | None = None) -> dict:
 @mcp.tool()
 def list_digestible(directory: str) -> dict:
     """List convertible files under a directory (paths + sizes only)."""
+    if not isinstance(directory, str) or not directory.strip():
+        return _err("'directory' must be a non-empty path")
     from .core.convert import SUPPORTED_EXTS
     base = Path(directory).expanduser()
     if not base.exists():
         return {"status": "not_found", "directory": str(base)}
-    files = [p for p in base.rglob("*") if p.is_file()
-             and p.suffix.lower() in SUPPORTED_EXTS]
-    return {"status": "ok", "directory": str(base), "count": len(files),
-            "files": [{"path": str(p), "bytes": p.stat().st_size} for p in files[:500]]}
+    try:
+        files = [p for p in base.rglob("*") if p.is_file()
+                 and p.suffix.lower() in SUPPORTED_EXTS]
+        out = []
+        for p in files[:500]:
+            try:
+                out.append({"path": str(p), "bytes": p.stat().st_size})
+            except OSError:
+                continue  # file vanished/inaccessible between rglob and stat (TOCTOU)
+        return {"status": "ok", "directory": str(base), "count": len(files), "files": out}
+    except OSError as exc:  # noqa: BLE001
+        return _err(f"could not list {base}: {exc}")
 
 
 @mcp.tool()

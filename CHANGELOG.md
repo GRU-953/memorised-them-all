@@ -85,6 +85,20 @@ adheres to [Semantic Versioning](https://semver.org/) and
 - Added **`SECURITY.md`** (threat model + reporting). The optional GPL `graph` extra
   is documented as not installed by the MIT core (SEC-11).
 
+### Fixed (pre-release review)
+- **Torn vector store is no longer fatal** — `load_vectors` rejects a desynced
+  `vectors.npz`/`vectors.json` pair (matrix rows ≠ meta length) and recall clamps row
+  indices, so a crash mid-write degrades to "no memory" instead of an IndexError.
+- **Config profiles are concurrency-safe** — the profile env seed/restore in
+  `config.load()` is serialised, so parallel `load()` under `MTA_PROFILE=offline`
+  can't leak `no_ollama=False` / `auto_update=True`.
+- **Offline recall stays declinable on the lexical path** — the dimension-mismatch
+  fallback now also returns `low_confidence` / `top_score` / `synopsis` (DOC-01).
+- The **synopsis** echoed by `recall`/`memory_overview` is length-capped (token-free).
+- Auto-update **rollback is re-verified** (imports) before reporting success, and the
+  pip install is serialised by a cross-process lock; `list_digestible` no longer
+  crashes on a stat() race.
+
 ### Internal / CI
 - CI now exercises the **real** conversion path: a new full-deps lane installs the
   package + Tesseract and converts PDF/DOCX/XLSX/CSV/HTML (the offline matrix
