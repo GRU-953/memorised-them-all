@@ -218,3 +218,22 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Status:** every Phase-1 Critical/High is closed/mitigated **except the release-train ones (CI-02/05)** → WP-40.
 
 **EXACT NEXT STEP:** Begin **WP-40 — release train + supply-chain hardening** on a fresh branch off `develop`. Rewrite `.github/workflows/release.yml`: **one** build job → publish to all targets; **OIDC** trusted publishing to PyPI (`pypa/gh-action-pypi-publish`, `permissions: id-token: write`); **SHA-pin** every action; **SBOM** (e.g. anchore/syft) + **cosign keyless** signatures per artifact; idempotent + **halt-on-partial** (no partial releases); **auto-bump the Homebrew tap** (job gated on a `HOMEBREW_TAP_TOKEN` secret); commit a lockfile; keep the tag==version gate. Write `program/PUBLISH_MANIFEST.md` (channel → secret names → verification) + a release checklist. Degrade gracefully when a publisher/secret is absent. **Owner-action items (ADR-006) are required only for WP-41 (the actual publish).**
+
+---
+
+## Session 11 — 2026-06-02 — Implementation: WP-40 (hardened release train + supply chain)
+
+**Session id:** S11  **Branch:** `wp-40-release-train` → **PR #14** (merged, squash `abca304`)  **Mode:** implementation
+
+**Done:**
+- Rewrote `.github/workflows/release.yml`: **one** build job (wheel + sdist + `.mcpb` + SBOM, signed) → `pypi` (**OIDC Trusted Publishing**, no token) → `github_release` → `homebrew` (auto-bump the tap, gated on `HOMEBREW_TAP_TOKEN`). **Every Action SHA-pinned**; **CycloneDX SBOM** (anchore/sbom-action) + **cosign keyless** `.sig`/`.pem` per artifact; PyPI first ⇒ a failure halts before a partial release; `skip-existing` ⇒ idempotent; tag==version gate; least-privilege per-job perms; concurrency guard.
+- SHA-pinned all `ci.yml` actions too (resolved each tag→commit via `gh api`).
+- Added `program/PUBLISH_MANIFEST.md` (channels → auth → verify; owner setup; release checklist).
+
+**Local:** both workflows YAML-valid; **no floating action tags** remain. CI run 26816551772 fully green (9 jobs) — so the **SHA-pinned `ci.yml` is validated on all 3 OSes**. `release.yml` is tag-only ⇒ structure-validated here, live at WP-41.
+
+**Closes:** CI-02/03/04/05/06/11, SEC-06/07. **R-02/R-03 mitigated.** Deferred: CI-09 (reproducible lockfile).
+
+**🎉 Status: every Phase-1 Critical/High is now closed or mitigated.**
+
+**EXACT NEXT STEP (⛔ OWNER-GATED): WP-41 — first synchronized release.** Do NOT tag a live release until the owner has (1) configured the **PyPI Trusted Publisher** (repo `GRU-953/memorised-them-all`, workflow `release.yml`) and (2) added the **`HOMEBREW_TAP_TOKEN`** repo secret. Then: PR `develop`→`main`, merge, move CHANGELOG *Unreleased*→the version, `git tag vX.Y.Z && git push --tags`, watch `build→pypi→github_release→homebrew`, run the post-publish smoke in `PUBLISH_MANIFEST.md`. **In parallel, WP-50-52 (Phase-6 sandbox E2E) can start once Docker is available (R-01), or run in CI.**
