@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-06-03
+
+### Changed
+- **README rewritten from scratch for newcomers** — leads with a plain-language "what is
+  this?", a ~60-second get-started (Claude Desktop `.mcpb` / Claude Code plugin / `pip`),
+  example prompts, a privacy section, and an FAQ; the advanced surfaces (Docker, HTTP/REST,
+  alternative model backends, CLI, configuration, internals) move into a collapsible
+  section. Uses an absolute image URL so it renders on the PyPI project page too.
+  Documentation only — no code change from 1.5.0.
+
 ## [1.5.0] — 2026-06-03
 
 Phase-3 cross-AI interop — use the same eight local, token-free tools from non-MCP

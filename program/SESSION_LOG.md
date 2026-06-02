@@ -340,3 +340,23 @@ Continued unattended ("resume and continue all remaining WPs"). Sole driver (the
 **v1.5.0 staged (release-prep).** Bumped all 5 version strings 1.4.0→1.5.0 (`check_versions.py` green) + cut CHANGELOG `[1.5.0]`. `develop` is the release candidate; `main` still v1.4.0. No Critical/High open. 5 PRs (#19–#23) all green on the 3-OS matrix.
 
 **EXACT NEXT STEP (owner-gated release):** **rotate `HOMEBREW_TAP_TOKEN`** (the S14-exposed PAT) → then merge `develop`→`main` (PR) + `git tag v1.5.0 && git push --tags` → the train publishes PyPI + GitHub Release (+`.mcpb`) + bumps the tap → run the post-publish smoke. Everything is staged; tagging is the owner's call. (Optional after: extra channels + deferred Low/Med per `REVIEW.md`.)
+
+---
+
+## Session 16 (cont. 2) — 2026-06-03 — v1.x+ backlog cleared, 🚢 v1.5.0 SHIPPED, README rewritten
+
+Continued unattended ("continue all remaining tasks … then plan, test, update, publish; then redevelop the README"). Sole driver throughout.
+
+**Backlog WPs (each PR → full 3-OS CI green → squash-merged):**
+- **WP-60 supply-chain (#25):** committed `constraints.txt` lockfile (CI-09) + a non-blocking `supply-chain` CI job (`pip-audit` + license report); **release tag-gate** — publish jobs run only on a real tag (`workflow_dispatch` = build/sign dry-run); Homebrew job `continue-on-error` so a bad tap token can't fail a release.
+- **WP-61 Docker/GHCR (#26):** multi-stage `Dockerfile` (slim, non-root, tesseract+ffmpeg, `/data` volume, `/healthz` HEALTHCHECK, serves MCP HTTP) + `docker.yml` (PR build-validate + tag → multi-arch `linux/amd64,arm64` push to `ghcr.io/gru-953/memorised-them-all` via `GITHUB_TOKEN`; SHA-pinned). The CI docker job built + smoke-tested the image.
+- **WP-62 robustness (#27):** `store.clear_vectors` + digest persists vectors *before* graph and clears them when a digest yields no units (recall/overview can't disagree via a stale matrix); `rapidfuzz` now degrades **loudly** (PIPE-05).
+- **WP-63 MCP registry (#28):** `server.json` (root) for the official registry, version-gated by `check_versions.py`; owner submits once via `mcp-publisher`.
+
+**🚢 v1.5.0 RELEASED.** Validated the develop→main release PR (#24; all checks + Phase-6 `e2e-offline` green), merged it (`main` `6c2846a`), tagged **`v1.5.0`** → release run **26844874577 all 4 jobs green**. **Post-publish smoke ✓:** PyPI `1.5.0` (fresh-venv `pip install` → import + CLI ✓), GitHub Release `v1.5.0` (wheel+sdist+`.mcpb`+SBOM+cosign), Homebrew tap → 1.5.0 (the existing tap token was still valid), GHCR multi-arch image building via `docker.yml`. `main` = `develop` = v1.5.0.
+
+**README rewritten from scratch** for novices (plain-language "what is this / why / 60-second quick start / example questions"), with the advanced surfaces (Docker, HTTP/REST, backends, CLI) moved lower. On `develop`; surfaces on the GitHub homepage at the next merge to `main`.
+
+**Owner follow-ups (one-time, not blocking):** rotate `HOMEBREW_TAP_TOKEN`; `mcp-publisher publish` the registry manifest.
+
+**EXACT NEXT STEP:** None required — v1.5.0 is shipped and the v1.x+ backlog is cleared. Optional: cut a small **v1.5.1** (or ride the next feature release) so the rewritten README + any deferred Low/Med (`REVIEW.md`) reach `main`/PyPI; otherwise the program objective is met.
