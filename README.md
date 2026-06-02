@@ -144,7 +144,7 @@ Eight token-free MCP tools (plus the `mta` CLI). Every result is metadata or a s
 | `open_mindmap(project?)` | path to the offline interactive mind map |
 | `forget(project?)` | delete a project's memory |
 
-**CLI:** `mta digest <paths> [--fast] [--reset]` · `mta recall "<q>"` · `mta overview` · `mta export <dir>` · `mta mindmap --open` · `mta forget` · `mta status` · `mta update`. In Claude Code, the slash commands `/memorise`, `/recall`, `/memory-map`, `/memory-status`, `/export-memory` are also available.
+**CLI:** `mta digest <paths> [--fast] [--reset]` · `mta recall "<q>"` · `mta overview` · `mta export <dir>` · `mta mindmap --open` · `mta forget` · `mta status` · `mta update` · `mta doctor`. In Claude Code, the slash commands `/memorise`, `/recall`, `/memory-map`, `/memory-status`, `/export-memory` are also available.
 
 ## 🎯 Use cases
 

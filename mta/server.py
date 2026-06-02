@@ -156,6 +156,11 @@ def _status() -> dict:
         cfg_file = str(persist_config(cfg))  # snapshot the resolved config (R2)
     except OSError:
         cfg_file = None
+    try:
+        from .core import deps
+        dep_summary = deps.scan(cfg, probe_bin_versions=False)["summary"]
+    except Exception:  # noqa: BLE001
+        dep_summary = None
     return {
         "status": "ok",
         "ollama_running": ollama_up,
@@ -168,6 +173,7 @@ def _status() -> dict:
         "auto_update": cfg.auto_update,
         "idle_seconds": cfg.idle_seconds,
         "config_file": cfg_file,
+        "dependencies": dep_summary,
         "projects": store.list_projects(cfg),
     }
 
