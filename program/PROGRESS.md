@@ -9,7 +9,7 @@
 
 ## ▶ RESUME HERE
 **🏁 v1 hardening COMPLETE & CONVERGED (code).** Phase-6 E2E done (WP-50-52, `TEST_REPORT.md`); convergence note written (WP-90, `CONVERGENCE.md`); version bumped to **1.4.0** + CHANGELOG cut. 14 WPs, PRs #5–#17, all CI-green; no Critical/High open; independently reviewed; E2E-validated (offline + accurate via live Ollama). `develop` = v1.4.0.
-**Active: WP-41 — release.** A `develop`→`main` PR is open (full CI + the `e2e.yml` Phase-6 gate). On merge, `main` is v1.4.0-release-ready.
+**WP-41 — release: `develop`→`main` MERGED (`d5ff2d9`); `main` = v1.4.0, release-ready.** Release PR #18 passed the full CI matrix + the Phase-6 `e2e-offline` gate. No tag yet — tagging before the PyPI Trusted Publisher exists would just fail the publish.
 **⛔ Only owner action left to PUBLISH (the agent cannot — no PyPI account access):** configure a PyPI **Trusted Publisher** (repo `GRU-953/memorised-them-all`, workflow `release.yml`) + add the **`HOMEBREW_TAP_TOKEN`** repo secret (`program/PUBLISH_MANIFEST.md`), then `git tag v1.4.0 && git push --tags` → the train ships PyPI + GitHub Release (+`.mcpb`) + bumps the tap; run the post-publish smoke.
 **v1.x+ backlog:** Phase-3 cross-AI interop (WP-20–24) + extra channels + deferred Low/Med (`REVIEW.md`, CI-09, PIPE-05/06, LIFE-02 residual).
 
@@ -35,7 +35,7 @@
 | WP-33 | Quick-win sweep (PIPE-04, DOC-21, PKG-04) | 4 | v1 | **DONE** | merged #15 → develop (d511a0d) | 06-02 | PKG-06 n/a; CI-09 deferred; RECALL-02/LIFE-02 noted |
 | WP-34 | Pre-release fresh-eyes review + fixes | 6 | v1 | **DONE** | merged #16 → develop (a46a414) | 06-02 | 21 findings; 3 High + Med/Low fixed; `program/REVIEW.md` |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | **DONE** | merged #14 → develop (abca304) | 06-02 | CI-02/03/04/05/06/11, SEC-06/07 closed; CI-09 lockfile deferred |
-| WP-41 | First synchronized v1 release | 5 | v1 | **PREP DONE** | develop→main PR | 06-02 | v1.4.0 cut; PUBLISH is owner-gated (PyPI publisher + tag) |
+| WP-41 | First synchronized v1 release | 5 | v1 | **READY** | main=v1.4.0 (#18 merged, d5ff2d9) | 06-02 | PUBLISH owner-gated: PyPI publisher + `git tag v1.4.0` |
 | WP-50 | Sandbox/E2E harness | 6 | v1 | **DONE** | merged #17 → develop | 06-02 | clean-wheel CLI E2E + e2e.yml; container matrix deferred (R-01) |
 | WP-51 | E2E test-matrix run | 6 | v1 | **DONE** | merged #17 | 06-02 | offline 5/5 + accurate-mode pass (live Ollama) |
 | WP-52 | Fix-and-retest loop → TEST_REPORT.md | 6 | v1 | **DONE** | merged #17 | 06-02 | `program/TEST_REPORT.md` |
