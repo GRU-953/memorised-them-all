@@ -38,9 +38,21 @@ per-job permissions; tag == version gate.
 5. Post-publish smoke: `pip install memorised-them-all==X.Y.Z`; `brew update && brew upgrade … mta`;
    download the `.mcpb` and `cosign verify-blob` it against its `.pem`/`.sig`.
 
+## MCP registry (server.json — owner submits once)
+`server.json` (repo root, version-gated by `scripts/check_versions.py`) is ready for the
+official **MCP registry**. The release train does **not** auto-submit it (the registry
+needs an interactive GitHub-namespace login). After a release, the owner runs once:
+`mcp-publisher login github` then `mcp-publisher publish` from the repo root (the
+`io.github.gru-953/...` namespace is validated against the GitHub owner). Updates are
+idempotent per version.
+
+## Done since v1.5.0
+- **CI-09 lockfile** → `constraints.txt` + a non-blocking `supply-chain` CI job (pip-audit + licenses).
+- **Docker/GHCR** multi-arch image (`docker.yml` → `ghcr.io/gru-953/memorised-them-all`).
+
 ## Deferred (v1.x+ / follow-up)
-- Reproducible-build **lockfile** (CI-09 / SEC-05) — pin build tooling + a hashed deps lock.
-- Extra channels (Phase-5 v1.x+): Docker/GHCR multi-arch + devcontainer, the official MCP
-  registry + directories (Smithery / mcp.so / PulseMCP / Glama), the Claude marketplace
-  listing, winget/Chocolatey/Scoop, Snap/Flatpak/AUR, an `npx` wrapper.
+- Directories (Smithery / mcp.so / PulseMCP / Glama) + the Claude marketplace listing.
+- **winget / Chocolatey / Scoop / Snap / Flatpak / AUR** — a poor fit for a pip/MCP tool
+  (they expect standalone installers/binaries, not a Python package); revisit only if a
+  frozen single-file build is produced. An `npx` wrapper.
 - A **post-publish re-install smoke** job per channel.

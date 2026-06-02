@@ -37,6 +37,9 @@ def _collect(canonical: str) -> dict[str, str]:
     cff = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
     m = re.search(r'^version:\s*["\']?([^"\'\n]+?)["\']?\s*$', cff, re.M)
     out["CITATION.cff"] = m.group(1).strip() if m else "<missing>"
+    sj = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
+    out["server.json (version)"] = sj["version"]
+    out["server.json (packages[0].version)"] = sj["packages"][0]["version"]
     return out
 
 

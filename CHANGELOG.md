@@ -60,6 +60,9 @@ token-free, 100% local by default, no new top-level dependency).
   `/healthz` HEALTHCHECK. Built/validated in CI and pushed on release via the built-in
   `GITHUB_TOKEN` (no extra secret). Ollama isn't bundled — use a backend URL or the offline
   fallback.
+- **MCP registry manifest.** A version-gated `server.json` (root) describing the PyPI package
+  + stdio transport, ready for the official MCP registry (`io.github.gru-953/...` namespace).
+  Submitted once by the owner via `mcp-publisher` (see `program/PUBLISH_MANIFEST.md`).
 
 ### Security / supply chain
 - Committed **dependency lockfile** (`constraints.txt`, CI-09) for reproducible installs
