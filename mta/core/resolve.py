@@ -24,8 +24,14 @@ _NORM_RE = re.compile(r"[^\w]+", re.UNICODE)
 try:
     from rapidfuzz import fuzz
     _HAVE_FUZZ = True
-except Exception:  # noqa: BLE001
+except Exception:  # noqa: BLE001 - a hard dependency; if it's missing, degrade LOUDLY (PIPE-05)
+    import sys as _sys
     _HAVE_FUZZ = False
+    _sys.stderr.write(
+        "[mta] WARNING: rapidfuzz is not installed — entity resolution falls back to "
+        "exact-match only, which over-splits entities that differ only by spacing/case. "
+        "rapidfuzz is a required dependency; reinstall it (`pip install rapidfuzz`, or run "
+        "`mta doctor`).\n")
 
 
 def _norm(name: str) -> str:

@@ -283,13 +283,18 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
             "seconds": round(time.time() - t0, 1),
         },
     }
-    store.save_graph(cfg, graph_doc)
-
-    # Recall vectors: one card per entity + one per community summary.
+    # Recall vectors: one card per entity + one per community summary. Persist these
+    # BEFORE the graph so graph.json — the presence signal recall/overview key off —
+    # only lands once its matching vectors are in place (shrinks the torn-store window;
+    # the load-time length guard covers the rest). When a digest yields no recall units,
+    # clear any stale vectors so recall (no_memory) and overview never disagree.
     units, texts = _recall_units(graph_doc)
     matrix = embedder.embed(texts) if texts else None
-    if matrix is not None:
+    if matrix is not None and len(units):
         store.save_vectors(cfg, matrix, units)
+    else:
+        store.clear_vectors(cfg)
+    store.save_graph(cfg, graph_doc)
 
     # Materialise human-facing outputs.
     render.write_memory_md(cfg, graph_doc)

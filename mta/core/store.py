@@ -154,6 +154,19 @@ def save_vectors(cfg: Config, matrix: np.ndarray, meta: list[dict]) -> None:
                        json.dumps(meta, ensure_ascii=False))
 
 
+def clear_vectors(cfg: Config) -> None:
+    """Remove the recall vector store (matrix + sidecar).
+
+    Called when a digest yields no recall units, so stale vectors from a previous
+    digest can't linger and make ``recall`` (which would mis-key off old refs) and
+    ``memory_overview`` disagree. Best-effort and idempotent."""
+    for path in (cfg.vectors_path, cfg.vectors_path.with_suffix(".json")):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
 def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
     meta_path = cfg.vectors_path.with_suffix(".json")
     if not cfg.vectors_path.exists() or not meta_path.exists():
