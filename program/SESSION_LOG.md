@@ -75,3 +75,25 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Risks:** R-08 → **Mitigated**.
 
 **EXACT NEXT STEP:** Begin **WP-14 — lifecycle + cross-process concurrency** (closes **Critical LIFE-01**) on a fresh branch off `develop`: add cross-process single-writer/multi-reader locking (stdlib `fcntl`/`msvcrt`, or `filelock` per ADR-005) around a project's graph/vectors/markdown writes in `mta/core/store.py` / `digest.py` / `lifecycle.py`; fix the idle-watchdog cross-process coupling (LIFE-02) and the Ollama-installed-but-unreachable fast-fail (PIPE-03); fold in the deferred updater↔digest coordination. Target acceptance A5 (4-way concurrent digest → no corruption) + A6 (idle stop within tolerance; user's Ollama untouched).
+
+---
+
+## Session 04 — 2026-06-02 — Implementation: WP-14 (cross-process concurrency + lifecycle)
+
+**Session id:** S04  **Branch:** `wp-14-concurrency-lifecycle` → **PR #7** (merged, squash `a5851ab`)  **Mode:** implementation
+
+**Goal:** Close the remaining **Critical LIFE-01** (no cross-process locking) + PIPE-03 + DEP-08; improve LIFE-02.
+
+**Done:**
+- **New `mta/core/locks.py`** — single-writer/multi-reader project locking (`flock` POSIX / `msvcrt` Windows); lockfiles under `state/locks/` so `forget`/reset can't delete a held lock; `flock` auto-releases on process death (no stale locks). **Exclusive** around `digest` (`_digest_locked`), `reset`, `delete_project`; **shared** around `recall`/`overview` → no torn `graph.json`↔`vectors.npz` pair, no interleaved digests (LIFE-01).
+- **lifecycle:** cross-process `ollama-start` lock (no double-spawn; A5/DEP-08) with re-check inside; **PIPE-03** 60 s cooldown after a failed start (no repeated ~20 s stalls when Ollama is installed-but-unreachable).
+- **tests/test_concurrency.py (7)** — lock exclusion/sharing/exclusion, lock-outside-project-dir, **4-way concurrent digest → consistent pair, no temp left (A5)**, `forget` serialisation, PIPE-03 cooldown. CI matrix now runs them on all 3 OSes (fcntl + msvcrt).
+- CHANGELOG.
+
+**Local:** 44 passed, 1 skipped. CI run 26803940371 fully green (all 9 jobs, incl. both Windows cells).
+**Risks:** R-09 → **Mitigated**.
+**Deferred:** LIFE-02 residual — a narrow "owner process exits mid-use of a *shared* Ollama" race (the cross-process activity marker + start-lock cover the common cases; full refcounted ownership deferred). Plus PIPE-04, DOC-21, PKG-06, PKG-04 (Low).
+
+**🎉 Milestone:** **both Criticals (PKG-03, LIFE-01) are now closed.** Phase-2 R4 (WP-13) + R5 (WP-14) done.
+
+**EXACT NEXT STEP:** Begin **WP-15 — compatibility, versioning & data migration (R6)** on a fresh branch off `develop`: in `mta/core/store.py`, when a store's `version` ≠ `SCHEMA_VERSION`, **back it up and migrate** (forward-migrate older stores; keep them at least read-recallable) instead of returning None for a newer store; add a migration registry + tests with vN-1 fixtures; document SemVer + deprecation policy. Target acceptance **A7**.
