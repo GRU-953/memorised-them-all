@@ -54,6 +54,17 @@ adheres to [Semantic Versioning](https://semver.org/) and
   `top_score` now reflects the hits actually returned (with `raw_top_score` for the
   pre-floor best).
 
+### Security
+- **Decompression-bomb / size caps now cover all ZIP-container formats**
+  (`.docx`/`.xlsx`/`.pptx`/`.epub`), not just literal `.zip` (SEC-01).
+- The theme/synopsis summariser prompts fence document-derived text as data —
+  second-order prompt-injection hardening, matching the per-chunk extractor (SEC-02).
+- The vector store is loaded with `allow_pickle=False` **explicitly** (SEC-03).
+- The offline mind map has **no CDN fallback** — it makes zero network requests; a
+  missing renderer asset degrades to a static offline notice (SEC-10).
+- Added **`SECURITY.md`** (threat model + reporting). The optional GPL `graph` extra
+  is documented as not installed by the MIT core (SEC-11).
+
 ### Internal / CI
 - CI now exercises the **real** conversion path: a new full-deps lane installs the
   package + Tesseract and converts PDF/DOCX/XLSX/CSV/HTML (the offline matrix

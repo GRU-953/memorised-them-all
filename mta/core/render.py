@@ -146,8 +146,22 @@ def write_mindmap(cfg: Config, doc: dict) -> Path:
     # the inline <script> data block (still valid JSON/JS).
     data_js = json.dumps(data).replace("</", "<\\/")
     cyto = _CYTOSCAPE.read_text(encoding="utf-8") if _CYTOSCAPE.exists() else ""
-    cyto_tag = (f"<script>{cyto}</script>" if cyto else
-                '<script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"></script>')
+    if not cyto:
+        # The bundled Cytoscape asset is missing from this build — render a static,
+        # strictly-offline notice rather than fetching it from a CDN. The mind map
+        # makes ZERO network requests (SEC-10). The asset is force-included in both
+        # the wheel and the .mcpb, so this path should never trigger in practice.
+        cfg.mindmap_html.write_text(
+            "<!doctype html><meta charset=utf-8><title>"
+            + html.escape(doc["project"]) + " — mind map</title>"
+            "<body style='font-family:sans-serif;background:#0b1020;color:#e7ecf5;padding:24px'>"
+            "<h1>" + html.escape(doc["project"]) + " — memory</h1>"
+            "<p>The offline mind-map renderer asset is missing from this build; "
+            "reinstall the package to restore it. (No network fallback is used.)</p>"
+            "<p>" + html.escape(doc.get("synopsis", "")) + "</p></body>",
+            encoding="utf-8")
+        return cfg.mindmap_html
+    cyto_tag = f"<script>{cyto}</script>"
     if _TEMPLATE.exists():
         tpl = _TEMPLATE.read_text(encoding="utf-8")
         out_html = (tpl.replace("/*__CYTOSCAPE__*/", cyto_tag)

@@ -43,7 +43,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Preferred Leiden community detection (needs a C toolchain; falls back to Louvain).
+# Preferred Leiden community detection (optional). NOTE: python-igraph + leidenalg
+# are **GPL-licensed** and are NOT installed by the MIT core — which falls back to
+# NetworkX Louvain. Install the `graph` extra only if GPL is acceptable to you.
 graph = ["python-igraph>=0.11", "leidenalg>=0.10"]
 # GPU-accelerated Whisper on Apple silicon.
 mlx = ["mlx-whisper>=0.4 ; platform_machine=='arm64' and sys_platform=='darwin'"]
