@@ -8,10 +8,11 @@
 ---
 
 ## ▶ RESUME HERE
-**🚢 v1.4.0 SHIPPED — the v1 program objective is COMPLETE.** Tag `v1.4.0` published in lockstep to all core channels (Release run 26835623380, all 4 jobs green) and **post-publish-verified**: **PyPI** (OIDC; 1.4.0 live + fresh-venv `pip install` smoke ✓), **GitHub Release** `v1.4.0` (wheel + sdist + `.mcpb` + `sbom.cyclonedx.json` + a cosign `.sig`/`.pem` for every artifact), **Homebrew tap** auto-bumped to 1.4.0. `main` = `develop` = v1.4.0.
-**Full arc done:** audit → 14 WPs → independent fresh-eyes review → Phase-6 E2E → signed, SBOM'd, multi-channel release. No Critical/High open (`CONVERGENCE.md`).
-**Next — only when desired = v1.x+ backlog** (post-ship by ADR-002): Phase-3 cross-AI interop (WP-20–24: secure HTTP/REST transport · OpenAI/Gemini/OpenAPI schema exports · REST gateway · pluggable backends · per-client recipes); extra channels (Docker/GHCR · MCP registry + directories · winget/choco/scoop · snap/flatpak/AUR); deferred Low/Med (`REVIEW.md`: full graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02 residual). A fresh session resumes any of these from here.
-**⚠ Maintenance:** rotate `HOMEBREW_TAP_TOKEN` — a fine-grained PAT was exposed in chat during the S14 release; the next release needs a fresh token in that secret.
+**v1.4.0 SHIPPED (all core channels: PyPI + GitHub Release + `.mcpb` + Homebrew tap); v1.x+ Phase-3 interop now UNDERWAY on `develop`.** `main` = v1.4.0; `develop` is ahead by CLAUDE.md + WP-20 + WP-21.
+**DONE this session (S16):** **WP-20** secure Streamable HTTP transport — `mta serve --http`, loopback-only + mandatory bearer + DNS-rebind, no new top-level dep (merged #19, `9e1029a`) · **WP-21** cross-AI schema exports — `mta export-schema` → OpenAI/Gemini/OpenAPI 3.1, derived from the live registry so they can't drift (merged #20, `fa86ec3`). Both green on the full 3-OS matrix.
+**▶ Next = WP-22** local REST gateway over the OpenAPI-3.1 surface (reuses WP-20's bearer/loopback transport seam + WP-21's `to_openapi()`), then **WP-23** pluggable backends, **WP-24** per-client recipes + conformance. Also available: extra publishing channels + deferred Low/Med (`REVIEW.md`: graph+vectors write-transaction, CI-09 lockfile, PIPE-05/06, LIFE-02). When Phase-3 (or a useful subset) lands → cut **v1.5.0** (tag from `main`; the train publishes all channels).
+**⚠ Before the next release:** rotate `HOMEBREW_TAP_TOKEN` — a fine-grained PAT was exposed in chat during the S14 release.
+**⚠ Concurrency (S16):** two unattended sessions briefly shared this one checkout (a 2nd was writing WP-20 while this did WP-21); resolved by sole-driver consolidation. **Run ONE unattended session per working tree**, or give each its own `git worktree`.
 
 ---
 
@@ -40,7 +41,11 @@
 | WP-51 | E2E test-matrix run | 6 | v1 | **DONE** | merged #17 | 06-02 | offline 5/5 + accurate-mode pass (live Ollama) |
 | WP-52 | Fix-and-retest loop → TEST_REPORT.md | 6 | v1 | **DONE** | merged #17 | 06-02 | `program/TEST_REPORT.md` |
 | WP-90 | Convergence review & note | 6 | v1 | **DONE** | develop | 06-02 | `program/CONVERGENCE.md` — converged (code) |
-| WP-20…24 | Phase-3 interop (HTTP transport, schema exports, REST, backends, recipes) | 3 | v1.x+ | TODO | — | — | designed in plan; built post-v1 |
+| WP-20 | Phase-3: secure Streamable HTTP transport (stdio + HTTP) | 3 | v1.x+ | **DONE** | merged #19 → develop (9e1029a) | 06-03 | `serve --http`; loopback+bearer+DNS-rebind; no new dep |
+| WP-21 | Phase-3: cross-AI schema exports (OpenAI/Gemini/OpenAPI 3.1) | 3 | v1.x+ | **DONE** | merged #20 → develop (fa86ec3) | 06-03 | `export-schema`; derived from live registry (no drift) |
+| WP-22 | Phase-3: local REST gateway over the OpenAPI-3.1 surface | 3 | v1.x+ | **TODO ▶ NEXT** | — | — | reuse WP-20 transport/auth + WP-21 `to_openapi()` |
+| WP-23 | Phase-3: pluggable backends (Ollama/LM Studio/llama.cpp/OpenAI-compat) | 3 | v1.x+ | TODO | — | — | backend seam |
+| WP-24 | Phase-3: per-client recipes + conformance tests | 3 | v1.x+ | TODO | — | — | `client_config()` seam exists (WP-20) |
 
 ## Artifacts
 `AUDIT.md` · `IMPROVEMENT_PLAN.md` · `ACCEPTANCE.md` · `RISKS.md` · `DECISIONS.md` · `SESSION_LOG.md` · `/CHANGELOG.md` · (later: `PUBLISH_MANIFEST.md`, `TEST_REPORT.md`, `SECURITY.md`)

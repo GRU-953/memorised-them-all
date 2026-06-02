@@ -308,3 +308,19 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **⚠ Action for the owner:** **rotate `HOMEBREW_TAP_TOKEN`** — a fine-grained PAT was pasted in chat (compromised); replace the secret with a fresh token before the next release.
 
 **EXACT NEXT STEP:** None required for v1. When desired, start the **v1.x+ backlog** (Phase-3 cross-AI interop WP-20–24; extra publishing channels; deferred Low/Med per `REVIEW.md`) — a fresh session resumes from PROGRESS ▶ RESUME HERE.
+
+---
+
+## Session 16 — 2026-06-03 — v1.x+ Phase-3 interop begins (WP-20 + WP-21); concurrency incident
+
+**Mode:** unattended ("Resume & Continue"). Began the v1.x+ backlog (post-ship by ADR-002), starting Phase-3 cross-AI interop.
+
+**⚠ Concurrency incident (resolved).** Partway into starting WP-21, a **second unattended session** was found writing **WP-20** (HTTP transport) into *this same checkout* — same working tree + git HEAD. Detected via the reflog (`develop → wp-20-http-transport → wp-21-schema-exports`, no commits) and a live `git status` delta (transport.py/test_transport.py/server.py/… appearing mid-turn). Halted all mutations (a shared HEAD makes any git op a race), backed WP-21 up outside git, and surfaced it to the user, who chose **"I drive solo."** A background watcher confirmed the other session went quiet (~72 s stable), then I consolidated as sole driver — no work lost on either side. **Lesson recorded in PROGRESS:** run ONE unattended session per working tree, or isolate with `git worktree`.
+
+**WP-20 — secure Streamable HTTP transport (merged #19, `9e1029a`).** Preserved the concurrent session's work onto `wp-20-http-transport` (explicit paths, never `git add -A`), reviewed it (loopback-only default + non-loopback refusal; mandatory bearer w/ constant-time compare in a pure-ASGI gate; SDK DNS-rebind protection; atomic `0600` token; **no new top-level dep** — starlette/uvicorn ship with mcp, verified), ran it green locally (84 passed; 8-tool stdio check intact after the `build_server()` refactor), PR → full 3-OS CI green → squash-merged. Adds `mta serve --http`, `server.build_server()`, `client_config()` (WP-24 seam).
+
+**WP-21 — cross-AI schema exports (merged #20, `fa86ec3`).** Rebuilt cleanly on top of merged develop. `mta export-schema [--format openai|gemini|openapi|all] [--out DIR]` → new `mta/interop/schemas.py`, **derived from the live FastMCP registry** (a test asserts names/descriptions == the server, so no drift). Gemini normalised to its OpenAPI-3.0 subset (nullable `anyOf` collapsed, JSON-Schema-only keys stripped, no-arg tools omit `parameters`); OpenAPI **3.1** doc (`POST /tools/{name}`) seeds WP-22. Pure/offline/token-free; dispatched before any config load. 10 tests in the offline lane; full lane **94 passed, 1 skipped**; PR → 3-OS CI green → squash-merged.
+
+**State:** `main` = v1.4.0; `develop` ahead by CLAUDE.md + WP-20 + WP-21. No Critical/High open.
+
+**EXACT NEXT STEP:** **WP-22** — local REST gateway exposing the eight tools over the WP-21 OpenAPI-3.1 surface, reusing WP-20's bearer-auth/loopback transport seam. Branch `wp-22-rest-gateway` → PR into `develop`.
