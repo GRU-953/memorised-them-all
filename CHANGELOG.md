@@ -58,6 +58,15 @@ adheres to [Semantic Versioning](https://semver.org/) and
   `top_score` now reflects the hits actually returned (with `raw_top_score` for the
   pre-floor best).
 
+### Release & supply chain
+- **Hardened, single-source release train** (`release.yml`): builds every artifact
+  **once**, then publishes in lockstep `build → pypi → github_release → homebrew`
+  (PyPI first, so a failure can't leave a partial release). **OIDC Trusted
+  Publishing** to PyPI (no long-lived token); every Action is **SHA-pinned** (CI too);
+  a **CycloneDX SBOM** and **cosign keyless signatures** are produced per artifact;
+  the **Homebrew tap is auto-bumped** (gated on `HOMEBREW_TAP_TOKEN`, skips cleanly
+  if absent); idempotent re-runs; tag == version gate. See `program/PUBLISH_MANIFEST.md`.
+
 ### Security
 - **Decompression-bomb / size caps now cover all ZIP-container formats**
   (`.docx`/`.xlsx`/`.pptx`/`.epub`), not just literal `.zip` (SEC-01).
