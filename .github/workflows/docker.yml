@@ -55,5 +55,6 @@ jobs:
       - name: Smoke-test the built image
         if: github.ref_type != 'tag'
         run: |
-          docker run --rm ${{ env.IMAGE }}:ci mta --help
-          docker run --rm ${{ env.IMAGE }}:ci mta export-schema --format openapi >/dev/null && echo "image OK: export-schema ran offline"
+          # ENTRYPOINT is `mta`, so args after the image are mta subcommands/flags.
+          docker run --rm ${{ env.IMAGE }}:ci --help
+          docker run --rm ${{ env.IMAGE }}:ci export-schema --format openapi >/dev/null && echo "image OK: export-schema ran offline"
