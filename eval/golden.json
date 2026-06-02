@@ -1,0 +1,15 @@
+{
+  "k": 8,
+  "recall_at_k_floor": 0.75,
+  "_note": "recall_at_k_floor is calibrated below the measured baseline so CI gates regressions, not an aspirational target. Offline path = hashing embeddings + classical extraction.",
+  "queries": [
+    {"query": "Who leads Project Helios?", "expect_any": ["Helios", "Marsh"]},
+    {"query": "Where is the Nordic Grid Authority based?", "expect_any": ["Nordic Grid Authority", "Oslo", "NGA"]},
+    {"query": "Who leads Project Aurora and the undersea cable?", "expect_any": ["Aurora", "Cole"]},
+    {"query": "Vptr Robotics partner maintenance", "expect_any": ["Vptr"]},
+    {"query": "solar plant in Reykjavik", "expect_any": ["Reykjavik", "Helios"]},
+    {"query": "Bergen marine power project", "expect_any": ["Bergen", "Aurora"]},
+    {"query": "who directs the grid authority", "expect_any": ["Haugen", "Nordic Grid Authority"]},
+    {"query": "Q3 budget distribution losses", "expect_any": ["budget", "distribution", "12 percent"]}
+  ]
+}
