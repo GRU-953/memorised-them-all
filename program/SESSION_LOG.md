@@ -179,3 +179,25 @@ Append-only. One entry per session; never edit past entries. Newest at the botto
 **Deferred (Med):** RECALL-02 (verbatim-fact nuance — bounded by the 600-char cap), PIPE-05 (rapidfuzz hard-dep), PIPE-06 (classical-extractor quality).
 
 **EXACT NEXT STEP:** Begin **WP-32 — security hardening completion + `SECURITY.md`** on a fresh branch off `develop`: extend the decompression-bomb/size cap in `mta/core/convert.py` to ALL ZIP-container formats (.docx/.xlsx/.pptx/.epub — SEC-01); delimit attacker-influenced text in the summary/synopsis prompts in `digest.py` (SEC-02); set `allow_pickle=False` explicitly on the `np.load` in `store.py` (SEC-03/DOC-04/LIFE-05); remove the unpkg CDN fallback in `templates/mindmap.html.j2`/`render.py` (SEC-10 → literally zero-network); note GPL optional libs (SEC-11); write `SECURITY.md` + threat model. Tests: bomb cap rejects an oversized .docx; allow_pickle explicit; mindmap has no external URL. Target acceptance **A12**.
+
+---
+
+## Session 09 — 2026-06-02 — Implementation: WP-32 (security hardening + SECURITY.md)
+
+**Session id:** S09  **Branch:** `wp-32-security` → **PR #12** (merged, squash `6c52714`)  **Mode:** implementation
+
+**Goal:** Close **SEC-01 (High)** + SEC-02/03/10/11; write `SECURITY.md` + threat model (A12).
+
+**Done:**
+- **SEC-01:** the decompression-bomb/size bounds check runs for **all** MarkItDown inputs, not just `.zip` — so `.docx`/`.xlsx`/`.pptx`/`.epub` bombs are rejected (`convert.py`; `_zip_within_bounds` already no-ops on non-zip inputs).
+- **SEC-02:** the theme + synopsis summariser prompts fence document-derived text as data (`<<<DATA>>>…<<<END>>>`), matching the per-chunk extractor (`digest.py`).
+- **SEC-03:** `np.load(..., allow_pickle=False)` made explicit on the vector store (`store.py`).
+- **SEC-10:** removed the mind map's unpkg CDN fallback → zero network; missing asset → static offline notice (`render.py`).
+- **SEC-11:** documented the GPL `graph` extra (`pyproject.toml`).
+- Added **`SECURITY.md`** (reporting + threat model). `tests/test_security.py` (5) on all 3 OSes; CHANGELOG (Security).
+
+**Local:** 62 offline tests pass. CI run 26814539065 fully green (9 jobs). **Acceptance A12 → mostly met** (CI license/vuln scan deferred to WP-40).
+
+**Status:** the only open High findings are the release-train ones (**CI-02/05 → WP-40**).
+
+**EXACT NEXT STEP:** Begin **WP-31 — eval harness + reference corpus + golden metrics** on a fresh branch off `develop`: add `eval/` with a small committed multi-format corpus + golden expected metrics (conversion fidelity, retrieval precision/recall, fast-vs-accurate speedup, cold-start + peak/idle memory); a `make eval`/script that reports + CI-gates thresholds; replace the unbenchmarked "20–100×"/"163 languages" claims (DOC-18/19) with measured numbers. Target acceptance **A10/A11**.

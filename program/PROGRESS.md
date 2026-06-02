@@ -8,8 +8,8 @@
 ---
 
 ## ▶ RESUME HERE
-**WP-30 DONE — merged to `develop`** (PR #11, squash `84e8c6c`); CI fully green (run 26810293268, all 9 jobs). **DOC-01 closed** — `low_confidence`/`MTA_RECALL_MIN_SCORE` work offline (lexical-overlap confidence on the hashing path); `top_score` reflects returned hits (RECALL-03). **A4 met. No Critical/High remains except SEC-01 (→ WP-32) and release-train CI-02/05 (→ WP-40).**
-**Next: WP-32 — security hardening completion + `SECURITY.md`** on a fresh branch off `develop`. Closes **SEC-01 (High)** — extend the decompression-bomb/size cap to ALL ZIP-container formats (.docx/.xlsx/.pptx/.epub, not just literal .zip) — plus SEC-02 (delimit attacker text in the summary/synopsis prompts — second-order injection), SEC-03/DOC-04/LIFE-05 (`allow_pickle=False` explicit), SEC-10 (remove the mindmap unpkg CDN fallback → literally zero-network), SEC-11 (note GPL optional libs); write `SECURITY.md` + threat model. Target acceptance **A12**. Then WP-31 (eval harness → A10/A11) → WP-40/41 (release train) → WP-50-52 (Phase-6; needs Docker, R-01) → WP-90. Deferred Low/Med: PIPE-04/05/06, DOC-21, PKG-06, PKG-04, RECALL-02; LIFE-02 residual.
+**WP-32 DONE — merged to `develop`** (PR #12, squash `6c52714`); CI fully green (run 26814539065, all 9 jobs). **SEC-01 closed** (bomb cap on all ZIP-container formats) + SEC-02/03/10/11; `SECURITY.md` + threat model added. **A12 met. The only open High findings now are the release-train ones (CI-02/05 → WP-40).**
+**Next: WP-31 — eval harness + reference corpus + golden metrics** on a fresh branch off `develop`. Build a committed (or pinned-fetch, no copyrighted material) multi-format reference corpus + golden expected metrics; measure conversion fidelity, retrieval precision/recall, fast-vs-accurate speedup, cold-start + peak/idle memory; CI-gate the thresholds; replace the unbenchmarked "20–100×" / "163 languages" marketing (DOC-18/19) with measured numbers. Target acceptance **A10/A11**. Then WP-40/41 (release train: OIDC, SBOM, signing, tap automation — needs owner OIDC/tap setup per ADR-006) → WP-50-52 (Phase-6; needs Docker, R-01) → WP-90. Deferred Low/Med: PIPE-04/05/06, DOC-21, PKG-06, PKG-04, RECALL-02; LIFE-02 residual.
 
 ---
 
@@ -28,7 +28,7 @@
 | WP-11 | Auto-configuration: profiles, persist, GPU/LM-Studio (R2) | 2 | v1 | **DONE** | merged #9 → develop (81bf1c0) | 06-02 | DEP-05/06/07 closed |
 | WP-12 | Dependency scan + guided install + `mta doctor` (R3) | 2 | v1 | **DONE** | merged #10 → develop (66ca5d6) | 06-02 | DEP-04/10 closed; **Phase 2 ✅** |
 | WP-30 | Offline recall reliability + classical quality | 4 | v1 | **DONE** | merged #11 → develop (84e8c6c) | 06-02 | DOC-01/RECALL-03 closed (A4); RECALL-02/PIPE-05/06 deferred (Med) |
-| WP-32 | Security hardening completion + SECURITY.md | 4 | v1 | TODO | — | — | closes SEC-01(High)/02/03/10/11 |
+| WP-32 | Security hardening completion + SECURITY.md | 4 | v1 | **DONE** | merged #12 → develop (6c52714) | 06-02 | SEC-01/02/03/10/11 closed (A12) |
 | WP-31 | Eval harness + reference corpus + golden metrics | 4 | v1 | TODO | — | — | supplies A10/A11; closes DOC-18/19 |
 | WP-40 | Release train + supply-chain + publish manifest | 5 | v1 core / v1.x+ rest | TODO | — | — | closes CI-02..09/11, SEC-05/06/07 |
 | WP-41 | First synchronized v1 release | 5 | v1 | TODO | — | — | after Phase-2 green + WP-40 |
