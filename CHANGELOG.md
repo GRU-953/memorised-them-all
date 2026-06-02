@@ -71,6 +71,14 @@ token-free, 100% local by default, no new top-level dependency).
   (`continue-on-error`), so a missing/expired tap token can never fail a release after PyPI
   and the GitHub Release have already shipped.
 
+### Fixed
+- **Recall-vector store consistency.** A digest now persists recall vectors (or clears them)
+  *before* writing `graph.json`, and a digest that yields **no recall units** clears any prior
+  vectors via the new `store.clear_vectors` — so a stale matrix (with refs into a previous
+  graph) can no longer linger and make `recall` and `memory_overview` disagree.
+- **PIPE-05:** `rapidfuzz` is a hard dependency, so a missing install now **warns loudly**
+  (entity resolution otherwise silently degraded to exact-match, which over-splits entities).
+
 ## [1.4.0] — 2026-06-02
 
 ### Added
