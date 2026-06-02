@@ -68,6 +68,12 @@ listener is safe to run:
   localhost, terminate TLS at a reverse proxy, treat the bearer token as a password, and
   never place it on an untrusted network.
 
+The optional **REST gateway** (`mta serve --rest` — plain JSON `POST /tools/{name}` for
+non-MCP clients) enforces the *same* controls: loopback-only by default with the identical
+non-loopback refusal, the **same** mandatory bearer token (shared `state/http_token`), and
+a `Host`-header allowlist. Only `GET /healthz` is unauthenticated; `GET /openapi.json` and
+every tool call require the token.
+
 ### Supply chain
 
 - Releases build from committed sources; the version is single-sourced and CI fails on drift

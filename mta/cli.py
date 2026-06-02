@@ -9,7 +9,7 @@ Subcommands:
   mta mindmap [--project P] [--open]             path to the mind map
   mta update [--force]                           update MarkItDown + deps
   mta doctor [--fix] [--dry-run]                 scan deps; suggest or apply fixes
-  mta serve [--http [--host H] [--port N]]        run the MCP server (stdio; --http = secure HTTP)
+  mta serve [--http | --rest] [--host H] [--port N]  run the server (stdio; --http=MCP HTTP; --rest=JSON gateway)
   mta export-schema [--format F] [--out DIR]     export tool schemas (OpenAI/Gemini/OpenAPI 3.1)
 """
 from __future__ import annotations
@@ -62,12 +62,15 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("forget", help="delete a project's memory (irreversible)")
 
-    sv = sub.add_parser("serve", help="run the MCP server (stdio by default; --http = secure Streamable HTTP)")
-    sv.add_argument("--http", action="store_true",
-                    help="serve over Streamable HTTP instead of stdio (opt-in; loopback + bearer token)")
+    sv = sub.add_parser("serve", help="run the MCP server (stdio by default; --http/--rest = HTTP surfaces)")
+    mode = sv.add_mutually_exclusive_group()
+    mode.add_argument("--http", action="store_true",
+                      help="serve over MCP Streamable HTTP instead of stdio (opt-in; loopback + bearer token)")
+    mode.add_argument("--rest", action="store_true",
+                      help="serve the plain-JSON REST gateway (opt-in; loopback + bearer token; POST /tools/{name})")
     sv.add_argument("--host", default=None, help="HTTP bind host (default 127.0.0.1)")
     sv.add_argument("--port", type=int, default=None, help="HTTP bind port (default 8765)")
-    sv.add_argument("--path", default=None, help="HTTP endpoint path (default /mcp)")
+    sv.add_argument("--path", default=None, help="MCP HTTP endpoint path (--http only; default /mcp)")
     sv.add_argument("--allow-remote", action="store_true",
                     help="permit a non-loopback bind (exposes the server beyond this machine)")
 
@@ -128,6 +131,10 @@ def main(argv: list[str] | None = None) -> int:
             from .transport import serve as serve_transport
             serve_transport(cfg, transport="http", host=args.host, port=args.port,
                             path=args.path, allow_remote=args.allow_remote or None)
+        elif args.rest:
+            from .interop.rest import serve as serve_rest
+            serve_rest(cfg, host=args.host, port=args.port,
+                       allow_remote=args.allow_remote or None)
         else:
             from .server import main as serve_main
             serve_main()

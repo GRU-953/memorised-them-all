@@ -26,6 +26,13 @@ adheres to [Semantic Versioning](https://semver.org/) and
   document (`POST /tools/{name}`), so non-MCP clients can drive the same local engine.
   Schemas are derived from the live FastMCP registry (no drift) via the new
   `mta.interop.schemas` module — pure, offline, and token-free.
+- **Local REST gateway** (opt-in; Phase-3 interop). `mta serve --rest` serves the eight
+  tools as plain JSON over HTTP — `POST /tools/{name}` with an argument body returns the
+  tool's token-free result — i.e. the exact OpenAPI 3.1 surface `export-schema` describes,
+  with `GET /openapi.json` (live schema) and an unauthenticated `GET /healthz`. Reuses the
+  WP-20 hardening: loopback-only by default, the **same** mandatory bearer token, and a
+  Host-header allowlist (DNS-rebinding defense). New `mta.interop.rest`; blocking calls run
+  in a threadpool. No new top-level dependency.
 
 ## [1.4.0] — 2026-06-02
 
