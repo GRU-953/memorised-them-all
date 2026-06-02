@@ -100,6 +100,10 @@ adheres to [Semantic Versioning](https://semver.org/) and
   crashes on a stat() race.
 
 ### Internal / CI
+- **Phase-6 E2E** — a clean-wheel-install CLI suite (`tests/test_e2e_cli.py`) drives the
+  installed `mta` binary end-to-end (offline + a real accurate-mode run via Ollama);
+  `.github/workflows/e2e.yml` runs it on the release PR. The fast-mode speedup is now
+  **benchmarked** (≈25–100×). See `program/TEST_REPORT.md`.
 - CI now exercises the **real** conversion path: a new full-deps lane installs the
   package + Tesseract and converts PDF/DOCX/XLSX/CSV/HTML (the offline matrix
   installed no converters, so conversion was previously untested). The `.mcpb`
