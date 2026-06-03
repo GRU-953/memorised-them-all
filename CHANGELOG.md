@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-06-03
+
 ### Fixed
 - **Classical (offline) extractor quality (PIPE-06).** The dependency-free extractor now
   strips a leading determiner so "The Nordic Grid Authority" resolves to the same entity
