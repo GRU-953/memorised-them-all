@@ -37,6 +37,21 @@ _STOPWORDS = {
 }
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|(?<=[।。！？])\s*")
 
+# Strip a leading determiner so "The Nordic Grid Authority" resolves to the same node
+# as "Nordic Grid Authority" (PIPE-06).
+_LEADING_DET = {"The", "A", "An", "This", "That", "These", "Those"}
+
+# Don't break a sentence right after these abbreviations ("… is Dr. Lena Marsh.").
+_ABBREV = ("Dr", "Mr", "Mrs", "Ms", "Prof", "Sr", "Jr", "St", "Inc", "Ltd", "Co",
+           "Corp", "vs", "etc", "No", "Fig", "Eq", "Vol", "Rev", "Gen", "Sen", "Rep")
+_ABBREV_RE = re.compile(r"\b(" + "|".join(_ABBREV) + r")\.")
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split into sentences, but never right after a known abbreviation."""
+    masked = _ABBREV_RE.sub(lambda m: m.group(1) + "\x00", text)  # mask the trailing dot
+    return [p.replace("\x00", ".") for p in _SENT_RE.split(masked)]
+
 _PROMPT = (
     "You extract a knowledge graph from a text chunk. Return ONLY minified JSON "
     "with keys: entities (list of {name,type}), relations (list of "
@@ -62,9 +77,13 @@ def _classical(chunk: Chunk) -> Extraction:
         # Collapse internal whitespace/newlines so a label spanning a line break
         # (e.g. table cells) becomes "Lena Marsh", not "Lena\nMarsh".
         name = re.sub(r"\s+", " ", m.group(1)).strip()
+        # Strip a leading determiner so "The Nordic Grid Authority" counts as
+        # "Nordic Grid Authority" (PIPE-06).
+        head, _, rest = name.partition(" ")
+        if rest and head in _LEADING_DET:
+            name = rest
         if name in _STOPWORDS or len(name) < 2:
             continue
-        # Drop a leading sentence-initial single common word.
         counts[name] = counts.get(name, 0) + 1
     # Keep the most salient entities in the chunk.
     ents = sorted(counts, key=lambda n: (-counts[n], n))[:8]
@@ -76,7 +95,15 @@ def _classical(chunk: Chunk) -> Extraction:
         for j in range(i + 1, len(ents)):
             relations.append({"source": ents[i], "relation": "related_to",
                               "target": ents[j]})
-    facts = [s.strip() for s in _SENT_RE.split(text) if 20 <= len(s.strip()) <= 240][:6]
+    # Facts: whole sentences (abbreviation-aware split), internal whitespace collapsed
+    # so a fact spanning a line break isn't newline-laden or truncated (PIPE-06).
+    facts: list[str] = []
+    for s in _split_sentences(text):
+        s = re.sub(r"\s+", " ", s).strip()
+        if 20 <= len(s) <= 240:
+            facts.append(s)
+        if len(facts) >= 6:
+            break
     return Extraction(entities=entities, relations=relations, facts=facts)
 
 

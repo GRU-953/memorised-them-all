@@ -360,3 +360,15 @@ Continued unattended ("continue all remaining tasks … then plan, test, update,
 **Owner follow-ups (one-time, not blocking):** rotate `HOMEBREW_TAP_TOKEN`; `mcp-publisher publish` the registry manifest.
 
 **EXACT NEXT STEP:** None required — v1.5.0 is shipped and the v1.x+ backlog is cleared. Optional: cut a small **v1.5.1** (or ride the next feature release) so the rewritten README + any deferred Low/Med (`REVIEW.md`) reach `main`/PyPI; otherwise the program objective is met.
+
+---
+
+## Session 16 (cont. 3) — 2026-06-03 — 🚢 v1.5.1 SHIPPED (novice README is now the public face)
+
+Cut **v1.5.1** to surface the rewritten README. Bumped all 7 version strings 1.5.0→1.5.1 (`check_versions` green) + CHANGELOG `[1.5.1]` (docs-only); `twine check` passed on the new long-description. Release PR #29 (develop→main) — all 21 checks green incl. `e2e-offline` — merged (`main` `c33fa65`), tagged **`v1.5.1`** → release run **26855067617 all 4 jobs green**. **Verified:** PyPI **1.5.1** live and **the new novice README is the PyPI `text/markdown` long-description** (opens with "Give Claude a private memory…"); GitHub Release v1.5.1 (13 signed assets); Homebrew tap 1.5.1; GHCR image. `develop` fast-forwarded to `main` — **`main` = `develop` = v1.5.1**.
+
+**🎉 PROGRAM OBJECTIVE FULLY MET.** Every requested task is done: v1 hardened + published (v1.4.0); v1.x+ Phase-3 interop (WP-20–24) + backlog (WP-60–63) delivered + published (v1.5.0); README rewritten from scratch for novices + published (v1.5.1). No Critical/High open across the whole program.
+
+**Owner follow-ups (one-time, none blocking):** rotate `HOMEBREW_TAP_TOKEN`; `mcp-publisher publish` the registry `server.json`; optionally make the GHCR package public.
+
+**EXACT NEXT STEP:** None. The program objective is met; any further work (deferred Low/Med in `REVIEW.md`, directory listings) is optional and resumes from PROGRESS ▶ RESUME HERE.
