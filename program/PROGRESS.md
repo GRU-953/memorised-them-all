@@ -8,10 +8,10 @@
 ---
 
 ## ▶ RESUME HERE
-**🚢 v1.5.1 SHIPPED — the program is fully COMPLETE & PUBLISHED.** **v1.5.0** (run 26844874577) delivered Phase-3 cross-AI interop + the entire v1.x+ backlog; **v1.5.1** (run 26855067617) ships the **from-scratch novice README**, now the live PyPI project page + GitHub homepage. All channels verified at 1.5.1: **PyPI** (fresh-venv install ✓; the new README is the `text/markdown` long-description ✓), **GitHub Release** `v1.5.1` (13 signed assets), **Homebrew tap** 1.5.1, **GHCR** multi-arch image. `main` = `develop` = v1.5.1; no Critical/High open.
+**🚢 v1.5.2 SHIPPED — the program is fully COMPLETE & PUBLISHED; the worthwhile backlog is EXHAUSTED.** **v1.5.0** delivered Phase-3 cross-AI interop + the v1.x+ backlog; **v1.5.1** the from-scratch novice README (now the live PyPI/GitHub face); **v1.5.2** (run 26856061693) the last deferred quality fix, **PIPE-06** (classical-extractor: leading-determiner merge, whitespace-clean facts, abbreviation-aware splitting). All channels verified at 1.5.2: PyPI (fresh-venv install ✓), GitHub Release `v1.5.2` (13 signed assets), Homebrew tap 1.5.2, GHCR multi-arch image. `main` = `develop` = v1.5.2; no Critical/High open.
 **Delivered this arc (S16):** Phase-3 — WP-20 HTTP transport (#19) · WP-21 schema exports (#20) · WP-22 REST gateway (#21) · WP-23 pluggable backends (#22) · WP-24 recipes + conformance (#23). Backlog — WP-60 supply-chain + CI-09 lockfile + release tag-gate (#25) · WP-61 Docker/GHCR (#26) · WP-62 vector-store consistency + PIPE-05 (#27) · WP-63 MCP-registry `server.json` (#28). All additive + invariant-safe.
 **Owner follow-ups (one-time, NOT blocking):** rotate `HOMEBREW_TAP_TOKEN` (the S14-exposed PAT still works but should be replaced); submit the registry manifest once (`mcp-publisher login github && mcp-publisher publish`); optionally set the GHCR package public (for anonymous `docker pull`).
-**▶ Next (optional only — program objective is MET):** deferred Low/Med (`REVIEW.md`: full graph+vectors write-transaction *(accepted — a torn store is already safe via the load guard)*, PIPE-06 entity fragmentation, RECALL-02, LIFE-02 residual); directory/marketplace listings; winget/scoop noted N/A for a pip tool (`PUBLISH_MANIFEST.md`). Nothing here is required.
+**▶ Next: NOTHING required — worthwhile backlog exhausted.** What deliberately remains, with rationale: full graph+vectors **write-transaction** *(deferred by design — a torn store is already safe via the load guard; it's a durability nicety vs. a risky store-layout + migration change, best done in its own focused effort)*; **RECALL-02** (classical facts are verbatim, provenance-tagged sentences — the designed recall behavior) + **LIFE-02** residual (mitigated in WP-14) — accepted/documented; **directory/marketplace listings** + token rotation + registry submit + GHCR-public — owner-only/external; winget/scoop — N/A for a pip tool (`PUBLISH_MANIFEST.md`).
 **⚠ Concurrency (S16):** run ONE unattended session per working tree (or give each its own `git worktree`).
 
 ---
@@ -51,6 +51,8 @@
 | WP-62 | Robustness: vector-store consistency + rapidfuzz hard-dep (PIPE-05) | 4 | v1.x+ | **DONE** | merged #27 → develop | 06-03 | `store.clear_vectors`; vectors-before-graph |
 | WP-63 | MCP registry manifest (`server.json`) | 5 | v1.x+ | **DONE** | merged #28 → develop | 06-03 | version-gated; owner submits via `mcp-publisher` |
 | WP-41b | Second synchronized release (v1.5.0) | 5 | v1.x+ | **DONE 🚢** | tag v1.5.0 (run 26844874577) | 06-03 | PyPI + GitHub Release + .mcpb + tap + GHCR; smoke ✓ |
+| WP-64 | Classical-extractor quality (PIPE-06) | 4 | v1.x+ | **DONE** | merged #30 → develop | 06-03 | leading-determiner merge; clean facts; abbrev-aware split |
+| WP-41c | README release (v1.5.1) + PIPE-06 release (v1.5.2) | 5 | v1.x+ | **DONE 🚢** | tags v1.5.1 / v1.5.2 | 06-03 | novice README live on PyPI/GitHub; smoke ✓ |
 
 ## Artifacts
 `AUDIT.md` · `IMPROVEMENT_PLAN.md` · `ACCEPTANCE.md` · `RISKS.md` · `DECISIONS.md` · `SESSION_LOG.md` · `/CHANGELOG.md` · (later: `PUBLISH_MANIFEST.md`, `TEST_REPORT.md`, `SECURITY.md`)

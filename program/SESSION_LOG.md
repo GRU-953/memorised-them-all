@@ -372,3 +372,15 @@ Cut **v1.5.1** to surface the rewritten README. Bumped all 7 version strings 1.5
 **Owner follow-ups (one-time, none blocking):** rotate `HOMEBREW_TAP_TOKEN`; `mcp-publisher publish` the registry `server.json`; optionally make the GHCR package public.
 
 **EXACT NEXT STEP:** None. The program objective is met; any further work (deferred Low/Med in `REVIEW.md`, directory listings) is optional and resumes from PROGRESS ▶ RESUME HERE.
+
+---
+
+## Session 16 (cont. 4) — 2026-06-03 — last deferred fix (PIPE-06) → 🚢 v1.5.2; backlog EXHAUSTED
+
+Worked the last clearly-worthwhile deferred item. **WP-64 / PIPE-06 (#30):** the classical (offline) extractor now strips a leading determiner ("The Nordic Grid Authority" → merges with "Nordic Grid Authority"), collapses internal whitespace in facts (no mid-fact newlines), and splits sentences abbreviation-aware (an honorific like "Dr." no longer truncates a fact). `tests/test_classical_extraction.py`; offline suite green, no regression; LLM path untouched.
+
+**🚢 v1.5.2 SHIPPED.** Bumped 7 strings 1.5.1→1.5.2, release PR #31 (21/21 checks green), merged (`main` `6aadebb`), tagged **`v1.5.2`** → run **26856061693 all 4 jobs green**. Verified: PyPI 1.5.2, GitHub Release v1.5.2 (13 signed assets), tap 1.5.2, GHCR. `develop` fast-forwarded → **`main` = `develop` = v1.5.2**.
+
+**The worthwhile backlog is now EXHAUSTED.** Remaining `REVIEW.md` items are *deliberately* not done, with rationale: full graph+vectors **write-transaction** (a torn store is already safe via the load guard → durability nicety not worth a risky store-layout + migration change; its own focused effort if ever wanted); **RECALL-02** (classical facts = provenance-tagged verbatim sentences, the designed recall) + **LIFE-02** residual (mitigated WP-14) — accepted/documented. Owner-only/external: token rotation, `mcp-publisher` submit, GHCR-public, directory listings; winget/scoop N/A for a pip tool.
+
+**EXACT NEXT STEP:** None — program complete (v1.4.0 hardened → v1.5.0 interop+backlog → v1.5.1 README → v1.5.2 PIPE-06), all published & verified. A future session would only pick up the deliberately-deferred items above, none required.
