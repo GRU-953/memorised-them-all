@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+### Fixed
+- **Classical (offline) extractor quality (PIPE-06).** The dependency-free extractor now
+  strips a leading determiner so "The Nordic Grid Authority" resolves to the same entity
+  as "Nordic Grid Authority"; collapses internal whitespace in facts (no more mid-fact
+  newlines from table/line breaks); and splits sentences abbreviation-aware, so an
+  honorific like "Dr." no longer truncates a fact (`… is Dr.`). Improves the offline path
+  the README promotes; no effect on the LLM path.
+
 ## [1.5.1] — 2026-06-03
 
 ### Changed
