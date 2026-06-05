@@ -148,6 +148,25 @@ def test_setup_claude_creates_when_absent_and_bakes_env(monkeypatch, tmp_path):
     assert entry["command"] == "mta" and entry["env"]["MTA_OCR_LANG"] == "eng+ben"
 
 
+def test_setup_claude_coerces_non_dict_mcpservers(monkeypatch, tmp_path):
+    # A stray non-dict mcpServers (e.g. a "[]" left by another tool / a host that
+    # reconciles its config) must not make setup silently no-op or raise: coerce to a
+    # dict, add the entry, preserve other keys, and leave no temp file behind.
+    desktop = tmp_path / "claude_desktop_config.json"
+    desktop.write_text(json.dumps({"mcpServers": [], "preferences": {"x": 1}}), encoding="utf-8")
+    monkeypatch.setattr(setupmod, "claude_desktop_config_path", lambda: desktop)
+    monkeypatch.setattr(setupmod, "claude_code_config_path", lambda: tmp_path / "absent.json")
+    monkeypatch.setattr(setupmod, "_mta_command", lambda: ["mta", "serve"])
+
+    res = setupmod.setup_claude()
+    d = json.loads(desktop.read_text())
+    assert isinstance(d["mcpServers"], dict)
+    assert d["mcpServers"]["memorised-them-all"] == {"command": "mta", "args": ["serve"]}
+    assert d["preferences"] == {"x": 1}                                   # preserved
+    assert res["targets"]["claude_desktop"]["changed"] is True
+    assert not (tmp_path / "claude_desktop_config.json.mta-tmp").exists()  # atomic temp cleaned up
+
+
 # ---- digest-all-file-types folder walk --------------------------------------
 
 def _docs_dir(tmp_path):
