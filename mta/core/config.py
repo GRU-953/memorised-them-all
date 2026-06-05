@@ -81,6 +81,11 @@ class Config:
     # default stays the accurate LLM path.
     fast: bool = field(default_factory=lambda: _env("MTA_FAST", "off").lower()
                        in ("on", "1", "true", "yes"))
+    # Digest ALL file types: when on (default), a folder/glob digest also picks up unknown
+    # extensions (digested as text when textual; binaries skipped). Hidden files/dirs (.*)
+    # are still skipped. Off → only the known SUPPORTED_EXTS are collected.
+    digest_all: bool = field(default_factory=lambda: _env("MTA_DIGEST_ALL", "on").strip().lower()
+                             not in ("off", "0", "false", "no"))
     community_algo: str = field(default_factory=lambda: _env("MTA_COMMUNITY_ALGO", "auto"))  # auto|leiden|louvain|greedy
     chunk_chars: int = field(default_factory=lambda: _env_int("MTA_CHUNK_CHARS", 1200))
     recall_k: int = field(default_factory=lambda: _env_int("MTA_RECALL_K", 8))
