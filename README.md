@@ -87,7 +87,13 @@ claude
 pip install memorised-them-all
 ```
 
-Then add it to your client's MCP config as a server that runs `mta serve`. For example, in `claude_desktop_config.json` or `~/.claude/mcp.json`:
+Then register it with Claude — easiest is to let it configure itself:
+
+```bash
+mta setup-claude     # writes the MCP server into Claude Desktop (and Claude Code) config
+```
+
+(The `install.sh` installer runs this for you automatically.) Or add it by hand — it just runs `mta serve`:
 
 ```json
 {
@@ -195,7 +201,13 @@ The first run sets things up (and, if you have Ollama, may load a model). Later 
 <details>
 <summary><b>What files can it read?</b></summary>
 
-PDFs, Word/Excel/PowerPoint, plain text/Markdown, HTML, CSV, RTF, common images (via OCR), and audio (transcribed locally) — among others. Ask Claude to *"list what's digestible in this folder"* to see.
+PDFs, Word/Excel/PowerPoint, plain text/Markdown, HTML, CSV/JSON/XML, RTF, EPUB, common images (via OCR), and audio (transcribed locally). Beyond those, **any other text-based file is digested too** (source code, `.log`, `.ini`, `.tex`, …); only genuine binaries are skipped — so a whole folder gets captured. Ask Claude to *"list what's digestible in this folder"* to see.
+</details>
+
+<details>
+<summary><b>What languages does it understand?</b></summary>
+
+Text in any language works (it's Unicode throughout). For **scanned documents and images**, OCR runs **English + Bangla by default** (`eng+ben`); set `MTA_OCR_LANG` to other [Tesseract codes](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html) (e.g. `eng+hin+ara`). Any language pack you don't have installed is dropped automatically, so it never errors.
 </details>
 
 <details>
@@ -300,6 +312,7 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memory is stored |
+| `MTA_OCR_LANG` | `eng+ben` | OCR languages (Tesseract codes; missing packs dropped automatically) |
 | `MTA_NO_OLLAMA` | unset | force fully-offline mode (no AI model) |
 | `MTA_AUTO_UPDATE` | `on` | daily update check (`off` to disable) |
 | `MTA_PROFILE` | unset | tuning preset: `laptop` · `workstation` · `server` · `offline` |

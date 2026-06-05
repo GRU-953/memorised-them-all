@@ -102,6 +102,41 @@ def _tesseract_bin() -> str | None:
     return shutil.which("tesseract")
 
 
+_OCR_LANGS: "frozenset[str] | None" = None
+
+
+def _installed_ocr_langs() -> "frozenset[str]":
+    """Tesseract language packs actually present on this machine (cached)."""
+    global _OCR_LANGS
+    if _OCR_LANGS is None:
+        _OCR_LANGS = frozenset()
+        tess = _tesseract_bin()
+        if tess:
+            import subprocess
+            try:
+                out = subprocess.run([tess, "--list-langs"], capture_output=True,
+                                     timeout=15, text=True)
+                # Line 0 is a header; the rest are language codes.
+                _OCR_LANGS = frozenset(l.strip() for l in out.stdout.splitlines()[1:] if l.strip())
+            except (OSError, subprocess.SubprocessError):
+                _OCR_LANGS = frozenset()
+    return _OCR_LANGS
+
+
+def _resolve_ocr_lang(cfg: Config) -> str:
+    """Keep only the requested OCR languages Tesseract actually has, so a default of
+    ``eng+ben`` never errors on a machine that's missing the Bangla pack — it just
+    drops to whatever's installed."""
+    requested = [c for c in (cfg.ocr_lang or "eng").split("+") if c.strip()]
+    installed = _installed_ocr_langs()
+    if not installed:                       # couldn't enumerate → trust the request
+        return "+".join(requested) or "eng"
+    keep = [c for c in requested if c in installed]
+    if not keep:
+        keep = ["eng"] if "eng" in installed else sorted(installed)[:1]
+    return "+".join(keep) or "eng"
+
+
 def _ocr_image_bytes(png_bytes: bytes, cfg: Config) -> str | None:
     """OCR via piping PNG bytes to `tesseract stdin stdout` — no temp files.
 
@@ -112,7 +147,7 @@ def _ocr_image_bytes(png_bytes: bytes, cfg: Config) -> str | None:
     tess = _tesseract_bin()
     if not tess:
         return None
-    lang = cfg.ocr_lang or "eng"
+    lang = _resolve_ocr_lang(cfg)
     try:
         proc = subprocess.run([tess, "stdin", "stdout", "-l", lang, "--psm", "1"],
                               input=png_bytes, capture_output=True, timeout=180)
@@ -245,6 +280,30 @@ def _native_text(path: Path) -> tuple[str | None, str]:
     return (body or None), "data-passthrough"
 
 
+def _try_unknown_text(path: Path) -> tuple[str | None, str]:
+    """Best-effort digest of an unknown extension as plain text, so nothing textual
+    is silently skipped (source code, .log, .ini, .tex, .org, …). Genuine binaries
+    (NUL bytes / mostly non-printable) return None → 'unsupported'. UTF-8 multibyte
+    text (e.g. Bangla) is preserved — high bytes count as text, not binary."""
+    try:
+        with open(path, "rb") as f:
+            chunk = f.read(65536)
+    except OSError as e:
+        return None, f"read-error:{type(e).__name__}"
+    if not chunk:
+        return None, "empty"
+    if b"\x00" in chunk:                                  # NUL byte → binary
+        return None, "binary"
+    printable = sum(1 for b in chunk if 9 <= b <= 13 or 32 <= b <= 126 or b >= 128)
+    if printable / len(chunk) < 0.85:                     # mostly control bytes → binary
+        return None, "binary"
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError as e:
+        return None, f"read-error:{type(e).__name__}"
+    return (raw or None), "text-fallback"
+
+
 def convert_file(path: Path, out_dir: Path, cfg: Config,
                  ollama: OllamaManager | None = None,
                  out_name: str | None = None) -> ConvResult:
@@ -290,8 +349,12 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     elif ext in _AUDIO_EXTS:
         text, method = _try_whisper(path, cfg)
     else:
-        res.status, res.method = "unsupported", ext or "no-ext"
-        return res
+        # All other file types: digest as plain text when the content looks textual;
+        # genuine binaries stay 'unsupported'.
+        text, method = _try_unknown_text(path)
+        if text is None:
+            res.status, res.method, res.error = "unsupported", ext or "no-ext", method
+            return res
 
     res.method = method
     if text is None:

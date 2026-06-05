@@ -37,12 +37,28 @@ def _slugify(name: str) -> str:
     return (slug.lower() or "default")[:120]  # cap so the dir name never exceeds FS limits
 
 
+def _resolve_home() -> Path:
+    """Resolve ``MTA_HOME`` robustly.
+
+    Some launchers — notably MCPB / Claude Desktop manifest substitution — can pass
+    an **unexpanded** value such as ``${HOME}/.memorised-them-all``. We expand
+    ``$VAR`` / ``${VAR}`` and ``~`` ourselves; if a placeholder still survives, or the
+    result isn't an absolute path, fall back to the safe default instead of writing to
+    a bogus literal directory (which silently broke ``digest`` and left
+    ``config_file`` null)."""
+    raw = _env("MTA_HOME", "").strip()
+    if raw:
+        cand = Path(os.path.expanduser(os.path.expandvars(raw)))
+        if cand.is_absolute() and "$" not in str(cand):
+            return cand
+    return Path.home() / ".memorised-them-all"
+
+
 @dataclass
 class Config:
     """Resolved runtime configuration for one engine invocation."""
 
-    home: Path = field(default_factory=lambda: Path(
-        _env("MTA_HOME", str(Path.home() / ".memorised-them-all"))).expanduser())
+    home: Path = field(default_factory=_resolve_home)
 
     # Models (all local / Ollama).
     extract_model: str = field(default_factory=lambda: _env("MTA_EXTRACT_MODEL", "qwen2.5:7b"))
@@ -51,7 +67,9 @@ class Config:
     whisper_model: str = field(default_factory=lambda: _env("MTA_WHISPER_MODEL", "base"))
 
     # Conversion.
-    ocr_lang: str = field(default_factory=lambda: _env("MTA_OCR_LANG", "eng"))
+    # English + Bangla by default (eng+ben). Missing Tesseract language packs are
+    # dropped gracefully at OCR time, so this never breaks a machine that only has eng.
+    ocr_lang: str = field(default_factory=lambda: _env("MTA_OCR_LANG", "eng+ben"))
     ocr_mode: str = field(default_factory=lambda: _env("MTA_OCR", "auto"))        # auto|off|force|hybrid
     vision_mode: str = field(default_factory=lambda: _env("MTA_VISION", "auto"))   # auto|off|force
     transcribe_mode: str = field(default_factory=lambda: _env("MTA_TRANSCRIBE", "auto"))  # auto|off

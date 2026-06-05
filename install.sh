@@ -88,7 +88,7 @@ elif command -v apt-get >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && e
   fi
 elif command -v dnf >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via dnf…"
-  $SUDO dnf install -y tesseract ffmpeg >/dev/null 2>&1 || true
+  $SUDO dnf install -y tesseract tesseract-langpack-eng tesseract-langpack-ben ffmpeg >/dev/null 2>&1 || true
   if ! command -v ollama >/dev/null 2>&1; then
     # Download then execute (not curl|sh) so partial/garbled output can't run.
     _oll="$(mktemp)"; curl -fsSL https://ollama.com/install.sh -o "$_oll" \
@@ -96,7 +96,7 @@ elif command -v dnf >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo 
   fi
 elif command -v pacman >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via pacman…"
-  $SUDO pacman -S --noconfirm tesseract tesseract-data-eng ffmpeg ollama >/dev/null 2>&1 || true
+  $SUDO pacman -S --noconfirm tesseract tesseract-data-eng tesseract-data-ben ffmpeg ollama >/dev/null 2>&1 || true
 else
   log "No usable package manager (or sudo unavailable) — install Ollama/Tesseract/ffmpeg manually for full features."
 fi
@@ -112,5 +112,12 @@ if [ "${MTA_SKIP_MODELS:-0}" != "1" ] && command -v ollama >/dev/null 2>&1; then
   ) &
 fi
 
+# --- 5. Register the MCP server in Claude's config (the "Claude Setup file") -------
+if [ "${MTA_SKIP_CLAUDE_SETUP:-0}" != "1" ]; then
+  log "Registering the MCP server in Claude's config…"
+  PATH="$VENV/bin:$PATH" "$PYBIN" -m mta.cli setup-claude 2>&1 | sed 's/^/  /' \
+    || log "  (auto-register skipped — run 'mta setup-claude' to do it manually)"
+fi
+
 touch "$STATE/installed"
-log "Done. Run 'mta status' to verify, or 'mta digest <folder>' to begin."
+log "Done. Restart Claude (quit + reopen), then say 'Memorise my Documents folder'."
