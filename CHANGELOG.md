@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-06-06
+
+### Fixed
+- **`mta setup-claude` now writes the Claude config atomically.** `_merge_into` used a
+  plain `write_text`, so a host that watches and reconciles its config (a running Claude
+  Desktop) could observe a half-written file or revert the freshly-added `mcpServers`
+  entry. The write is now staged to a temp file and committed with a single `os.replace`
+  rename. It also **coerces a non-dict `mcpServers`** (e.g. a stray `[]` left by another
+  tool) to a dict, so the merge can neither silently no-op nor raise.
+
+### Changed
+- **Plugin/marketplace `.mcp.json` defaults aligned to the v1.6.x code defaults** —
+  `MTA_OCR_LANG=eng+ben` (was `eng`) and `MTA_DIGEST_ALL=on`, so a plugin-mode install gets
+  English + Bangla OCR and all-file-types digesting out of the box.
+
 ## [1.6.1] — 2026-06-06
 
 ### Fixed
