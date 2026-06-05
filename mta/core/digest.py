@@ -30,27 +30,41 @@ from .segment import segment_file
 
 
 # ---- input expansion --------------------------------------------------
-def _expand(paths: list[str]) -> list[Path]:
+def _expand(paths: list[str], *, all_types: bool = True) -> list[Path]:
     files: list[Path] = []
     seen: set[str] = set()
 
-    def add(p: Path):
+    def add(p: Path, *, explicit: bool = False, root: Path | None = None):
         rp = str(p.resolve())
-        if rp not in seen and p.is_file() and p.suffix.lower() in SUPPORTED_EXTS:
-            seen.add(rp)
-            files.append(p)
+        if rp in seen or not p.is_file():
+            return
+        known = p.suffix.lower() in SUPPORTED_EXTS
+        if not explicit and not known:
+            # Unknown extension: include it (so convert_file's text-fallback can digest
+            # it, or skip binaries) only when digesting all file types, and never if it's
+            # hidden relative to the walked root (.git, .DS_Store, dotfiles, …).
+            if not all_types:
+                return
+            try:
+                rel = p.relative_to(root).parts if root else (p.name,)
+            except ValueError:
+                rel = (p.name,)
+            if any(part.startswith(".") for part in rel):
+                return
+        seen.add(rp)
+        files.append(p)
 
     for raw in paths:
-        if any(ch in raw for ch in "*?[")  and not Path(raw).exists():
+        if any(ch in raw for ch in "*?[") and not Path(raw).exists():
             for hit in _glob.glob(raw, recursive=True):
                 add(Path(hit))
             continue
         p = Path(raw).expanduser()
         if p.is_dir():
             for child in sorted(p.rglob("*")):
-                add(child)
+                add(child, root=p)
         else:
-            add(p)
+            add(p, explicit=True)   # an explicitly-named file is always digested
     return files
 
 
@@ -163,7 +177,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
         _reset_project(cfg)
         cfg.ensure_dirs()
 
-    files = _expand(paths)
+    files = _expand(paths, all_types=cfg.digest_all)
     if not files:
         return {"status": "no_input", "project": cfg.project,
                 "message": "No convertible files found.", "paths": paths}
