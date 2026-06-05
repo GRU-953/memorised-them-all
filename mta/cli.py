@@ -12,6 +12,7 @@ Subcommands:
   mta serve [--http | --rest] [--host H] [--port N]  run the server (stdio; --http=MCP HTTP; --rest=JSON gateway)
   mta export-schema [--format F] [--out DIR]     export tool schemas (OpenAI/Gemini/OpenAPI 3.1)
   mta recipes [--format text|json]               per-client connection recipes (every surface)
+  mta setup-claude [--env KEY=VALUE]             register this server in Claude's config (Desktop + Code)
 """
 from __future__ import annotations
 
@@ -89,7 +90,24 @@ def main(argv: list[str] | None = None) -> int:
     rc.add_argument("--format", choices=["text", "json"], default="text",
                     help="output format (default: text)")
 
+    scl = sub.add_parser("setup-claude",
+                         help="register this MCP server in Claude's config (Desktop + Code)")
+    scl.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                     help="extra MTA_* env to bake into the server entry (repeatable)")
+
     args = p.parse_args(argv)
+
+    # setup-claude only writes the host's Claude config — no engine wiring needed.
+    if args.cmd == "setup-claude":
+        from .core.setup import setup_claude, render_summary
+        env = {}
+        for kv in args.env:
+            k, _, v = kv.partition("=")
+            if k.strip():
+                env[k.strip()] = v
+        result = setup_claude(env=env or None)
+        print(render_summary(result))
+        return 0
 
     # export-schema is pure + offline (it only reads the in-process tool registry),
     # so it needs no config load or PATH bootstrap — dispatch before the engine wiring.
