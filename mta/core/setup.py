@@ -58,10 +58,20 @@ def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME) -> dict:
                 cfg = {}
         if not isinstance(cfg, dict):
             cfg = {}
-        servers = cfg.setdefault("mcpServers", {})
+        # Coerce a non-dict ``mcpServers`` (e.g. a stray ``[]`` left by another tool)
+        # to a dict, so the merge can neither silently no-op nor raise on ``.get``.
+        servers = cfg.get("mcpServers")
+        if not isinstance(servers, dict):
+            servers = {}
+            cfg["mcpServers"] = servers
         already = servers.get(name) == entry
         servers[name] = entry
-        path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        # Atomic write: stage to a temp file then ``os.replace`` (a single rename is the
+        # commit point), so a watcher — e.g. a running Claude Desktop — never sees a
+        # half-written file and the entry can't be lost to an interleaved read.
+        tmp = path.with_name(path.name + ".mta-tmp")
+        tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
         return {"path": str(path), "status": "ok",
                 "changed": not already, "backup": str(backed_up) if backed_up else None}
     except OSError as exc:
