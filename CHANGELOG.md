@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-06-06
+
+### Fixed
+- **Digest *all* file types — for real, in folder digests.** v1.6.0 added a plain-text
+  fallback in the converter, but the directory walk (`_expand`) still filtered every path
+  by `SUPPORTED_EXTS`, so unknown extensions in a folder never reached it. The walk now
+  includes unknown extensions too (digested as text when textual, binaries skipped),
+  skipping only hidden files/dirs (`.git`, dotfiles, …); an explicitly-named file is always
+  digested. Gated by `MTA_DIGEST_ALL` (default `on`; set `off` for known-types-only).
+
 ## [1.6.0] — 2026-06-06
 
 ### Fixed

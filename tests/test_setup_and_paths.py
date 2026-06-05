@@ -146,3 +146,41 @@ def test_setup_claude_creates_when_absent_and_bakes_env(monkeypatch, tmp_path):
     setupmod.setup_claude(env={"MTA_OCR_LANG": "eng+ben"})
     entry = json.loads(desktop.read_text())["mcpServers"]["memorised-them-all"]
     assert entry["command"] == "mta" and entry["env"]["MTA_OCR_LANG"] == "eng+ben"
+
+
+# ---- digest-all-file-types folder walk --------------------------------------
+
+def _docs_dir(tmp_path):
+    d = tmp_path / "docs"; d.mkdir()
+    (d / "note.txt").write_text("Aurora", encoding="utf-8")        # known
+    (d / "code.pyx").write_text("Aurora()", encoding="utf-8")      # unknown text
+    (d / "blob.bin").write_bytes(b"\x00\x01\x02")                  # unknown binary
+    (d / ".hidden.xyz").write_text("secret", encoding="utf-8")     # hidden file
+    g = d / ".git"; g.mkdir(); (g / "config").write_text("x", encoding="utf-8")  # hidden dir
+    return d
+
+
+def test_expand_all_types_includes_unknown_skips_hidden(tmp_path):
+    from mta.core.digest import _expand
+    names = {p.name for p in _expand([str(_docs_dir(tmp_path))], all_types=True)}
+    assert {"note.txt", "code.pyx", "blob.bin"} <= names   # unknown exts picked up
+    assert ".hidden.xyz" not in names and "config" not in names  # hidden skipped
+
+
+def test_expand_all_types_off_keeps_known_only(tmp_path):
+    from mta.core.digest import _expand
+    names = {p.name for p in _expand([str(_docs_dir(tmp_path))], all_types=False)}
+    assert names == {"note.txt"}
+
+
+def test_expand_explicit_unknown_file_always_included(tmp_path):
+    from mta.core.digest import _expand
+    f = tmp_path / "script.pyx"; f.write_text("x", encoding="utf-8")
+    assert [p.name for p in _expand([str(f)], all_types=False)] == ["script.pyx"]
+
+
+def test_digest_all_default_on():
+    from mta.core.config import Config
+    import os
+    os.environ.pop("MTA_DIGEST_ALL", None)
+    assert Config().digest_all is True
