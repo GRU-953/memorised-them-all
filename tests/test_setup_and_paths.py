@@ -18,18 +18,21 @@ from mta.core.config import Config, _resolve_home
 
 def test_resolve_home_expands_dollar_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows: Path.home()/expanduser use USERPROFILE
     monkeypatch.setenv("MTA_HOME", "${HOME}/.memorised-them-all")
     assert _resolve_home() == tmp_path / ".memorised-them-all"
 
 
 def test_resolve_home_expands_tilde(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows: Path.home()/expanduser use USERPROFILE
     monkeypatch.setenv("MTA_HOME", "~/mem")
     assert _resolve_home() == tmp_path / "mem"
 
 
 def test_resolve_home_falls_back_on_unexpandable(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows: Path.home()/expanduser use USERPROFILE
     monkeypatch.delenv("MTA_NONEXIST_VAR", raising=False)
     monkeypatch.setenv("MTA_HOME", "${MTA_NONEXIST_VAR}/x")
     assert _resolve_home() == tmp_path / ".memorised-them-all"
@@ -37,12 +40,14 @@ def test_resolve_home_falls_back_on_unexpandable(monkeypatch, tmp_path):
 
 def test_resolve_home_falls_back_on_relative(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows: Path.home()/expanduser use USERPROFILE
     monkeypatch.setenv("MTA_HOME", "relative/not/absolute")
     assert _resolve_home() == tmp_path / ".memorised-them-all"
 
 
 def test_config_home_resolves_and_writes(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows: Path.home()/expanduser use USERPROFILE
     monkeypatch.setenv("MTA_HOME", "${HOME}/.memorised-them-all")
     cfg = Config()
     assert cfg.home == tmp_path / ".memorised-them-all"
