@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-06-06
+
+### Fixed
+- **`${HOME}` path bug that blocked digesting.** When a launcher (e.g. Claude Desktop's
+  MCPB manifest substitution) passed `MTA_HOME` as a literal, unexpanded
+  `${HOME}/.memorised-them-all`, the engine tried to write to a bogus directory — so
+  `config_file` came back `null` and `digest` failed. `MTA_HOME` is now resolved robustly:
+  `$VAR`/`${VAR}` and `~` are expanded, and an unexpandable placeholder or non-absolute
+  path falls back to the safe default instead of writing junk.
+
+### Changed
+- **English + Bangla OCR by default** (`MTA_OCR_LANG=eng+ben`). OCR now also **drops any
+  requested language Tesseract doesn't have installed**, so the new default never errors
+  on a machine with only `eng` — it degrades gracefully.
+- **Digest all file types.** Unknown extensions are now digested as plain text when the
+  content looks textual (source code, `.log`, `.ini`, `.tex`, `.org`, …, including UTF-8
+  Bangla); genuine binaries remain a clean `unsupported`. Nothing textual is silently skipped.
+
+### Added
+- **`mta setup-claude`** — registers this MCP server in the host's Claude config
+  (Claude Desktop `claude_desktop_config.json`, and Claude Code `~/.claude.json` when
+  present), idempotently and with a backup. **`install.sh` now runs it automatically**, so
+  a fresh install wires itself into Claude with no hand-edited JSON (opt out with
+  `MTA_SKIP_CLAUDE_SETUP=1`). The Bangla Tesseract pack is installed on dnf/pacman too
+  (macOS/apt already did). MLX (Apple-GPU Whisper) + the default Ollama models
+  (`qwen2.5:7b`/`nomic-embed-text`/`moondream`) remain the install defaults.
+
 ## [1.5.2] — 2026-06-03
 
 ### Fixed
