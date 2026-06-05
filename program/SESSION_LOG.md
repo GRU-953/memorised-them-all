@@ -384,3 +384,20 @@ Worked the last clearly-worthwhile deferred item. **WP-64 / PIPE-06 (#30):** the
 **The worthwhile backlog is now EXHAUSTED.** Remaining `REVIEW.md` items are *deliberately* not done, with rationale: full graph+vectors **write-transaction** (a torn store is already safe via the load guard → durability nicety not worth a risky store-layout + migration change; its own focused effort if ever wanted); **RECALL-02** (classical facts = provenance-tagged verbatim sentences, the designed recall) + **LIFE-02** residual (mitigated WP-14) — accepted/documented. Owner-only/external: token rotation, `mcp-publisher` submit, GHCR-public, directory listings; winget/scoop N/A for a pip tool.
 
 **EXACT NEXT STEP:** None — program complete (v1.4.0 hardened → v1.5.0 interop+backlog → v1.5.1 README → v1.5.2 PIPE-06), all published & verified. A future session would only pick up the deliberately-deferred items above, none required.
+
+---
+
+## Session 17 — 2026-06-06 — user-reported `${HOME}` digest bug → WP-65/65b → 🚢 v1.6.0 + v1.6.1; local install + ⚠ machine instability
+
+User reported the memory plugin's `${HOME}` bug blocking digests (`config_file: null`) + asked to also default to English+Bangla, all file types, MLX, Ollama-by-default, and write the Claude setup at install; then test/improve/README.
+
+**Diagnosis (live `memory_status`):** Ollama + 3 models, MLX (`gpu: mlx`), Tesseract/ffmpeg all already present (so MLX + Ollama defaults were already satisfied). The bug: the `.mcpb` manifest passes `MTA_HOME=${HOME}/…` and Claude Desktop didn't expand it → the engine wrote to a literal `${HOME}` dir → `config_file` null → digest failed.
+
+**WP-65 (v1.6.0, merged #32):** `config._resolve_home` expands `$VAR`/`${VAR}`/`~` with a safe fallback (the fix); OCR default `eng+ben` with graceful drop of missing Tesseract packs; convert-level plain-text fallback for unknown extensions; new `mta setup-claude` (registers the server in Claude Desktop/Code config, idempotent + backup) run automatically by `install.sh` (+ Bangla pack on dnf/pacman). 16 tests. **Windows CI caught a POSIX-only test assumption** (`Path.home()` uses `USERPROFILE`) — fixed the test, re-green.
+**WP-65b (v1.6.1, merged #34):** the v1.6.0 fallback was unreachable in folder digests (`_expand` filtered by `SUPPORTED_EXTS`); `_expand` now includes unknown extensions in folder/glob walks (`MTA_DIGEST_ALL` default on; hidden + binaries skipped), always digests explicit files. +4 tests.
+
+**Verified end-to-end on the published packages:** literal `${HOME}` → `config_file` populated + digest ok + recall hits; folder digest picks up `code.pyx`; Bangla text digested; stdio handshake = 8 tools.
+
+**⚠ Machine instability (not a plugin bug):** twice during the session, files on the *user's machine* vanished — first the repo's `.git` (recovered by re-attaching to origin via `git init` + fetch + reset; **no work lost**, all was pushed), then the **entire Homebrew `mta` install** (bin + Cellar + tap). Root cause unknown (cleanup utility / Time Machine / disk). **Mitigation:** moved the user's install to a self-contained venv `~/.mta-app/venv` (1.6.1) and pointed Claude Desktop + Claude Code configs at it via `setup-claude` (backups saved). Flagged for the user to investigate + to remove the now-redundant broken `.mcpb`.
+
+**EXACT NEXT STEP:** None required — v1.6.1 shipped + verified; the user's `${HOME}` digest bug is fixed and their install/config rebuilt on a venv. User actions (not blocking): investigate the file-deletion cause; remove the old `.mcpb` extension; restart Claude. Released code carries the fix for the `.mcpb` path too (rebuild/reinstall the `.mcpb` from v1.6.1 if they prefer the extension).
