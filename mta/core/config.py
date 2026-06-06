@@ -60,11 +60,15 @@ class Config:
 
     home: Path = field(default_factory=_resolve_home)
 
-    # Models (all local / Ollama).
-    extract_model: str = field(default_factory=lambda: _env("MTA_EXTRACT_MODEL", "qwen2.5:7b"))
-    embed_model: str = field(default_factory=lambda: _env("MTA_EMBED_MODEL", "nomic-embed-text"))
-    vision_model: str = field(default_factory=lambda: _env("MTA_VISION_MODEL", "moondream"))
-    whisper_model: str = field(default_factory=lambda: _env("MTA_WHISPER_MODEL", "base"))
+    # Models (all local / Ollama). Defaults are tuned to be the optimum that fits a
+    # 16 GB Apple-Silicon Mac with headroom (extraction + embedding + vision can be
+    # co-resident) while being newer-generation and multilingual (incl. Bangla):
+    #   extract qwen3:4b-instruct (2.5 GB)  embed qwen3-embedding:0.6b (0.64 GB, 1024-d)
+    #   vision  qwen3-vl:4b-instruct (3.3 GB)  whisper small. See README "Choosing a model".
+    extract_model: str = field(default_factory=lambda: _env("MTA_EXTRACT_MODEL", "qwen3:4b-instruct"))
+    embed_model: str = field(default_factory=lambda: _env("MTA_EMBED_MODEL", "qwen3-embedding:0.6b"))
+    vision_model: str = field(default_factory=lambda: _env("MTA_VISION_MODEL", "qwen3-vl:4b-instruct"))
+    whisper_model: str = field(default_factory=lambda: _env("MTA_WHISPER_MODEL", "small"))
 
     # Conversion.
     # English + Bangla by default (eng+ben). Missing Tesseract language packs are

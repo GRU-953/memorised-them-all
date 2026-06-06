@@ -313,9 +313,10 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memory is stored |
 | `MTA_OCR_LANG` | `eng+ben` | OCR languages (Tesseract codes; missing packs dropped automatically) |
-| `MTA_EXTRACT_MODEL` | `qwen2.5:7b` | extraction LLM — lighter/multilingual options under "Choosing a model" below |
-| `MTA_EMBED_MODEL` | `nomic-embed-text` | embedding model — use `bge-m3` for Bangla/multilingual recall |
-| `MTA_VISION_MODEL` | `moondream` | image-caption model |
+| `MTA_EXTRACT_MODEL` | `qwen3:4b-instruct` | extraction LLM — alternatives under "Choosing a model" below |
+| `MTA_EMBED_MODEL` | `qwen3-embedding:0.6b` | multilingual embeddings (1024-d, incl. Bangla) |
+| `MTA_VISION_MODEL` | `qwen3-vl:4b-instruct` | image caption / OCR-assist (32-language) |
+| `MTA_WHISPER_MODEL` | `small` | on-device speech-to-text size |
 | `MTA_NO_OLLAMA` | unset | force fully-offline mode (no AI model) |
 | `MTA_AUTO_UPDATE` | `on` | daily update check (`off` to disable) |
 | `MTA_PROFILE` | unset | tuning preset: `laptop` · `workstation` · `server` · `offline` |
@@ -327,42 +328,47 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 <details>
 <summary><b>Choosing a local model (lighter / multilingual alternatives)</b><a id="choosing-a-model"></a></summary>
 
-Every model is configurable. The defaults are tuned for quality on a ~16 GB machine; the alternatives below are lighter and/or more multilingual (helpful for Bangla). All tags are real Ollama library models — `ollama pull <model>` first, or just set the variable and let the on-demand pull handle it.
+Every model is configurable. The **defaults are the optimum stack for a 16 GB Apple-Silicon Mac** — newer-generation, multilingual (incl. Bangla), and small enough to co-reside (extraction + embedding + vision ≈ 6.5 GB, leaving headroom). All tags are verified-real Ollama models — just set the variable (or the extension settings) and the on-demand pull handles the rest. Sizes are q4-class downloads.
 
 **Extraction LLM — `MTA_EXTRACT_MODEL`** (entity/relation/fact extraction + summaries):
 
 | Model | Size | Best for |
 | --- | --- | --- |
-| `qwen2.5:7b` *(default)* | ~4.7 GB | Best extraction quality + JSON structure |
-| `gemma3:4b-it-qat` | 4.0 GB | **Lighter + strongly multilingual** (140+ languages incl. Bangla); quantization-aware-trained ≈ BF16 quality |
-| `gemma3n:e2b-it-q4_K_M` | 5.6 GB | On-device-efficient (fast, ~2 B effective compute), multilingual |
-| `gemma3:1b-it-qat` | 1.0 GB | Minimal-RAM / fastest; basic extraction |
-| `qwen2.5:3b` | ~1.9 GB | Light English-centric alternative |
+| `qwen3:4b-instruct` *(default)* | 2.5 GB | **Optimum on 16 GB** — newer-gen, non-thinking (clean JSON), 119 languages incl. Bangla |
+| `qwen3:8b` | 5.2 GB | Higher quality if you have RAM — best Bangla + instruction-following |
+| `gemma3:4b-it-qat` | 4.0 GB | QAT ≈ BF16 quality, 140+ languages |
+| `llama3.2:3b` | 2.0 GB | Lightest solid English-centric option |
+| `qwen2.5:7b` | 4.7 GB | Previous default (older generation) |
 
-> Note: there is **no `gemma4` / `gemma4:e2b-it-qat`** on Ollama. Gemma **3n** provides the `e2b-it` ("effective-2B") models; Gemma **3** provides the `*-it-qat` (QAT) models. For Bangla-heavy use, `gemma3:4b-it-qat` is the sweet spot — it stays near full-precision quality at 4 GB while covering 140+ languages.
+> **Pin the `-instruct` builds.** Bare `qwen3:4b` / `qwen3-vl:4b` are *thinking* models that emit chain-of-thought (bad for strict JSON / captions). Newest/experimental (mid-2026, less battle-tested): `qwen3.5:4b` (text) and `gemma4:e2b-it-qat` (text+vision) exist now — fine to try, but the picks above are the stable, instruct-guaranteed defaults.
 
 **Embeddings — `MTA_EMBED_MODEL`** (entity resolution + recall):
 
 | Model | Size | Best for |
 | --- | --- | --- |
-| `nomic-embed-text` *(default)* | ~0.3 GB | Fast, English-centric |
-| `bge-m3` | 1.2 GB | **Bangla / mixed-language recall** (100+ languages, 8 K context) |
-| `mxbai-embed-large` | ~0.7 GB | Higher-quality English (1024-dim) |
+| `qwen3-embedding:0.6b` *(default)* | 0.64 GB | **Optimum** — 1024-d, 100+ languages incl. Bangla, top multilingual retrieval (MMTEB ≈ 64) |
+| `bge-m3` | 1.2 GB | Explicit Bengali + hybrid dense/sparse (helps fuzzy entity matching) |
+| `embeddinggemma:300m` | 0.62 GB | 768-d multilingual; smaller footprint |
+| `nomic-embed-text` | 0.27 GB | English-only (previous default) |
 
-> Switching the embedding model changes the vector dimension, so **re-digest the project with `reset: true`** after changing it.
+> Switching the embedding model changes the vector dimension, so **re-digest with `reset: true`** afterwards — recall transparently falls back to lexical scoring until you do (it never errors).
 
 **Vision — `MTA_VISION_MODEL`** (captions images OCR can't read):
 
 | Model | Size | Best for |
 | --- | --- | --- |
-| `moondream` *(default)* | ~1.7 GB | Tiny, fast |
-| `llama3.2-vision` | ~7.8 GB | Much stronger; text-in-image / diagrams; multilingual |
-| `qwen2.5vl` · `granite3.2-vision` | ~6 GB | Strong document / figure understanding |
+| `qwen3-vl:4b-instruct` *(default)* | 3.3 GB | 32-language OCR incl. Bangla; reads charts / diagrams / forms |
+| `qwen3-vl:2b-instruct` | 1.9 GB | Same OCR engine, lighter |
+| `gemma3:4b` | 3.3 GB | 140+ languages |
+| `granite3.2-vision:2b` | 2.4 GB | Document / table / chart OCR (IBM) |
+| `moondream` | 1.7 GB | Tiniest / fastest (English-only; previous default) |
 
-Example — a lighter, Bangla-tuned stack (set these in the Claude Desktop extension's settings, or as env vars):
+**Speech-to-text — `MTA_WHISPER_MODEL`:** default `small` (good speed/accuracy on 16 GB); `medium` or `large-v3-turbo` for maximum accuracy, `tiny`/`base` for low-resource. Runs on the Apple GPU via MLX-Whisper.
+
+The default stack is already optimal for 16 GB. To favour maximum quality (needs more RAM), escalate the extractor and re-digest:
 
 ```bash
-MTA_EXTRACT_MODEL=gemma3:4b-it-qat MTA_EMBED_MODEL=bge-m3 mta digest ~/docs --reset
+MTA_EXTRACT_MODEL=qwen3:8b mta digest ~/docs --reset
 ```
 
 </details>

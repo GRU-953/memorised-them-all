@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-06-06
+
+### Changed
+- **Default local-model stack re-tuned to the optimum for ≤16 GB Apple Silicon** —
+  newer-generation and multilingual (incl. Bangla), small enough to be co-resident with
+  headroom — based on fresh research verified against the live Ollama registry manifest API:
+  - Extraction (`MTA_EXTRACT_MODEL`): `qwen2.5:7b` → **`qwen3:4b-instruct`** (2.5 GB; a
+    non-thinking instruct build → clean JSON, 119 languages).
+  - Embeddings (`MTA_EMBED_MODEL`): `nomic-embed-text` → **`qwen3-embedding:0.6b`** (0.64 GB,
+    1024-d, 100+ languages — far stronger multilingual/Bangla recall, MMTEB ≈ 64).
+  - Vision (`MTA_VISION_MODEL`): `moondream` → **`qwen3-vl:4b-instruct`** (3.3 GB; 32-language
+    OCR incl. Bangla; reads charts/diagrams).
+  - Speech-to-text (`MTA_WHISPER_MODEL`): `base` → **`small`**.
+  All previous defaults remain available and documented as alternatives; every model is
+  overridable via env vars or the Claude Desktop extension settings.
+  **Existing memories are safe:** changing the embedding model changes the vector dimension,
+  so `recall` transparently falls back to lexical scoring (it never errors) until you
+  re-digest with `reset: true`, which rebuilds vectors at the new dimension.
+
+### Added
+- Query-side instruction prefix for `qwen3-embedding` models (their recommended usage),
+  improving recall quality.
+- Refreshed README "Choosing a model" + extension field descriptions with the verified
+  ≤16 GB stack and alternatives — including a warning that bare `qwen3:4b` / `qwen3-vl:4b`
+  are *thinking* builds (pin the `-instruct` tags), and that `qwen3.5` / `gemma4` now exist
+  as experimental options.
+
 ## [1.6.3] — 2026-06-06
 
 ### Added

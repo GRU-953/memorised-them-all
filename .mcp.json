@@ -5,12 +5,12 @@
       "args": ["${CLAUDE_PLUGIN_ROOT}/launch.sh"],
       "env": {
         "PYTHONUNBUFFERED": "1",
-        "MTA_EXTRACT_MODEL": "qwen2.5:7b",
-        "MTA_EMBED_MODEL": "nomic-embed-text",
-        "MTA_VISION_MODEL": "moondream",
+        "MTA_EXTRACT_MODEL": "qwen3:4b-instruct",
+        "MTA_EMBED_MODEL": "qwen3-embedding:0.6b",
+        "MTA_VISION_MODEL": "qwen3-vl:4b-instruct",
         "MTA_OCR_LANG": "eng+ben",
         "MTA_DIGEST_ALL": "on",
-        "MTA_WHISPER_MODEL": "base",
+        "MTA_WHISPER_MODEL": "small",
         "MTA_IDLE": "300",
         "MTA_WORKERS": "0",
         "MTA_AUTO_UPDATE": "on"
