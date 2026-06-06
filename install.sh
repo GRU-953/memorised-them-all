@@ -103,9 +103,9 @@ fi
 
 # --- 4. Local models (background unless MTA_SKIP_MODELS=1) ------------------
 if [ "${MTA_SKIP_MODELS:-0}" != "1" ] && command -v ollama >/dev/null 2>&1; then
-  EXTRACT="${MTA_EXTRACT_MODEL:-qwen2.5:7b}"
-  EMBED="${MTA_EMBED_MODEL:-nomic-embed-text}"
-  VISION="${MTA_VISION_MODEL:-moondream}"
+  EXTRACT="${MTA_EXTRACT_MODEL:-qwen3:4b-instruct}"
+  EMBED="${MTA_EMBED_MODEL:-qwen3-embedding:0.6b}"
+  VISION="${MTA_VISION_MODEL:-qwen3-vl:4b-instruct}"
   log "Pulling local models ($EXTRACT, $EMBED, $VISION)…"
   ( ollama serve >/dev/null 2>&1 & sleep 2
     for m in "$EXTRACT" "$EMBED" "$VISION"; do ollama pull "$m" >/dev/null 2>&1 || true; done

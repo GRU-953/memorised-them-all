@@ -1,4 +1,4 @@
-"""Local text embeddings via Ollama (``nomic-embed-text`` by default).
+"""Local text embeddings via Ollama (``qwen3-embedding:0.6b`` by default).
 
 When Ollama or the embedding model is unavailable we fall back to a deterministic
 hashing embedding (a token "hashing trick" into a fixed dimension). The fallback
@@ -55,10 +55,16 @@ class Embedder:
         return self._mode or "hash"
 
     def _prefix(self, kind: str) -> str:
-        # nomic-embed-text is trained with task prefixes; without them short
-        # strings embed almost identically. Other models get no prefix.
-        if "nomic" in (self.cfg.embed_model or "").lower():
+        # Some embedders want task prefixes; without them short strings embed almost
+        # identically. nomic uses search_query/search_document on both sides; Qwen3-
+        # Embedding wants a one-line instruction on the QUERY side only (documents get
+        # none) — this measurably improves its retrieval. Anything else gets no prefix.
+        name = (self.cfg.embed_model or "").lower()
+        if "nomic" in name:
             return "search_query: " if kind == "query" else "search_document: "
+        if "qwen3-embedding" in name:
+            return ("Instruct: Retrieve passages relevant to the query.\nQuery: "
+                    if kind == "query" else "")
         return ""
 
     def embed(self, texts: list[str], kind: str = "document") -> np.ndarray:

@@ -1,6 +1,6 @@
 """Knowledge extraction — entities, typed relations, and atomic facts per chunk.
 
-Primary path: a local LLM (Ollama ``qwen2.5:7b`` by default, or any configured
+Primary path: a local LLM (Ollama ``qwen3:4b-instruct`` by default, or any configured
 OpenAI-compatible backend — see :mod:`mta.core.backends`) is asked for a strict
 JSON object of entities/relations/facts. Fallback path: a dependency-free classical
 extractor (capitalised noun-phrase + acronym detection for entities, intra-chunk
