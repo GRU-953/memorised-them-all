@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.6.3] — 2026-06-06
+
+### Added
+- **Lighter / multilingual local-model alternatives, documented and surfaced.** A new
+  "Choosing a model" section in the README plus enriched Claude Desktop extension
+  (`manifest.json`) field descriptions recommend opt-in alternatives to the defaults:
+  extraction — `gemma3:4b-it-qat` (4 GB, quantization-aware-trained ≈ BF16 quality, 140+
+  languages), `gemma3n:e2b-it-q4_K_M` (on-device-efficient), `gemma3:1b-it-qat`;
+  embeddings — `bge-m3` (100+ languages, ideal for Bangla/mixed-language recall),
+  `mxbai-embed-large`; vision — `llama3.2-vision`, `qwen2.5vl`, `granite3.2-vision`.
+  Clarifies that **`gemma4` does not exist** (Gemma 3n = `e2b-it`, Gemma 3 = `*-it-qat`).
+  Defaults are unchanged (`qwen2.5:7b` / `nomic-embed-text` / `moondream`); all are already
+  selectable via `MTA_EXTRACT_MODEL` / `MTA_EMBED_MODEL` / `MTA_VISION_MODEL` and the
+  extension settings. Note: changing the embedding model changes the vector dimension —
+  re-digest with `reset: true`.
+
 ## [1.6.2] — 2026-06-06
 
 ### Fixed
