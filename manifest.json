@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "memorised-them-all",
   "display_name": "Memorised them All (local, token-free)",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally.",
   "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, images, audio, and more) to Markdown locally using Microsoft's MarkItDown (kept up to date from upstream automatically), Tesseract OCR, on-device Whisper, and a local Ollama vision model. It then runs an original local pipeline — semantic chunking, local embeddings, local-LLM (with a classical fallback) extraction of entities/relations/facts, embedding+fuzzy entity resolution, and community detection — to build a layered knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, an exportable memory bundle, and an offline interactive mind map. Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens. Everything is free and open-source and runs locally; the Ollama model server starts on demand and stops after 5 minutes idle. Tuned for Apple M-series silicon (performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency).\n\nTools: digest, recall, memory_overview, export_memory, list_digestible, forget, memory_status, open_mindmap.",
   "author": {
@@ -56,18 +56,18 @@
     },
     "extract_model": {
       "type": "string", "title": "Extraction model (Ollama)",
-      "description": "Local LLM for entity/relation/fact extraction & summaries. Default qwen2.5:7b (best extraction quality). Lighter / strongly-multilingual alternatives — great for Bangla or 8-16GB machines: gemma3:4b-it-qat (4GB, quantization-aware-trained ≈ BF16 quality, 140+ languages), gemma3n:e2b-it-q4_K_M (on-device-efficient), gemma3:1b-it-qat (1GB, minimal), qwen2.5:3b.",
-      "required": false, "default": "qwen2.5:7b"
+      "description": "Local LLM for entity/relation/fact extraction & summaries. Default qwen3:4b-instruct (2.5GB; newer-gen, non-thinking so clean JSON, 119 languages incl. Bangla — best quality-per-GB on a 16GB machine). More quality if you have RAM: qwen3:8b (5.2GB). Other solid picks: gemma3:4b-it-qat (4GB, QAT≈BF16, 140+ langs), llama3.2:3b (2GB, lightest), qwen2.5:7b (previous default). Newest/experimental: qwen3.5:4b, gemma4:e2b-it-qat (text+vision).",
+      "required": false, "default": "qwen3:4b-instruct"
     },
     "embed_model": {
       "type": "string", "title": "Embedding model (Ollama)",
-      "description": "Local embedding model used for entity resolution and recall. Default nomic-embed-text (English-centric). For Bangla / mixed-language recall use bge-m3 (100+ languages, 1.2GB); mxbai-embed-large for higher-quality English. NOTE: changing this changes the vector dimension — re-digest a project with reset:true after switching.",
-      "required": false, "default": "nomic-embed-text"
+      "description": "Local embedding model for entity resolution and recall. Default qwen3-embedding:0.6b (0.64GB, 1024-d, 100+ languages incl. Bangla — top multilingual retrieval at a tiny footprint). Alternatives: bge-m3 (1.2GB, explicit Bengali + hybrid dense/sparse matching), embeddinggemma:300m (0.62GB, 768-d), nomic-embed-text (English-only, previous default). NOTE: changing this changes the vector dimension — re-digest a project with reset:true after switching (recall falls back to lexical until you do).",
+      "required": false, "default": "qwen3-embedding:0.6b"
     },
     "vision_model": {
       "type": "string", "title": "Vision model (Ollama)",
-      "description": "Captions images that OCR can't read. Default moondream (tiny/fast). Stronger alternatives (heavier, better at text-in-image / diagrams / multilingual): llama3.2-vision (11B), qwen2.5vl, granite3.2-vision.",
-      "required": false, "default": "moondream"
+      "description": "Captions images that OCR can't read. Default qwen3-vl:4b-instruct (3.3GB; 32-language OCR incl. Bangla, reads charts/diagrams/forms). Lighter: qwen3-vl:2b-instruct (1.9GB). Alternatives: gemma3:4b (3.3GB, 140+ langs), granite3.2-vision:2b (2.4GB, document/table OCR), moondream (1.7GB, tiniest but English-only, previous default).",
+      "required": false, "default": "qwen3-vl:4b-instruct"
     },
     "ocr_lang": {
       "type": "string", "title": "OCR language(s)",
@@ -76,8 +76,8 @@
     },
     "whisper_model": {
       "type": "string", "title": "Whisper model",
-      "description": "On-device speech-to-text model (e.g. tiny, base, small).",
-      "required": false, "default": "base"
+      "description": "On-device speech-to-text size (tiny/base/small/medium/large-v3-turbo). Default small (good speed/accuracy balance on a 16GB machine); use medium or large-v3-turbo for max accuracy if you have RAM, tiny/base for very low-resource.",
+      "required": false, "default": "small"
     },
     "idle_seconds": {
       "type": "number", "title": "Idle shutdown (seconds)",
