@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "memorised-them-all",
   "display_name": "Memorised them All (local, token-free)",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally.",
   "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, images, audio, and more) to Markdown locally using Microsoft's MarkItDown (kept up to date from upstream automatically), Tesseract OCR, on-device Whisper, and a local Ollama vision model. It then runs an original local pipeline — semantic chunking, local embeddings, local-LLM (with a classical fallback) extraction of entities/relations/facts, embedding+fuzzy entity resolution, and community detection — to build a layered knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, an exportable memory bundle, and an offline interactive mind map. Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens. Everything is free and open-source and runs locally; the Ollama model server starts on demand and stops after 5 minutes idle. Tuned for Apple M-series silicon (performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency).\n\nTools: digest, recall, memory_overview, export_memory, list_digestible, forget, memory_status, open_mindmap.",
   "author": {
@@ -56,17 +56,17 @@
     },
     "extract_model": {
       "type": "string", "title": "Extraction model (Ollama)",
-      "description": "Local LLM for entity/relation/fact extraction & summaries.",
+      "description": "Local LLM for entity/relation/fact extraction & summaries. Default qwen2.5:7b (best extraction quality). Lighter / strongly-multilingual alternatives — great for Bangla or 8-16GB machines: gemma3:4b-it-qat (4GB, quantization-aware-trained ≈ BF16 quality, 140+ languages), gemma3n:e2b-it-q4_K_M (on-device-efficient), gemma3:1b-it-qat (1GB, minimal), qwen2.5:3b.",
       "required": false, "default": "qwen2.5:7b"
     },
     "embed_model": {
       "type": "string", "title": "Embedding model (Ollama)",
-      "description": "Local embedding model used for resolution and recall.",
+      "description": "Local embedding model used for entity resolution and recall. Default nomic-embed-text (English-centric). For Bangla / mixed-language recall use bge-m3 (100+ languages, 1.2GB); mxbai-embed-large for higher-quality English. NOTE: changing this changes the vector dimension — re-digest a project with reset:true after switching.",
       "required": false, "default": "nomic-embed-text"
     },
     "vision_model": {
       "type": "string", "title": "Vision model (Ollama)",
-      "description": "Captions images that OCR can't read.",
+      "description": "Captions images that OCR can't read. Default moondream (tiny/fast). Stronger alternatives (heavier, better at text-in-image / diagrams / multilingual): llama3.2-vision (11B), qwen2.5vl, granite3.2-vision.",
       "required": false, "default": "moondream"
     },
     "ocr_lang": {
