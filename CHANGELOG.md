@@ -17,7 +17,8 @@ adheres to [Semantic Versioning](https://semver.org/) and
   - `memory_status` now reports **`ollama_inference`** (`ok` / `degraded` / `down` / `disabled` /
     `unknown`) from a real 1-token generation probe — not just `/api/tags` reachability — plus a
     top-level **`degraded`** boolean and a plain-English **`health`** line. A reachable-but-broken
-    engine now shows `degraded`, not a misleading green.
+    engine now shows `degraded`, not a misleading green. The probe distinguishes a genuinely broken
+    engine from one that's merely idle-stopped or still warming up, so it never raises a false alarm.
   - `digest` returns a top-level **`degraded`** flag (+ `degraded_reason`) when higher-accuracy
     mode was expected but the classical/hash fallback was actually used. A **preflight probe**
     prints a clear heads-up at the *start* of a digest instead of after a long silent run.

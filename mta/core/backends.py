@@ -25,6 +25,7 @@ embeddings are numeric only (token-free).
 from __future__ import annotations
 
 import json
+import socket
 import sys
 import urllib.error
 import urllib.request
@@ -194,23 +195,36 @@ def inference_ok(cfg: Config, ollama: OllamaManager, timeout: float = 15.0) -> b
     back to classical/hash extraction with no signal. This does a 1-token generate
     so the result reflects real inference health, not just reachability.
 
-    Returns ``True`` (generation works), ``False`` (down, or reachable but generation
-    failed — i.e. degraded), or ``None`` when we deliberately don't probe (a paid
-    OpenAI-compatible backend — a health check shouldn't bill the user's endpoint).
+    Returns ``True`` (generation works), ``False`` (reachable but generation
+    definitively failed — broken runner / model not pulled — i.e. degraded), or
+    ``None`` when the result is INCONCLUSIVE: a paid OpenAI-compatible backend (don't
+    bill it just to probe), the launcher being unreachable (it may simply be
+    idle-stopped and start fine on the real call), or a slow cold model-load that
+    exceeds ``timeout`` (don't cry "degraded" for a model that's merely warming up).
+    The False/None split matters: callers warn only on a *definitive* break, so a
+    routine idle-stopped or cold-loading engine never triggers a false alarm.
     """
     if backend_kind(cfg) == "openai":
         return None  # never spend tokens/credits on a remote endpoint just to probe
     if not ollama.is_up():
-        return False
+        return None  # unreachable now ≠ broken: ensure_running() may start it fine
     try:
-        # A 200 with a "response" key = the runner answered (content may be tiny);
-        # any HTTP error (500 broken runner / 404 model-not-pulled) = degraded.
+        # A 200 with a "response" key = the runner answered (content may be tiny).
         data = _post(f"{ollama.host}/api/generate",
                      {"model": cfg.extract_model, "prompt": "ping", "stream": False,
                       "options": {"num_predict": 1, "temperature": 0.0}},
                      {}, timeout)
         return isinstance(data, dict) and "response" in data
-    except Exception:  # noqa: BLE001 — any failure means inference isn't usable now
+    except (socket.timeout, TimeoutError):
+        return None  # slow / cold model load — inconclusive, NOT a definitive break
+    except urllib.error.URLError as e:
+        # A read/connect timeout wrapped by urllib is still inconclusive; any other
+        # URLError (connection refused) or HTTPError (500 broken runner / 404 model
+        # not pulled) is a definitive failure → degraded.
+        if isinstance(getattr(e, "reason", None), (socket.timeout, TimeoutError)):
+            return None
+        return False
+    except Exception:  # noqa: BLE001 — any other failure means inference isn't usable
         return False
 
 

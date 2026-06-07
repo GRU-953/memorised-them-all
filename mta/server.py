@@ -169,16 +169,19 @@ def _status() -> dict:
     # model isn't pulled — the silent degradation that quietly drops digests to
     # classical/hash. Probe once (a 1-token generate) and report it honestly.
     from .core import backends
-    if o._disabled():
+    if backends.backend_kind(cfg) == "openai":
+        inference = "unknown"   # a custom backend — never probe a (possibly paid) endpoint
+    elif o._disabled():
         inference = "disabled"
     elif not ollama_up:
         inference = "down"
     else:
         try:
-            probe = backends.inference_ok(cfg, o)
+            probe = backends.inference_ok(cfg, o, timeout=8.0)  # snappy for interactive status
         except Exception:  # noqa: BLE001
             probe = None
-        inference = "ok" if probe else ("unknown" if probe is None else "degraded")
+        # True→ok, False→definitively broken, None→inconclusive (cold load) → don't alarm.
+        inference = "ok" if probe is True else ("degraded" if probe is False else "unknown")
     expects_llm = cfg.extract_mode != "classical" and not cfg.fast
     if inference == "degraded":
         health = ("Ollama is running but its AI engine isn't responding to a health "
@@ -195,7 +198,8 @@ def _status() -> dict:
     elif inference == "disabled":
         health = "Offline mode is on by configuration; no external AI engine is used."
     else:  # unknown
-        health = "Using a custom AI backend; inference health was not probed."
+        health = ("Inference health couldn't be confirmed right now — the engine may be "
+                  "starting up, or a custom AI backend is configured.")
     try:
         import importlib.metadata as md
         mid = md.version("markitdown")

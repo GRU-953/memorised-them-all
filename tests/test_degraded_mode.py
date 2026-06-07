@@ -20,16 +20,42 @@ from mta.core.lifecycle import OllamaManager
 
 
 # ---- inference probe ---------------------------------------------------------
-def test_inference_ok_false_when_ollama_unavailable(tmp_path):
-    # Disabled/unreachable Ollama → inference is NOT usable → False (never crashes).
+def test_inference_ok_none_when_ollama_unreachable(tmp_path):
+    # Unreachable / idle-stopped is NOT the same as broken: Ollama auto-stops after
+    # idle and may start fine on the real call, so the probe is INCONCLUSIVE (None),
+    # never a definitive failure. This is what prevents a false "degraded" alarm on
+    # the routine happy path (reviewer finding A1).
     cfg = Config(home=tmp_path, no_ollama=True)
-    assert backends.inference_ok(cfg, OllamaManager(cfg)) is False
+    assert backends.inference_ok(cfg, OllamaManager(cfg)) is None
 
 
 def test_inference_ok_none_for_remote_backend(tmp_path):
     # A paid OpenAI-compatible backend must NOT be billed just to run a health probe.
     cfg = Config(home=tmp_path, backend="openai")
     assert backends.inference_ok(cfg, OllamaManager(cfg)) is None
+
+
+def test_inference_ok_false_on_broken_runner(tmp_path, monkeypatch):
+    # Launcher reachable but generation 500s (broken runner / model not pulled) — the
+    # definitive silent-degradation case we MUST catch → False.
+    import urllib.error
+    cfg = Config(home=tmp_path)
+    om = OllamaManager(cfg)
+    monkeypatch.setattr(om, "is_up", lambda: True)
+
+    def _boom(*a, **k):
+        raise urllib.error.HTTPError("http://x/api/generate", 500, "err", {}, None)
+
+    monkeypatch.setattr(backends, "_post", _boom)
+    assert backends.inference_ok(cfg, om) is False
+
+
+def test_inference_ok_true_when_generation_answers(tmp_path, monkeypatch):
+    cfg = Config(home=tmp_path)
+    om = OllamaManager(cfg)
+    monkeypatch.setattr(om, "is_up", lambda: True)
+    monkeypatch.setattr(backends, "_post", lambda *a, **k: {"response": "ok"})
+    assert backends.inference_ok(cfg, om) is True
 
 
 # ---- digest degraded flag ----------------------------------------------------
@@ -61,6 +87,19 @@ def test_digest_not_degraded_when_basic_mode_is_the_choice(tmp_path):
     cfg = Config(home=tmp_path / "h", fast=True, convert_timeout=60)
     d = digest(cfg, [str(src)])
     assert d["status"] == "ok" and d["degraded"] is False
+
+
+def test_digest_preflight_no_false_alarm_when_engine_stopped(tmp_path, capsys):
+    # Reviewer finding A1: a merely idle-stopped/unreachable engine must NOT trigger
+    # the up-front "failed a health check" warning (inference_ok is None there). The
+    # result still HONESTLY flags degraded after the classical fallback — but there's
+    # no cry-wolf warning on the routine happy path.
+    from mta.core.digest import digest
+    src = _seed(tmp_path)
+    cfg = Config(home=tmp_path / "h", extract_mode="auto", no_ollama=True, convert_timeout=60)
+    d = digest(cfg, [str(src)])
+    assert "failed a health check" not in capsys.readouterr().err
+    assert d["degraded"] is True
 
 
 # ---- recall transparency -----------------------------------------------------
