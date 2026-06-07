@@ -65,6 +65,24 @@ def digest(paths: list[str], project: str | None = None, reset: bool = False,
         return _err(f"digest failed: {exc}", type=type(exc).__name__)
 
 
+def convert(paths: list[str], out_dir: str | None = None, project: str | None = None) -> dict:
+    """Convert files/dirs/globs to Markdown locally and write the .md files to ``out_dir``
+    (default: a ``markdown_converted/`` folder beside the input). Legacy Bengali
+    (Bijoy/SutonnyMJ ANSI fonts) is auto-upgraded to Unicode during conversion.
+
+    Token-free: returns ONLY counts + output paths, never document text. ``digest`` runs
+    this same conversion first, so converting to Markdown is the default everywhere."""
+    if not isinstance(paths, list) or not paths or not all(
+            isinstance(p, str) and p.strip() for p in paths):
+        return _err("'paths' must be a non-empty list of file/dir/glob strings")
+    cfg = _cfg(project)
+    try:
+        from .core.digest import convert_to_markdown
+        return convert_to_markdown(cfg, paths, out_dir=out_dir, ollama=_ollama())
+    except Exception as exc:  # noqa: BLE001 - never surface a raw traceback to the client
+        return _err(f"convert failed: {exc}", type=type(exc).__name__)
+
+
 def recall(query: str, project: str | None = None, k: int = 0) -> dict:
     """Answer from memory: returns a small, relevant slice (theme summaries +
     entity cards with provenance) — never whole documents."""
@@ -185,7 +203,7 @@ def _status() -> dict:
 
 
 def build_server() -> FastMCP:
-    """Construct a fresh MCP server with all eight tools registered.
+    """Construct a fresh MCP server with all nine tools registered.
 
     A factory (not just a module singleton) so each transport owns its server +
     session manager: the stdio launcher and an opt-in HTTP server (mta/transport.py)
@@ -193,7 +211,7 @@ def build_server() -> FastMCP:
     module-level ``mcp`` below is the shared instance the stdio entrypoint
     (``python -m mta.server``) and tooling import."""
     srv = FastMCP("memorised-them-all")
-    for fn in (digest, recall, memory_overview, export_memory,
+    for fn in (digest, convert, recall, memory_overview, export_memory,
                list_digestible, forget, memory_status, open_mindmap):
         srv.tool()(fn)
     return srv

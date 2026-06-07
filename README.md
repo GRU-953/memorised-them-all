@@ -374,6 +374,24 @@ MTA_EXTRACT_MODEL=qwen3:8b mta digest ~/docs --reset
 </details>
 
 <details>
+<summary><b>Legacy Bengali (Bijoy / SutonnyMJ) → Unicode, and the <code>convert</code> command</b></summary>
+
+Millions of Bengali documents were typed with the **Bijoy** keyboard in **SutonnyMJ** (and 110+ other ANSI fonts); read as plain text they come out as mojibake. Memorised them All upgrades them to standard **Unicode Bengali automatically** during conversion, so digest / recall / embeddings work on real text instead of garbage.
+
+- **Font-aware for Office files** (`.docx` / `.pptx` / `.xlsx`): only runs whose font is a Bijoy-family font are converted, so **mixed English + Bengali** documents come out clean (the English is left exactly as-is). Plain text uses a conservative density check that never touches ordinary English.
+- A faithful pure-Python port of the [**Mukti**](https://github.com/anindash15-arch/Mukti) converter — no new dependency, fully local, **on by default** (`MTA_BANGLA_LEGACY=off` to disable).
+
+**Convert a folder to Markdown** (with the legacy upgrade) without building memory:
+
+```bash
+mta convert ~/docs                 # writes ~/docs/markdown_converted/*.md
+mta convert ~/docs --out ~/md_out  # …or choose the output folder
+```
+
+`digest` runs the very same conversion as its first step, so converting to Markdown is the default everywhere — reach for `convert` only when you want the `.md` files themselves.
+</details>
+
+<details>
 <summary><b>How it works under the hood</b></summary>
 
 `convert` (files → Markdown, locally) → `extract` (entities, relations, facts) → `graph` (build + detect communities/themes) → `summarise` (layered: per-theme + a global synopsis) → `embed` (vectors for search) → `materialise` (memory.md, per-doc notes, mind map). `recall` embeds your question and returns the closest, capped, cited snippets. With no AI model available it falls back to fast classical techniques, so a digest **always** succeeds. See [`CHANGELOG.md`](CHANGELOG.md) and [`SECURITY.md`](SECURITY.md) for details.

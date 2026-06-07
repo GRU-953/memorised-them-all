@@ -70,6 +70,11 @@ class Config:
     vision_model: str = field(default_factory=lambda: _env("MTA_VISION_MODEL", "qwen3-vl:4b-instruct"))
     whisper_model: str = field(default_factory=lambda: _env("MTA_WHISPER_MODEL", "small"))
 
+    # Auto-convert legacy Bengali (Bijoy/SutonnyMJ ANSI fonts) → Unicode during file
+    # conversion (font-aware for Office, density-gated for plain text). Default on.
+    bangla_legacy: bool = field(default_factory=lambda: _env("MTA_BANGLA_LEGACY", "on").strip().lower()
+                                not in ("off", "0", "false", "no"))
+
     # Conversion.
     # English + Bangla by default (eng+ben). Missing Tesseract language packs are
     # dropped gracefully at OCR time, so this never breaks a machine that only has eng.

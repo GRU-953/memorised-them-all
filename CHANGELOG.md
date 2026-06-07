@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-06-07
+
+### Added
+- **Legacy Bengali → Unicode, built in.** Documents typed in **Bijoy/SutonnyMJ** (and
+  110+ other Bijoy-family ANSI fonts) are auto-upgraded to standard Unicode Bengali during
+  conversion, so digest/recall/embeddings work on text that used to be mojibake. It is
+  **font-aware** for Office files (`.docx`/`.pptx`/`.xlsx`) — only legacy-font runs are
+  converted, so *mixed English+Bengali* documents convert cleanly (English untouched);
+  plain text uses a conservative density heuristic that never touches ordinary English.
+  A faithful pure-Python port of the **Mukti** converter (MIT) — no new dependency, fully
+  local. On by default; `MTA_BANGLA_LEGACY=off` disables it. (`mta/core/bangla_legacy.py`.)
+- **`convert` — convert-to-Markdown as a first-class feature.** New `mta convert <paths>
+  [--out DIR]` CLI command and MCP `convert(paths, out_dir?)` tool convert files/dirs/globs
+  to Markdown locally (with the legacy-Bengali upgrade) and write the `.md` files to
+  `out_dir` (default: a `markdown_converted/` folder beside the input). Token-free. `digest`
+  runs the very same conversion as its first stage, so converting to Markdown is the default
+  everywhere. The plugin now exposes **9 tools** (all surfaces kept in lockstep).
+
+### Fixed
+- Extraction robustness on dense/real documents: `num_predict` 700 → 1024 (headroom so a
+  long entity/fact JSON can't be truncated into a parse failure → silent classical fallback),
+  and the JSON parser now strips `<think>…</think>` reasoning blocks (defensive for
+  thinking-capable models such as `qwen3:8b` reached through a non-`format:json` backend).
+
 ## [1.7.0] — 2026-06-06
 
 ### Changed
