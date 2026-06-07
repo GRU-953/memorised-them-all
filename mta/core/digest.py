@@ -169,7 +169,12 @@ def _llm_summarise(prompt: str, cfg: Config, ollama: OllamaManager) -> str | Non
     # server). num_predict caps output length so a runaway/prompt-injected model can't
     # inject an unbounded summary into memory.md / recall units.
     from . import backends
-    return backends.generate(cfg, ollama, prompt, num_predict=320, temperature=0.1, wait=20)
+    from .extract import _scrub
+    out = backends.generate(cfg, ollama, prompt, num_predict=320, temperature=0.1, wait=20)
+    # Scrub chat/tool control tokens (qwen3 <tool_call>, ChatML, <think>) from the summary
+    # too — it lands in memory.md, recall theme-cards and the mind map, so the same
+    # sanitation we apply to entities/facts must apply here (covers community + synopsis).
+    return _scrub(out) if out else out
 
 
 def _community_summary(label_facts: list[str], names: list[str], cfg: Config,

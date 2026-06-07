@@ -211,12 +211,34 @@ class Config:
 
 # Named profiles: bundles of MTA_* defaults applied when MTA_PROFILE is set. An
 # explicit env var always wins (env > profile > built-in default).
+#
+# RESOURCE TIERS — the DEFAULT (when MTA_PROFILE is unset) is **micro**, which is
+# safe on a 4 GB machine with NO GPU: classical extraction (no heavy local LLM, so
+# it can't OOM/thrash), a tiny embedding model for semantic recall (falls back to a
+# hashing embedding if even that can't load), vision off, one worker. Users opt up
+# with one knob — MTA_PROFILE=auto (size to this machine) or standard/large — or by
+# setting any MTA_* var directly. All model tags are verified-real Ollama models.
 PROFILES: dict = {
+    "micro":   {"MTA_EXTRACT": "classical", "MTA_VISION": "off",
+                "MTA_EMBED_MODEL": "qwen3-embedding:0.6b", "MTA_WHISPER_MODEL": "tiny",
+                "MTA_WORKERS": "1", "MTA_EXTRACT_WORKERS": "1"},
+    "small":   {"MTA_EXTRACT_MODEL": "llama3.2:3b", "MTA_EXTRACT": "auto", "MTA_VISION": "off",
+                "MTA_EMBED_MODEL": "qwen3-embedding:0.6b", "MTA_WHISPER_MODEL": "base",
+                "MTA_WORKERS": "1", "MTA_EXTRACT_WORKERS": "1"},
+    "standard": {"MTA_EXTRACT_MODEL": "qwen3:4b-instruct", "MTA_EMBED_MODEL": "qwen3-embedding:0.6b",
+                 "MTA_VISION_MODEL": "qwen3-vl:4b-instruct", "MTA_WHISPER_MODEL": "small",
+                 "MTA_EXTRACT": "auto", "MTA_VISION": "auto", "MTA_EXTRACT_WORKERS": "2"},
+    "large":   {"MTA_EXTRACT_MODEL": "qwen3:8b", "MTA_EMBED_MODEL": "qwen3-embedding:0.6b",
+                "MTA_VISION_MODEL": "qwen3-vl:4b-instruct", "MTA_WHISPER_MODEL": "small",
+                "MTA_EXTRACT": "auto", "MTA_VISION": "auto", "MTA_EXTRACT_WORKERS": "3"},
+    # Back-compat / explicit profiles:
     "offline":     {"MTA_NO_OLLAMA": "1", "MTA_EXTRACT": "classical", "MTA_AUTO_UPDATE": "off"},
     "laptop":      {"MTA_EXTRACT_WORKERS": "1"},
     "workstation": {"MTA_EXTRACT_WORKERS": "2"},
     "server":      {"MTA_EXTRACT_WORKERS": "3", "MTA_AUTO_UPDATE": "off"},
 }
+# The default profile when MTA_PROFILE is unset (the safe 4 GB / no-GPU baseline).
+DEFAULT_PROFILE = "micro"
 
 
 def persist_config(cfg: "Config") -> Path:
@@ -264,7 +286,10 @@ def load() -> Config:
     # captured into the Config, then removed so the process env isn't mutated for
     # other components / subprocesses. Only the (rare) profile path touches the
     # global env, and it's serialised; the common no-profile path is lock-free.
-    profile = _env("MTA_PROFILE", "").strip().lower()
+    profile = _env("MTA_PROFILE", "").strip().lower() or DEFAULT_PROFILE
+    if profile == "auto":  # size to THIS machine (RAM/GPU) → micro/small/standard/large
+        from .platform import detect_tier
+        profile = detect_tier()
     defaults = PROFILES.get(profile, {})
     if defaults:
         with _LOAD_LOCK:
