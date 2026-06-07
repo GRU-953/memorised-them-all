@@ -46,13 +46,14 @@ def _csv(value: str) -> list[str]:
 def _tool_registry() -> dict:
     """Map tool name → the plain function defined in ``mta.server``.
 
-    Imported lazily so this module stays import-light. Only these eight names are
+    Imported lazily so this module stays import-light. Only these names are
     dispatchable — the route never calls an arbitrary attribute."""
     from .. import server
 
     fns = (
-        server.digest, server.recall, server.memory_overview, server.export_memory,
-        server.list_digestible, server.forget, server.memory_status, server.open_mindmap,
+        server.digest, server.convert, server.recall, server.memory_overview,
+        server.export_memory, server.list_digestible, server.forget,
+        server.memory_status, server.open_mindmap,
     )
     return {fn.__name__: fn for fn in fns}
 

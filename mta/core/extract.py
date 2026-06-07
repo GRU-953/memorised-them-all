@@ -110,6 +110,12 @@ def _classical(chunk: Chunk) -> Extraction:
 def _loads_json_object(text: str) -> dict | None:
     """Parse a JSON object from a model response, tolerating ```json code fences."""
     s = (text or "").strip()
+    # Reasoning models can wrap chain-of-thought in <think>…</think> before the JSON.
+    # Ollama's format:json normally suppresses this, but a thinking-capable model (e.g.
+    # qwen3:8b, or bare qwen3:4b) via a non-enforcing backend can still emit it — keep
+    # only what follows the final </think> so parsing sees the answer, not the reasoning.
+    if "</think>" in s:
+        s = s.rsplit("</think>", 1)[-1].strip()
     if s.startswith("```"):
         s = s.split("\n", 1)[1] if "\n" in s else ""
         if s.rstrip().endswith("```"):
@@ -121,11 +127,21 @@ def _loads_json_object(text: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
+# Chat/tool control tokens a chat-tuned model can emit mid-output (qwen3's
+# <tool_call>…</tool_call>, ChatML <|im_start|>/<|im_end|>, etc.) must never end up
+# inside an entity name, relation, or fact — scrub them from every extracted string.
+_SPECIAL_TOK = re.compile(r"<\|[^|>]{0,40}\|>|</?(?:tool_call|tool_response|think|im_start|im_end)\s*>")
+
+
+def _scrub(s: str) -> str:
+    return re.sub(r"\s{2,}", " ", _SPECIAL_TOK.sub("", s)).strip()
+
+
 def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
     from . import backends
     resp = backends.generate(
         cfg, ollama, _PROMPT + chunk.text[:6000] + "\n<<<END>>>",
-        json_format=True, num_predict=700, temperature=0.0, wait=25)
+        json_format=True, num_predict=1024, temperature=0.0, wait=25)
     if not resp:
         return None
     obj = _loads_json_object(resp)
@@ -136,24 +152,27 @@ def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
         out = []
         for e in raw or []:
             if isinstance(e, dict) and e.get("name"):
-                out.append({"name": str(e["name"]).strip(),
-                            "type": str(e.get("type", "other")).strip().lower() or "other"})
-            elif isinstance(e, str) and e.strip():
-                out.append({"name": e.strip(), "type": "other"})
+                name = _scrub(str(e["name"]))
+                if name:
+                    out.append({"name": name,
+                                "type": str(e.get("type", "other")).strip().lower() or "other"})
+            elif isinstance(e, str) and _scrub(e):
+                out.append({"name": _scrub(e), "type": "other"})
         return out
 
     def _clean_relations(raw) -> list[dict]:
         out = []
         for rel in raw or []:
             if isinstance(rel, dict) and rel.get("source") and rel.get("target"):
-                out.append({"source": str(rel["source"]).strip(),
-                            "relation": str(rel.get("relation", "related_to")).strip()
-                            or "related_to",
-                            "target": str(rel["target"]).strip()})
+                src, tgt = _scrub(str(rel["source"])), _scrub(str(rel["target"]))
+                if src and tgt:
+                    out.append({"source": src,
+                                "relation": _scrub(str(rel.get("relation", "related_to"))) or "related_to",
+                                "target": tgt})
         return out
 
-    facts = [str(f).strip()[:300] for f in (obj.get("facts") or [])
-             if isinstance(f, (str, int, float)) and str(f).strip()][:8]
+    facts = [_scrub(str(f))[:300] for f in (obj.get("facts") or [])
+             if isinstance(f, (str, int, float)) and _scrub(str(f))][:8]
     return Extraction(
         entities=_clean_entities(obj.get("entities")),
         relations=_clean_relations(obj.get("relations")),

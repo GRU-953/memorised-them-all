@@ -86,13 +86,32 @@ def _try_markitdown(path: Path, cfg: Config) -> tuple[str | None, str]:
         from markitdown import MarkItDown
     except Exception:
         return None, "markitdown-missing"
+    # Legacy-Bengali pre-pass: if the Office file has Bijoy/SutonnyMJ-font runs, rewrite
+    # them to Unicode in the OOXML first (font-aware; English untouched), then convert the
+    # Unicode copy so MarkItDown's structure handling (tables, etc.) is preserved.
+    src, suffix, converted = str(path), "markitdown", 0
+    tmp = None
+    if cfg.bangla_legacy:
+        try:
+            from .bangla_legacy import delegacify_to_temp
+            tmp, converted = delegacify_to_temp(path)
+            if tmp:
+                src, suffix = tmp, "markitdown+bn-unicode"
+        except Exception:  # noqa: BLE001 — legacy conversion must never break conversion
+            tmp, src, suffix = None, str(path), "markitdown"
     try:
         md = MarkItDown(enable_plugins=False)
-        res = md.convert(str(path))
+        res = md.convert(src)
         text = (res.text_content or "").strip()
-        return (text or None), "markitdown"
+        return (text or None), suffix
     except Exception as e:  # noqa: BLE001 — never let one file kill a batch
         return None, f"markitdown-error:{type(e).__name__}"
+    finally:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def _tesseract_bin() -> str | None:
@@ -364,6 +383,14 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
         if res.status == "failed":
             res.error = method
         return res
+
+    # Plain-text legacy-Bengali safety net (Office is handled font-aware in _try_markitdown;
+    # OCR/vision/whisper already emit Unicode, so density-gated maybe_convert is a no-op there).
+    if cfg.bangla_legacy and "markitdown" not in method:
+        from .bangla_legacy import maybe_convert
+        text, _bn = maybe_convert(text)
+        if _bn:
+            method = res.method = method + "+bn-unicode"
 
     out = (out_dir / out_name) if out_name else _safe_out_name(path, out_dir)
     header = f"<!-- source: {path.name} · method: {method} -->\n\n"

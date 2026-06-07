@@ -18,7 +18,9 @@ documents.
 
 ## How it works (the pipeline)
 1. **Convert** — every attachment → Markdown locally (PDF/Office/HTML via MarkItDown,
-   images via Tesseract OCR + Ollama vision, audio via Whisper).
+   images via Tesseract OCR + Ollama vision, audio via Whisper). Legacy Bengali typed in
+   Bijoy/SutonnyMJ ANSI fonts is auto-upgraded to Unicode (font-aware, so mixed
+   English+Bengali documents convert cleanly).
 2. **Segment → Embed → Extract** — structure-aware chunks, local embeddings, and a
    local LLM (with a classical fallback) extract entities, relations, and atomic facts.
 3. **Graph + themes** — a knowledge graph with community-detected themes.
@@ -27,6 +29,7 @@ documents.
 
 ## Tools
 - `digest(paths, project?, reset?, fast?)` — build/refresh memory (`fast` skips the local LLM: deterministic + much faster). Returns metadata only.
+- `convert(paths, out_dir?, project?)` — convert files/dirs/globs to Markdown locally (legacy Bengali/SutonnyMJ → Unicode); writes `.md` files to `out_dir` (default `markdown_converted/` beside the input). Token-free. Use when the user just wants Markdown, not a digest.
 - `recall(query, project?, k?)` — return a small, citable slice of memory.
 - `memory_overview(project?)` — synopsis + themes.
 - `export_memory(dest, project?)` — export portable Markdown files.
