@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-06-08
+
+### Changed
+- **New default profile `micro` — safe on a 4 GB machine with no GPU.** Out of the box the
+  plugin now runs **fully offline** (classical extraction + a tiny `qwen3-embedding:0.6b`
+  embedder that falls back to a hashing embedding if even that can't load; vision off; one
+  conversion worker), so a digest **always completes and never OOMs/thrashes** on any
+  computer. This replaces the previous 16 GB-tuned default that could thrash a small box.
+- **One-knob opt-up.** `MTA_PROFILE=auto` sizes the local-AI stack to the machine
+  (`<6 GB`→`micro`, 6–12→`small`, 12–24→`standard` = the qwen3 stack, ≥24→`large` = qwen3:8b);
+  explicit `MTA_PROFILE=standard/large` or any `MTA_*_MODEL` env var overrides it. The Claude
+  Desktop extension gains a **"Performance profile"** dropdown (default `auto`). New
+  `platform.detect_tier()`; the conversion worker pool now clamps to **1 worker on <6 GB**.
+
+### Fixed
+- **Special-token leak closed on the summary + synopsis path** (the WP-69 fix only covered
+  entities/facts). qwen3 `<tool_call>`, ChatML `<|…|>`, `<think>`, and gemma
+  `<start_of_turn>`/`<end_of_turn>` tokens are now scrubbed from LLM community summaries and
+  the global synopsis too — they feed `memory.md`, recall theme-cards and the mind map.
+
+### Notes
+- Informed by a 6-expert guardrail review (resource sizing, Ollama reliability, conversion
+  robustness, cross-platform, LLM safety, novice UX). Remaining high-value items — a
+  cross-platform per-file conversion timeout, honest "degraded mode" reporting in
+  `memory_status`/`recall`, and a richer classical extractor — are tracked as follow-ups.
+
 ## [1.8.0] — 2026-06-07
 
 ### Added

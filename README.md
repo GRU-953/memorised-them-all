@@ -313,13 +313,13 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memory is stored |
 | `MTA_OCR_LANG` | `eng+ben` | OCR languages (Tesseract codes; missing packs dropped automatically) |
-| `MTA_EXTRACT_MODEL` | `qwen3:4b-instruct` | extraction LLM — alternatives under "Choosing a model" below |
+| `MTA_EXTRACT_MODEL` | _(set by profile)_ | extraction LLM — overrides the profile; alternatives under "Choosing a model" below |
 | `MTA_EMBED_MODEL` | `qwen3-embedding:0.6b` | multilingual embeddings (1024-d, incl. Bangla) |
 | `MTA_VISION_MODEL` | `qwen3-vl:4b-instruct` | image caption / OCR-assist (32-language) |
 | `MTA_WHISPER_MODEL` | `small` | on-device speech-to-text size |
 | `MTA_NO_OLLAMA` | unset | force fully-offline mode (no AI model) |
 | `MTA_AUTO_UPDATE` | `on` | daily update check (`off` to disable) |
-| `MTA_PROFILE` | unset | tuning preset: `laptop` · `workstation` · `server` · `offline` |
+| `MTA_PROFILE` | `micro` | sizing tier: **`micro`** (4 GB / no-GPU — the safe default) · `auto` (size to this machine) · `small` · `standard` (16 GB) · `large` (32 GB+) · `offline` |
 | `MTA_BACKEND` / `MTA_BACKEND_URL` | `auto` | use another local model server (see above) |
 | `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
@@ -328,7 +328,16 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 <details>
 <summary><b>Choosing a local model (lighter / multilingual alternatives)</b><a id="choosing-a-model"></a></summary>
 
-Every model is configurable. The **defaults are the optimum stack for a 16 GB Apple-Silicon Mac** — newer-generation, multilingual (incl. Bangla), and small enough to co-reside (extraction + embedding + vision ≈ 6.5 GB, leaving headroom). All tags are verified-real Ollama models — just set the variable (or the extension settings) and the on-demand pull handles the rest. Sizes are q4-class downloads.
+**The default is safe on a 4 GB machine with no graphics card.** Out of the box (profile `micro`) the plugin runs **fully offline** — classical extraction + a tiny embedding model — so a digest *always completes* and never thrashes, on any computer. To use sharper local AI, pick a bigger **profile** with one setting — the easiest is **`MTA_PROFILE=auto`**, which sizes the models to your computer (a 16 GB machine gets the qwen3 stack below; a 4 GB one stays on `micro`). You can also set any model directly (env var or extension setting), which overrides the profile. All tags are verified-real Ollama models pulled on demand. Sizes are q4-class downloads.
+
+| Profile | Good for | What it uses |
+| --- | --- | --- |
+| `micro` *(default)* | 4 GB, no GPU | offline/classical + tiny embedder + vision off |
+| `auto` | **recommended** | sizes the stack to your machine's RAM |
+| `standard` | ~16 GB | the qwen3 stack below |
+| `large` | 32 GB+ | qwen3:8b + vision |
+
+The model tables below apply when a profile (or you) turns the local LLM on:
 
 **Extraction LLM — `MTA_EXTRACT_MODEL`** (entity/relation/fact extraction + summaries):
 

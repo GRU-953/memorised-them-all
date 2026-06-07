@@ -130,7 +130,9 @@ def _loads_json_object(text: str) -> dict | None:
 # Chat/tool control tokens a chat-tuned model can emit mid-output (qwen3's
 # <tool_call>…</tool_call>, ChatML <|im_start|>/<|im_end|>, etc.) must never end up
 # inside an entity name, relation, or fact — scrub them from every extracted string.
-_SPECIAL_TOK = re.compile(r"<\|[^|>]{0,40}\|>|</?(?:tool_call|tool_response|think|im_start|im_end)\s*>")
+_SPECIAL_TOK = re.compile(
+    r"<\|[^|>]{0,40}\|>"  # ChatML / Llama / qwen pipe tokens: <|im_start|> <|eot_id|> <|endoftext|> …
+    r"|</?(?:tool_call|tool_response|think|im_start|im_end|start_of_turn|end_of_turn)\s*>")
 
 
 def _scrub(s: str) -> str:
