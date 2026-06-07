@@ -13,6 +13,7 @@ import glob as _glob
 import json
 import multiprocessing as _mp
 import os
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -323,8 +324,28 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
 
     files = _expand(paths, all_types=cfg.digest_all)
     if not files:
-        return {"status": "no_input", "project": cfg.project,
+        return {"status": "no_input", "project": cfg.project, "degraded": False,
                 "message": "No convertible files found.", "paths": paths}
+
+    # Preflight: when higher-accuracy (LLM) extraction is expected, probe inference
+    # ONCE up front. A broken runner (launcher up but llama-server dead / model not
+    # pulled) otherwise fails silently per-chunk and the WHOLE batch degrades to
+    # classical only after a long run — a real roadblock we hit (a 55-min digest
+    # that had quietly fallen back). Warn immediately; the digest still completes.
+    expected_llm = (not cfg.fast) and (cfg.extract_mode != "classical")
+    if expected_llm:
+        from .backends import inference_ok
+        # Warn ONLY on a definitive break — the launcher is reachable but generation
+        # fails (broken runner / model not pulled). inference_ok returns None (not
+        # False) when Ollama is merely idle-stopped (it auto-stops after 5 min), so the
+        # real extraction's ensure_running() will start it and run accurately: no false
+        # alarm on the routine happy path (the reason this is gated on `is False`).
+        if inference_ok(cfg, ollama, timeout=30.0) is False:
+            print("[mta] Heads-up: the local AI engine (Ollama) is running but failed a "
+                  "health check, so this digest will use basic mode. Your memory will "
+                  "still build fully. Try fully quitting and reopening Ollama, and make "
+                  f"sure the model '{cfg.extract_model}' is installed "
+                  f"(run: ollama pull {cfg.extract_model}).", file=sys.stderr)
 
     conv = _convert_all(files, cfg, ollama)
 
@@ -459,10 +480,16 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
     render.write_doc_memories(cfg, graph_doc, G)
     render.write_mindmap(cfg, graph_doc)
 
-    return {
+    # Honest degradation: higher-accuracy mode was expected (not fast, LLM profile)
+    # but the result actually used the classical/hash fallback because Ollama wasn't
+    # usable. The memory still built — but the caller (and the user) should know it's
+    # the less-detailed path, not silently assume accurate mode succeeded.
+    degraded = expected_llm and graph_doc["stats"]["mode"] == "classical"
+    result = {
         "status": "ok",
         "project": cfg.project,
         "stats": graph_doc["stats"],
+        "degraded": degraded,
         "outputs": {
             "graph": str(cfg.graph_path),
             "memory_md": str(cfg.memory_md),
@@ -471,6 +498,12 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
         },
         "conversion": _conv_tally(conv),
     }
+    if degraded:
+        result["degraded_reason"] = (
+            "Higher-accuracy mode was requested but the local AI engine (Ollama) "
+            "wasn't fully usable, so basic mode was used for this memory. It's "
+            "complete but less detailed — run memory_status to see why.")
+    return result
 
 
 def _synopsis(communities: list[dict], cfg: Config, ollama: OllamaManager) -> str:

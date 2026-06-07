@@ -222,6 +222,14 @@ Tell Claude *"forget the clientA project"* (it asks you to name the project, on 
 No. It's built to work completely offline. Internet is only used for optional, opt-in things like installing updates.
 </details>
 
+<details>
+<summary><b>It says "basic mode" or "degraded" — what does that mean?</b></summary>
+
+It's being honest with you. "Basic mode" (also called *classical*) means a memory was built **without** the local AI model — either because that's the default for your machine (the safe `micro` profile), or because the AI engine (Ollama) wasn't responding. The memory is still complete and searchable; it's just less detailed than the AI-assisted "accurate" mode.
+
+If you *expected* the sharper mode, ask Claude to *"check memory status"*. The `health` line tells you plainly what's wrong — most often **"Ollama is running but its AI engine isn't responding"**, which is fixed by fully quitting and reopening Ollama and making sure your model is installed (`ollama pull <model>`). The tool no longer hides this behind a long silent run — it warns you at the **start** of memorising and labels the result.
+</details>
+
 ---
 
 ## 🧰 The tools Claude gets
