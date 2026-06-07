@@ -182,6 +182,38 @@ def _openai_embed(cfg: Config, texts: list[str], *, timeout: float) -> list[list
         return None
 
 
+# ---- health probe -----------------------------------------------------------
+
+def inference_ok(cfg: Config, ollama: OllamaManager, timeout: float = 15.0) -> bool | None:
+    """Probe whether text generation ACTUALLY works right now — a tiny real call.
+
+    ``OllamaManager.is_up()`` only checks ``/api/tags``, which stays green when the
+    Ollama *launcher* is reachable but its inference runner (``llama-server``) is
+    broken or the model isn't pulled. That is the exact "silent degradation" users
+    hit: status looks healthy, yet every generate 500s, so a digest quietly falls
+    back to classical/hash extraction with no signal. This does a 1-token generate
+    so the result reflects real inference health, not just reachability.
+
+    Returns ``True`` (generation works), ``False`` (down, or reachable but generation
+    failed — i.e. degraded), or ``None`` when we deliberately don't probe (a paid
+    OpenAI-compatible backend — a health check shouldn't bill the user's endpoint).
+    """
+    if backend_kind(cfg) == "openai":
+        return None  # never spend tokens/credits on a remote endpoint just to probe
+    if not ollama.is_up():
+        return False
+    try:
+        # A 200 with a "response" key = the runner answered (content may be tiny);
+        # any HTTP error (500 broken runner / 404 model-not-pulled) = degraded.
+        data = _post(f"{ollama.host}/api/generate",
+                     {"model": cfg.extract_model, "prompt": "ping", "stream": False,
+                      "options": {"num_predict": 1, "temperature": 0.0}},
+                     {}, timeout)
+        return isinstance(data, dict) and "response" in data
+    except Exception:  # noqa: BLE001 — any failure means inference isn't usable now
+        return False
+
+
 # ---- reporting --------------------------------------------------------------
 
 def describe(cfg: Config) -> dict:

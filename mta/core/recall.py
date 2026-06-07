@@ -99,6 +99,9 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
             "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            # The mode this memory was last BUILT in (accurate|classical|fast) — so a
+            # recall over a basic-mode memory is transparent, not silently assumed rich.
+            "memory_mode": (doc or {}).get("stats", {}).get("mode"),
             "top_score": (hits[0]["score"] if hits else 0.0),
             "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}
 
@@ -122,6 +125,7 @@ def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query, "mode": "lexical",
             "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            "memory_mode": (doc or {}).get("stats", {}).get("mode"),
             "top_score": top, "raw_top_score": top,
             "low_confidence": not hits, "hits": hits}
 

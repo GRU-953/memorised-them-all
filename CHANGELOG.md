@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-06-08
+
+### Added (honest degraded-mode reporting — Round 2 of the stress-test loop)
+- **The tool now tells you when it's running in basic mode instead of failing silently.**
+  Previously, if Ollama's launcher was reachable but its inference engine was broken (or the
+  model wasn't installed), every AI call failed quietly and a digest fell back to basic
+  (classical/hashing) extraction with no signal — a real roadblock (a 55-minute digest that
+  had silently degraded). Three new signals fix this:
+  - `memory_status` now reports **`ollama_inference`** (`ok` / `degraded` / `down` / `disabled` /
+    `unknown`) from a real 1-token generation probe — not just `/api/tags` reachability — plus a
+    top-level **`degraded`** boolean and a plain-English **`health`** line. A reachable-but-broken
+    engine now shows `degraded`, not a misleading green.
+  - `digest` returns a top-level **`degraded`** flag (+ `degraded_reason`) when higher-accuracy
+    mode was expected but the classical/hash fallback was actually used. A **preflight probe**
+    prints a clear heads-up at the *start* of a digest instead of after a long silent run.
+  - `recall` returns **`memory_mode`** (`accurate` / `classical` / `fast`) so answers drawn from a
+    basic-mode memory are transparent.
+- New `backends.inference_ok()` health probe (skips paid OpenAI-compatible backends — never bills
+  a remote endpoint just to check health). +6 regression tests (`tests/test_degraded_mode.py`).
+
 ## [1.10.0] — 2026-06-08
 
 ### Fixed (hardening from a 6-expert stress-test sweep — all bugs empirically reproduced)

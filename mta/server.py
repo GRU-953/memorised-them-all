@@ -164,6 +164,38 @@ def _status() -> dict:
                 models = [m["name"] for m in json.loads(r.read()).get("models", [])]
         except Exception:  # noqa: BLE001
             pass
+    # Real inference health, not just /api/tags reachability. `is_up()` stays green
+    # when the launcher is reachable but the runner (llama-server) is broken or the
+    # model isn't pulled — the silent degradation that quietly drops digests to
+    # classical/hash. Probe once (a 1-token generate) and report it honestly.
+    from .core import backends
+    if o._disabled():
+        inference = "disabled"
+    elif not ollama_up:
+        inference = "down"
+    else:
+        try:
+            probe = backends.inference_ok(cfg, o)
+        except Exception:  # noqa: BLE001
+            probe = None
+        inference = "ok" if probe else ("unknown" if probe is None else "degraded")
+    expects_llm = cfg.extract_mode != "classical" and not cfg.fast
+    if inference == "degraded":
+        health = ("Ollama is running but its AI engine isn't responding to a health "
+                  "check — new memories will use basic (offline) mode until it's fixed. "
+                  "Try fully quitting and reopening Ollama, and make sure the model "
+                  f"'{cfg.extract_model}' is installed (run: ollama pull {cfg.extract_model}).")
+    elif inference == "ok":
+        health = "Local AI engine is responding normally (higher-accuracy mode available)."
+    elif inference == "down":
+        health = ("Ollama isn't running, so memories build in basic (offline) mode. "
+                  + ("That's the default for this machine — no action needed."
+                     if not expects_llm
+                     else "Start Ollama for higher-accuracy memories."))
+    elif inference == "disabled":
+        health = "Offline mode is on by configuration; no external AI engine is used."
+    else:  # unknown
+        health = "Using a custom AI backend; inference health was not probed."
     try:
         import importlib.metadata as md
         mid = md.version("markitdown")
@@ -188,6 +220,9 @@ def _status() -> dict:
         "status": "ok",
         "backend": backend_info,
         "ollama_running": ollama_up,
+        "ollama_inference": inference,   # ok | degraded | down | disabled | unknown
+        "degraded": inference == "degraded",
+        "health": health,
         "ollama_models": models,
         "tesseract": shutil.which("tesseract") is not None,
         "ffmpeg": shutil.which("ffmpeg") is not None,

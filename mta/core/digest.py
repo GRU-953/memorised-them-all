@@ -13,6 +13,7 @@ import glob as _glob
 import json
 import multiprocessing as _mp
 import os
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -326,6 +327,21 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
         return {"status": "no_input", "project": cfg.project,
                 "message": "No convertible files found.", "paths": paths}
 
+    # Preflight: when higher-accuracy (LLM) extraction is expected, probe inference
+    # ONCE up front. A broken runner (launcher up but llama-server dead / model not
+    # pulled) otherwise fails silently per-chunk and the WHOLE batch degrades to
+    # classical only after a long run — a real roadblock we hit (a 55-min digest
+    # that had quietly fallen back). Warn immediately; the digest still completes.
+    expected_llm = (not cfg.fast) and (cfg.extract_mode != "classical")
+    if expected_llm:
+        from .backends import inference_ok
+        if inference_ok(cfg, ollama, timeout=30.0) is False:
+            print("[mta] Heads-up: the local AI engine (Ollama) failed a health check, "
+                  "so this digest will use basic (classical) mode. Your memory will "
+                  "still build fully. For higher-accuracy mode, make sure Ollama is "
+                  f"running and the model '{cfg.extract_model}' is installed "
+                  f"(run: ollama pull {cfg.extract_model}).", file=sys.stderr)
+
     conv = _convert_all(files, cfg, ollama)
 
     # Accumulative: rebuild the graph from the FULL markdown corpus on disk, so
@@ -459,10 +475,16 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
     render.write_doc_memories(cfg, graph_doc, G)
     render.write_mindmap(cfg, graph_doc)
 
-    return {
+    # Honest degradation: higher-accuracy mode was expected (not fast, LLM profile)
+    # but the result actually used the classical/hash fallback because Ollama wasn't
+    # usable. The memory still built — but the caller (and the user) should know it's
+    # the less-detailed path, not silently assume accurate mode succeeded.
+    degraded = expected_llm and graph_doc["stats"]["mode"] == "classical"
+    result = {
         "status": "ok",
         "project": cfg.project,
         "stats": graph_doc["stats"],
+        "degraded": degraded,
         "outputs": {
             "graph": str(cfg.graph_path),
             "memory_md": str(cfg.memory_md),
@@ -471,6 +493,12 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
         },
         "conversion": _conv_tally(conv),
     }
+    if degraded:
+        result["degraded_reason"] = (
+            "Higher-accuracy mode was requested but the local AI engine (Ollama) "
+            "wasn't usable, so basic (classical) extraction was used. The memory is "
+            "complete but less detailed — run memory_status to see why.")
+    return result
 
 
 def _synopsis(communities: list[dict], cfg: Config, ollama: OllamaManager) -> str:
