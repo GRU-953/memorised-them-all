@@ -51,12 +51,20 @@ def save_graph(cfg: Config, graph_doc: dict) -> None:
     # If the existing store is a NEWER, incompatible schema than this build, back
     # it up before overwriting so a version downgrade can't silently destroy it.
     if cfg.graph_path.exists():
+        raw = ""
         try:
-            existing = json.loads(cfg.graph_path.read_text(encoding="utf-8"))
-            if isinstance(existing, dict) and int(existing.get("version", 1)) > SCHEMA_VERSION:
-                _backup_store(cfg, f"pre-overwrite-v{int(existing.get('version', 1))}")
-        except (json.JSONDecodeError, OSError, TypeError, ValueError):
-            pass
+            raw = cfg.graph_path.read_text(encoding="utf-8")
+        except OSError:
+            raw = ""
+        if raw.strip():
+            try:
+                existing = json.loads(raw)
+                if isinstance(existing, dict) and int(existing.get("version", 1)) > SCHEMA_VERSION:
+                    _backup_store(cfg, f"pre-overwrite-v{int(existing.get('version', 1))}")
+            except (json.JSONDecodeError, TypeError, ValueError):
+                # Present but unparseable (torn/half-written, or a "cleaner" corrupted it):
+                # back it up before overwriting so a once-valid memory is never silently lost.
+                _backup_store(cfg, "pre-overwrite-corrupt")
     _atomic_write_text(cfg.graph_path, json.dumps(graph_doc, indent=2, ensure_ascii=False))
 
 
@@ -178,8 +186,8 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
         with np.load(cfg.vectors_path, allow_pickle=False) as data:
             matrix = data["matrix"]
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, KeyError, json.JSONDecodeError):
-        return None
+    except Exception:  # noqa: BLE001 — a corrupt/torn store (incl. zipfile.BadZipFile from a
+        return None    # truncated .npz) must read as "no memory", never crash recall (SEC/LIFE).
     # Consistency guard: vectors.npz (matrix rows) and vectors.json (per-row meta)
     # are two separate atomic replaces, so a crash between them can desync row count
     # from meta length. Treat a torn pair as "no memory" rather than letting recall

@@ -6,6 +6,39 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-06-08
+
+### Fixed (hardening from a 6-expert stress-test sweep — all bugs empirically reproduced)
+- **No more batch hangs.** Each file converts in its OWN killable subprocess with a per-file
+  timeout (`MTA_CONVERT_TIMEOUT`, default 120 s, size-scaled, `=0` disables). One file that
+  drives a parser into an infinite loop can no longer stall the whole digest forever.
+- **One bad file no longer aborts a folder digest.** Symlink loops / unreadable dirs are
+  skipped (`os.walk`, no-follow); over-long output filenames are bounded (was an uncaught
+  `OSError` that killed the batch); case-only-different names no longer silently collide on
+  case-insensitive filesystems (macOS/Windows).
+- **Crash/corruption safety.** `memory.md`, per-document notes and `mindmap.html` are now
+  written atomically (temp → fsync → rename); a corrupt `graph.json` is backed up before
+  overwrite (was silently destroyed); a corrupt `vectors.npz` reads as "no memory" instead of
+  throwing `BadZipFile` into `recall()`; `setup-claude` writes via a unique temp file
+  (concurrent runs could clobber the Claude config).
+- **LLM safety on the DEFAULT (classical) path.** Control-token scrubbing **and** prompt-fence
+  neutralisation now apply to the classical extractor and the summary/synopsis fallback
+  (previously only the LLM path) — so a malicious document's `<tool_call>`/ChatML/gemma tokens
+  or injected "ignore the above" instructions can't reach `memory.md`/recall. `_scrub` hardened
+  (case-insensitive, fullwidth `｜`, idempotent against nested tokens). LLM-extracted entities are
+  now length-bounded, type-validated, and **grounding-filtered** (dropped if absent from the
+  source text → kills small-model hallucinations).
+- **Classical-extractor quality** (the 4 GB default path): junk-entity gating, **sentence-scoped**
+  relations (was a chunk-wide O(n²) clique), and entity-bearing facts.
+- **Resource safety.** `MTA_MEMORY_GB` override for containers/cgroups that misreport host RAM
+  (auto-tiering could otherwise pick an OOM stack); negative `MTA_MAX_FILE_MB` clamped.
+- +10 regression tests; **191 offline tests pass**.
+
+### Notes
+- Tracked follow-ups from the sweep (next loop): honest "degraded mode" reporting in
+  `memory_status`/`recall`/`digest` (the silent classical/hash fallback when Ollama is broken);
+  truncated-JSON salvage; UTF-16/BOM decoding; cgroup auto-detect; a linear `_rearrange`.
+
 ## [1.9.0] — 2026-06-08
 
 ### Changed

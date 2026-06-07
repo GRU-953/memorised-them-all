@@ -14,6 +14,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .config import Config
+from .store import _atomic_write_text   # temp → fsync → os.replace (crash-safe)
 
 
 def _asset(*parts: str) -> Path:
@@ -74,7 +75,7 @@ def write_memory_md(cfg: Config, doc: dict) -> Path:
             lines.append(f"- `{Path(d['name']).name}` — {d.get('chars', 0)} chars "
                          f"(via {d.get('method', '?')})")
     lines.append("")
-    cfg.memory_md.write_text("\n".join(lines), encoding="utf-8")
+    _atomic_write_text(cfg.memory_md, "\n".join(lines))
     return cfg.memory_md
 
 
@@ -112,7 +113,7 @@ def write_doc_memories(cfg: Config, doc: dict, _g=None) -> int:
                 seen.add(t)
                 out.append(f"- {t}")
             out.append("")
-        (cfg.memory_dir / (stem + ".md")).write_text("\n".join(out), encoding="utf-8")
+        _atomic_write_text(cfg.memory_dir / (stem + ".md"), "\n".join(out))
         count += 1
     return count
 
@@ -151,15 +152,15 @@ def write_mindmap(cfg: Config, doc: dict) -> Path:
         # strictly-offline notice rather than fetching it from a CDN. The mind map
         # makes ZERO network requests (SEC-10). The asset is force-included in both
         # the wheel and the .mcpb, so this path should never trigger in practice.
-        cfg.mindmap_html.write_text(
+        _atomic_write_text(
+            cfg.mindmap_html,
             "<!doctype html><meta charset=utf-8><title>"
             + html.escape(doc["project"]) + " — mind map</title>"
             "<body style='font-family:sans-serif;background:#0b1020;color:#e7ecf5;padding:24px'>"
             "<h1>" + html.escape(doc["project"]) + " — memory</h1>"
             "<p>The offline mind-map renderer asset is missing from this build; "
             "reinstall the package to restore it. (No network fallback is used.)</p>"
-            "<p>" + html.escape(doc.get("synopsis", "")) + "</p></body>",
-            encoding="utf-8")
+            "<p>" + html.escape(doc.get("synopsis", "")) + "</p></body>")
         return cfg.mindmap_html
     cyto_tag = f"<script>{cyto}</script>"
     if _TEMPLATE.exists():
@@ -168,7 +169,7 @@ def write_mindmap(cfg: Config, doc: dict) -> Path:
                     .replace("/*__DATA__*/", data_js))
     else:
         out_html = _fallback_html(data, cyto_tag, data_js)
-    cfg.mindmap_html.write_text(out_html, encoding="utf-8")
+    _atomic_write_text(cfg.mindmap_html, out_html)
     return cfg.mindmap_html
 
 

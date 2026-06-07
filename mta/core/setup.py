@@ -66,12 +66,24 @@ def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME) -> dict:
             cfg["mcpServers"] = servers
         already = servers.get(name) == entry
         servers[name] = entry
-        # Atomic write: stage to a temp file then ``os.replace`` (a single rename is the
-        # commit point), so a watcher — e.g. a running Claude Desktop — never sees a
-        # half-written file and the entry can't be lost to an interleaved read.
-        tmp = path.with_name(path.name + ".mta-tmp")
-        tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        os.replace(tmp, path)
+        # Atomic write: stage to a UNIQUE temp file (mkstemp — so two concurrent
+        # setup-claude runs, e.g. install.sh + a manual run, can't clobber a shared temp),
+        # fsync, then ``os.replace`` (the single commit point) — a watcher like a running
+        # Claude Desktop never sees a half-written file.
+        import tempfile
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".mta-tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
         return {"path": str(path), "status": "ok",
                 "changed": not already, "backup": str(backed_up) if backed_up else None}
     except OSError as exc:

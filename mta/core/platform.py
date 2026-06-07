@@ -68,7 +68,19 @@ def performance_cores() -> int:
 
 @functools.lru_cache(maxsize=1)
 def memory_gb() -> float:
-    """Total RAM in GB — portable (Apple sysctl → psutil → POSIX sysconf → 8)."""
+    """Total RAM in GB — portable (Apple sysctl → psutil → POSIX sysconf → 8).
+
+    Honors an ``MTA_MEMORY_GB`` override first, so a container/cgroup-limited box (where
+    the host total is misreported) or any sandbox can force the right resource tier
+    instead of auto-detection picking an OOM-inducing one."""
+    ovr = os.environ.get("MTA_MEMORY_GB", "").strip()
+    if ovr:
+        try:
+            v = float(ovr)
+            if v > 0:
+                return round(v, 1)
+        except ValueError:
+            pass
     if is_apple_silicon():
         b = _sysctl_int("hw.memsize")
         if b:
