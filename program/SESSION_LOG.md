@@ -445,3 +445,23 @@ User: "using only the latest online sources (e.g. ollama.com/search) look again 
 **Published:** tag v1.7.0 (run 27069875217) → PyPI + GitHub Release + Homebrew + GHCR. Venv upgraded to 1.7.0.
 
 **EXACT NEXT STEP:** None required — `main`=`develop`=v1.7.0, no Critical/High. The ≤16 GB optimum stack is the default + live-verified; escalate to qwen3:8b on bigger machines, or try the experimental qwen3.5:4b / gemma4:e2b-it-qat. User-machine file-deletion investigation still outstanding (S17–S18).
+
+---
+
+## Session 21 — 2026-06-07 — real FY 25-26 corpus → WP-69 → 🚢 v1.8.0 (legacy Bengali + convert + LLM hardening)
+
+User: test/fix/improve the plugin + all skills (esp. LLM functionalities) on the **FY 25-26** corpus (2 GB, 711 files: 265 docx / 163 xlsx / 139 pdf / 82 pptx, heavy **SutonnyMJ** legacy Bengali) repetitively to convergence; make **convert-all-to-Markdown a default feature**; build a **legacy Bengali (SutonnyMJ) → Unicode** converter from the **Mukti** folder and integrate it; headless, best options.
+
+**Mukti port (the keystone):** Mukti (anindash15-arch/Mukti, MIT) is a JS Office add-in. Ported its bijoy-to-unicode pipeline to pure-Python `mta/core/bangla_legacy.py` (pre-map → longest-first main map → 2-pass Unicode rearrange → post-map + detection). Node was available at PORT TIME only — used it to dump the mapping tables (`_bangla_maps.py`, ASCII-safe) + the rearrange classification sets faithfully; the shipped feature is dependency-free. **Validated 21/21 identical to the Mukti JS oracle.**
+
+**Font-aware integration (the key correctness insight):** real docs are MIXED (English in Calibri/Arial + Bengali in SutonnyMJ), and a pure-ASCII Bijoy word (`Avwg`→আমি) is indistinguishable from English by characters — so a whole-doc density gate is wrong. Confirmed the docx tag legacy runs with `w:rFonts w:ascii="SutonnyMJ"` (247 runs in one file) → built a **font-aware Office delegacifier** (`.docx`/`.pptx`/`.xlsx`): converts only Bijoy-family-font runs (114 names from Mukti's registry; Boishakhi/Proshika/Lekhoni skipped — different maps), retags to a Unicode font, repackages, then MarkItDown converts the Unicode copy. Plain text uses a conservative density heuristic that excludes the U+2013–2122 punctuation block so English (em-dash/©/smart-quotes) is never touched. Wired into `convert.py` `_try_markitdown` + a plain-text net (default-on, `MTA_BANGLA_LEGACY`). Verified on a real docx: **7273 Bengali chars, 0 residual mojibake, English untouched** (`eª¨vK`→`ব্র্যাক`).
+
+**convert feature:** `digest` already converts to Markdown internally; surfaced it as a first-class **`mta convert <paths> [--out DIR]`** CLI + MCP **`convert()`** tool (writes `markdown_converted/` beside input; legacy Bengali upgraded in the process). Now **9 tools** — updated server registration, REST registry, schema/conformance/transport tests, recipes (count now derived from the catalogue so surfaces can't drift), manifest + SKILL.
+
+**LLM hardening (found by digesting real Bengali):** qwen3:4b leaked `<tool_call>` special tokens into extracted entities/facts (**26 in graph.json**) → added `_scrub` stripping `<tool_call>`/ChatML/`<think>` from every extracted string (**→ 0**). Also `num_predict` 700→1024 (headroom vs truncated-JSON→silent classical fallback) + `<think>`-block stripping in the JSON parser (defensive for thinking-capable qwen3 via non-`format:json` backends).
+
+**Convergence loop:** real-corpus digests surfaced (a) the `<tool_call>` leak, (b) a degraded-Ollama classical/hash fallback + 55-min wall-clock (fixed by an Ollama restart → accurate mode/real embeddings), (c) the 9-tool surface drift (conformance caught it). Drove the offline suite 6-failures→**175 passing**; +9 tests (`test_bangla_legacy.py`). Note: digesting via a `python - <<heredoc` crashes the multiprocessing **spawn** workers (re-imports `<stdin>`) — harness artifact only; the real `mta` CLI/MCP server are unaffected (and `_convert_all` degrades to sequential on a broken pool). Local LLM extraction on dense docs is inherently slow (~40s/chunk) — use `--fast` for bulk.
+
+**Published:** PR #42→develop, #43→main, tag v1.8.0 → PyPI + GitHub + Homebrew + GHCR. Venv upgraded.
+
+**EXACT NEXT STEP:** None required — `main`=`develop`=v1.8.0, no Critical/High. Legacy-Bengali conversion + the `convert` feature are default-on and validated on the real corpus. For the user's 2 GB FY 25-26 corpus, bulk-digest with `--fast` (classical) or digest subsets; the per-doc LLM path is correct but slow on 16 GB. User-machine file-deletion investigation (S17–S18) still outstanding.
