@@ -41,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--fast", action="store_true",
                    help="skip the LLM (classical extraction); faster, fully deterministic")
 
+    cv = sub.add_parser("convert", help="convert files/dirs/globs to Markdown (legacy Bengali→Unicode)")
+    cv.add_argument("paths", nargs="+")
+    cv.add_argument("--out", default=None,
+                    help="output dir (default: markdown_converted/ beside the input)")
+
     r = sub.add_parser("recall", help="query the memory")
     r.add_argument("query")
     r.add_argument("-k", type=int, default=0)
@@ -138,6 +143,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "digest":
         _print(run_digest(cfg, args.paths, reset=args.reset, fast=args.fast))
+    elif args.cmd == "convert":
+        from .core.digest import convert_to_markdown
+        _print(convert_to_markdown(cfg, args.paths, out_dir=args.out))
     elif args.cmd == "recall":
         _print(recall_mod.recall(cfg, args.query, k=args.k or None))
     elif args.cmd == "overview":

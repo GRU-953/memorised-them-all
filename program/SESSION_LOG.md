@@ -427,3 +427,41 @@ User asked whether `gemma4:e2b-it-qat` is a better fit and to add it + similar o
 **WP-67 (v1.6.3, docs/manifest only — no code change):** new README "Choosing a model" section + enriched `manifest.json` `extract_model`/`embed_model`/`vision_model` descriptions with verified-real tags — extraction (`gemma3:4b-it-qat`, `gemma3n:e2b-it-q4_K_M`, `gemma3:1b-it-qat`, `qwen2.5:3b`), embeddings (**`bge-m3`** 100+ langs — best for Bangla recall; `mxbai-embed-large`), vision (`llama3.2-vision`, `qwen2.5vl`, `granite3.2-vision`); added the model env vars to the config table; documented the embed-dimension caveat (re-digest with reset after changing embed model). PR #38→develop, #39→main, tag v1.6.3 (run 27068301458, 4/4 green: build/pypi/github_release/homebrew). Venv upgraded → 1.6.3[mlx] (still backend ollama, gpu mlx, mlx_whisper True).
 
 **EXACT NEXT STEP:** None required — `main`=`develop`=v1.6.3, no Critical/High. The model alternatives are documented + selectable via `MTA_EXTRACT_MODEL`/`MTA_EMBED_MODEL`/`MTA_VISION_MODEL` (or the Desktop extension settings); for a Bangla-tuned stack use `gemma3:4b-it-qat` + `bge-m3` and re-digest with reset. User-machine file-deletion investigation still outstanding (S17–S18).
+
+---
+
+## Session 20 — 2026-06-07 — research ≤16 GB optimum models (agents, repeated) → WP-68 → 🚢 v1.7.0
+
+User: "using only the latest online sources (e.g. ollama.com/search) look again repetitively for the latest+optimum solutions for ≤16 GB machines, update the plugin as many times as needed using agents, then thoroughly/critically test, fix, improve, publish everywhere, and update the README + project details."
+
+**Research (agents, live sources only — 2 rounds):**
+- Round 1: three parallel general-purpose agents (extraction / embeddings / vision), each forced to verify exact tags + sizes on live Ollama pages. Findings: extraction `qwen3:4b-instruct` (2.5 GB) > qwen2.5:7b for 16 GB; embed `qwen3-embedding:0.6b` (0.64 GB, 1024-d, MMTEB ≈64) > nomic; vision `qwen3-vl:4b-instruct` (3.3 GB, 32-lang OCR) > moondream; whisper `small`. The extraction agent caught the fetch-summarizer HALLUCINATING models (qwen3.5/gemma4) and discarded them.
+- Round 2: an independent verifier agent confirmed every tag against the AUTHORITATIVE `registry.ollama.ai/v2/.../manifests/<tag>` API (what `ollama pull` uses). Critical corrections: `qwen3:4b-instruct-2507` 404s (use `qwen3:4b-instruct`); **bare `qwen3:4b` and `qwen3-vl:4b` are THINKING builds** → pin the `-instruct` tags for clean JSON/captions. Also: `gemma4` and `qwen3.5` are now REAL (released since Round 1) — documented as experimental, not defaulted.
+
+**WP-68 (v1.7.0):** changed config.py defaults + install.sh pull list + manifest.json + .mcp.json + README "Choosing a model" to the new stack; added a qwen3-embedding query-instruction prefix (improve); kept old defaults as documented alternatives; refreshed the GitHub repo description (multilingual + ≤16 GB). All overridable.
+
+**Critically tested on the user's 16 GB Mac BEFORE publishing:** pulled the 3 models; working-tree (1.7.0) digest with new defaults → mode accurate, extract qwen3:4b-instruct + embed qwen3-embedding:0.6b, 3/3 files, 9 entities; English recall 0.688; **Bangla→Bangla recall 0.751** (the multilingual win). Migration safety: digest at 768-d then recall with the 1024-d model → graceful `mode: lexical` fallback (status ok, 4 hits, NO crash); re-digest restores vector recall. 166 offline tests pass; full matrix CI green (#40); release CI green (#41, e2e-offline incl.).
+
+**Published:** tag v1.7.0 (run 27069875217) → PyPI + GitHub Release + Homebrew + GHCR. Venv upgraded to 1.7.0.
+
+**EXACT NEXT STEP:** None required — `main`=`develop`=v1.7.0, no Critical/High. The ≤16 GB optimum stack is the default + live-verified; escalate to qwen3:8b on bigger machines, or try the experimental qwen3.5:4b / gemma4:e2b-it-qat. User-machine file-deletion investigation still outstanding (S17–S18).
+
+---
+
+## Session 21 — 2026-06-07 — real FY 25-26 corpus → WP-69 → 🚢 v1.8.0 (legacy Bengali + convert + LLM hardening)
+
+User: test/fix/improve the plugin + all skills (esp. LLM functionalities) on the **FY 25-26** corpus (2 GB, 711 files: 265 docx / 163 xlsx / 139 pdf / 82 pptx, heavy **SutonnyMJ** legacy Bengali) repetitively to convergence; make **convert-all-to-Markdown a default feature**; build a **legacy Bengali (SutonnyMJ) → Unicode** converter from the **Mukti** folder and integrate it; headless, best options.
+
+**Mukti port (the keystone):** Mukti (anindash15-arch/Mukti, MIT) is a JS Office add-in. Ported its bijoy-to-unicode pipeline to pure-Python `mta/core/bangla_legacy.py` (pre-map → longest-first main map → 2-pass Unicode rearrange → post-map + detection). Node was available at PORT TIME only — used it to dump the mapping tables (`_bangla_maps.py`, ASCII-safe) + the rearrange classification sets faithfully; the shipped feature is dependency-free. **Validated 21/21 identical to the Mukti JS oracle.**
+
+**Font-aware integration (the key correctness insight):** real docs are MIXED (English in Calibri/Arial + Bengali in SutonnyMJ), and a pure-ASCII Bijoy word (`Avwg`→আমি) is indistinguishable from English by characters — so a whole-doc density gate is wrong. Confirmed the docx tag legacy runs with `w:rFonts w:ascii="SutonnyMJ"` (247 runs in one file) → built a **font-aware Office delegacifier** (`.docx`/`.pptx`/`.xlsx`): converts only Bijoy-family-font runs (114 names from Mukti's registry; Boishakhi/Proshika/Lekhoni skipped — different maps), retags to a Unicode font, repackages, then MarkItDown converts the Unicode copy. Plain text uses a conservative density heuristic that excludes the U+2013–2122 punctuation block so English (em-dash/©/smart-quotes) is never touched. Wired into `convert.py` `_try_markitdown` + a plain-text net (default-on, `MTA_BANGLA_LEGACY`). Verified on a real docx: **7273 Bengali chars, 0 residual mojibake, English untouched** (`eª¨vK`→`ব্র্যাক`).
+
+**convert feature:** `digest` already converts to Markdown internally; surfaced it as a first-class **`mta convert <paths> [--out DIR]`** CLI + MCP **`convert()`** tool (writes `markdown_converted/` beside input; legacy Bengali upgraded in the process). Now **9 tools** — updated server registration, REST registry, schema/conformance/transport tests, recipes (count now derived from the catalogue so surfaces can't drift), manifest + SKILL.
+
+**LLM hardening (found by digesting real Bengali):** qwen3:4b leaked `<tool_call>` special tokens into extracted entities/facts (**26 in graph.json**) → added `_scrub` stripping `<tool_call>`/ChatML/`<think>` from every extracted string (**→ 0**). Also `num_predict` 700→1024 (headroom vs truncated-JSON→silent classical fallback) + `<think>`-block stripping in the JSON parser (defensive for thinking-capable qwen3 via non-`format:json` backends).
+
+**Convergence loop:** real-corpus digests surfaced (a) the `<tool_call>` leak, (b) a degraded-Ollama classical/hash fallback + 55-min wall-clock (fixed by an Ollama restart → accurate mode/real embeddings), (c) the 9-tool surface drift (conformance caught it). Drove the offline suite 6-failures→**175 passing**; +9 tests (`test_bangla_legacy.py`). Note: digesting via a `python - <<heredoc` crashes the multiprocessing **spawn** workers (re-imports `<stdin>`) — harness artifact only; the real `mta` CLI/MCP server are unaffected (and `_convert_all` degrades to sequential on a broken pool). Local LLM extraction on dense docs is inherently slow (~40s/chunk) — use `--fast` for bulk.
+
+**Published:** PR #42→develop, #43→main, tag v1.8.0 → PyPI + GitHub + Homebrew + GHCR. Venv upgraded.
+
+**EXACT NEXT STEP:** None required — `main`=`develop`=v1.8.0, no Critical/High. Legacy-Bengali conversion + the `convert` feature are default-on and validated on the real corpus. For the user's 2 GB FY 25-26 corpus, bulk-digest with `--fast` (classical) or digest subsets; the per-doc LLM path is correct but slow on 16 GB. User-machine file-deletion investigation (S17–S18) still outstanding.

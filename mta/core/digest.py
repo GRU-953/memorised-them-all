@@ -96,8 +96,9 @@ def _assign_output_names(files: list[Path]) -> dict[str, str]:
     return assigned
 
 
-def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager) -> list[dict]:
-    out_dir = cfg.markdown_dir
+def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager,
+                 out_dir: Path | None = None) -> list[dict]:
+    out_dir = out_dir or cfg.markdown_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     names = _assign_output_names(files)
     n = worker_count(cfg.workers)
@@ -123,6 +124,43 @@ def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager) -> list[
             pass
     return [convert_file(f, out_dir, cfg, ollama, out_name=names[str(f)]).as_dict()
             for f in files]
+
+
+def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = None,
+                        ollama: OllamaManager | None = None) -> dict:
+    """Convert files/dirs/globs to Markdown locally and write the .md files to ``out_dir``
+    (default: a ``markdown_converted/`` folder beside the input). Legacy Bengali
+    (Bijoy/SutonnyMJ ANSI fonts) is auto-upgraded to Unicode during conversion.
+
+    Token-free: returns only counts + output paths, never document text. This is the
+    standalone "convert everything to Markdown" feature; ``digest`` runs the very same
+    conversion as its first stage, so conversion-to-Markdown is the default everywhere.
+    """
+    import os
+    cfg.ensure_dirs()
+    ollama = ollama or OllamaManager(cfg)
+    files = _expand(paths, all_types=cfg.digest_all)
+    if not files:
+        return {"status": "no_input", "paths": paths,
+                "message": "No convertible files found."}
+    if out_dir:
+        outd = Path(os.path.expanduser(os.path.expandvars(str(out_dir))))
+    else:
+        first = Path(os.path.expanduser(os.path.expandvars(paths[0])))
+        outd = (first if first.is_dir() else first.parent) / "markdown_converted"
+    results = _convert_all(files, cfg, ollama, out_dir=outd)
+    ok = [r for r in results if r.get("status") == "ok"]
+    bn = sum(1 for r in ok if "bn-unicode" in (r.get("method") or ""))
+    return {
+        "status": "ok", "out_dir": str(outd),
+        "stats": {
+            "files": len(files), "converted": len(ok),
+            "bangla_unicode_converted": bn,
+            "skipped": sum(1 for r in results if r.get("status") in ("skipped", "unsupported")),
+            "failed": sum(1 for r in results if r.get("status") in ("failed", "empty")),
+        },
+        "outputs": [r.get("output") for r in ok if r.get("output")][:100],
+    }
 
 
 # ---- local summarisation ---------------------------------------------

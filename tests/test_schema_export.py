@@ -17,7 +17,7 @@ import pytest
 from mta.interop import schemas
 
 EXPECTED = {
-    "digest", "recall", "memory_overview", "export_memory",
+    "digest", "convert", "recall", "memory_overview", "export_memory",
     "list_digestible", "forget", "memory_status", "open_mindmap",
 }
 

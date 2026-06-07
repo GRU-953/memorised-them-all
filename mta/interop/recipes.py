@@ -30,13 +30,14 @@ def build(cfg: Config | None = None, *, host: str | None = None, port: int | Non
 
     from ..transport import client_config
     from .rest import client_recipe
+    from .schemas import tool_catalogue
 
     http = client_config(host, port, path, tok)
     rest = client_recipe(host, port, tok)
     base = rest["base_url"]
 
     return {
-        "tools": 8,
+        "tools": len(tool_catalogue()),  # derive from the single source → never drifts
         "surfaces": {
             "stdio": {
                 "description": "Default. Claude Desktop / Claude Code launch the server over stdio (no token needed).",
@@ -77,7 +78,7 @@ def build(cfg: Config | None = None, *, host: str | None = None, port: int | Non
         "notes": [
             "stdio is the default and needs no token. `--http` / `--rest` print a bearer token on "
             "start (the two share one token); paste it where <TOKEN> appears.",
-            "Every surface exposes the SAME eight token-free tools and returns the same results.",
+            "Every surface exposes the SAME token-free tools and returns the same results.",
         ],
     }
 
