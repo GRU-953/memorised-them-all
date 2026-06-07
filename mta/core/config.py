@@ -104,8 +104,13 @@ class Config:
     max_chunks: int = field(default_factory=lambda: _env_int("MTA_MAX_CHUNKS", 1500))
     # Skip individual files larger than this (MB) before reading them into memory,
     # bounding OOM/decompression-bomb risk. 0 disables the cap.
-    max_file_mb: int = field(default_factory=lambda: _env_int("MTA_MAX_FILE_MB", 200))
+    max_file_mb: int = field(default_factory=lambda: max(0, _env_int("MTA_MAX_FILE_MB", 200)))
     extract_workers: int = field(default_factory=lambda: _env_int("MTA_EXTRACT_WORKERS", 0))  # 0=auto
+    # Per-file conversion timeout (seconds): each file converts in its own killable
+    # subprocess, so one pathological file (a parser that hangs forever) can never stall
+    # the whole batch. Scaled up by file size; capped at convert_timeout_max. 0 disables.
+    convert_timeout: int = field(default_factory=lambda: max(0, _env_int("MTA_CONVERT_TIMEOUT", 120)))
+    convert_timeout_max: int = field(default_factory=lambda: max(0, _env_int("MTA_CONVERT_TIMEOUT_MAX", 900)))
 
     # Lifecycle & maintenance.
     idle_seconds: int = field(default_factory=lambda: _env_int("MTA_IDLE", 300))

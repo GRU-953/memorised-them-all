@@ -71,7 +71,12 @@ class Extraction:
 
 
 def _classical(chunk: Chunk) -> Extraction:
+    """Dependency-free extraction — the DEFAULT path on the micro/4 GB profile, so quality
+    matters. Capitalised-phrase entities (gated to drop junk), relations scoped to
+    same-SENTENCE co-occurrence (not a chunk-wide O(n²) clique), and entity-bearing facts.
+    Every string is scrubbed of control/fence tokens so injected docs can't poison memory."""
     text = chunk.text
+    sentences = [re.sub(r"\s+", " ", s).strip() for s in _split_sentences(text)]
     counts: dict[str, int] = {}
     for m in _ENTITY_RE.finditer(text):
         # Collapse internal whitespace/newlines so a label spanning a line break
@@ -82,27 +87,38 @@ def _classical(chunk: Chunk) -> Extraction:
         head, _, rest = name.partition(" ")
         if rest and head in _LEADING_DET:
             name = rest
-        if name in _STOPWORDS or len(name) < 2:
+        if name in _STOPWORDS or len(name) < 2 or not _valid_entity(name):
             continue
         counts[name] = counts.get(name, 0) + 1
     # Keep the most salient entities in the chunk.
     ents = sorted(counts, key=lambda n: (-counts[n], n))[:8]
-    entities = [{"name": n, "type": "other"} for n in ents]
+    entities = [{"name": _scrub(n), "type": "other"} for n in ents if _scrub(n)]
 
+    # Relations: co-occurrence WITHIN A SENTENCE only (was a chunk-wide clique → mostly
+    # meaningless O(n²) edges that diluted community detection). De-duplicated.
     relations: list[dict] = []
-    # Co-occurrence inside the chunk → "related_to" edges among top entities.
-    for i in range(len(ents)):
-        for j in range(i + 1, len(ents)):
-            relations.append({"source": ents[i], "relation": "related_to",
-                              "target": ents[j]})
-    # Facts: whole sentences (abbreviation-aware split), internal whitespace collapsed
-    # so a fact spanning a line break isn't newline-laden or truncated (PIPE-06).
+    seen_rel: set[tuple[str, str]] = set()
+    for s in sentences:
+        present = [e for e in ents if e in s]
+        for i in range(len(present)):
+            for j in range(i + 1, len(present)):
+                key = (present[i], present[j])
+                if key not in seen_rel:
+                    seen_rel.add(key)
+                    relations.append({"source": _scrub(present[i]), "relation": "related_to",
+                                      "target": _scrub(present[j])})
+    # Facts: prefer sentences that actually mention a kept entity (more useful for recall);
+    # fall back to any sentence if none qualify. Abbreviation-aware split, scrubbed.
     facts: list[str] = []
-    for s in _split_sentences(text):
-        s = re.sub(r"\s+", " ", s).strip()
-        if 20 <= len(s) <= 240:
-            facts.append(s)
-        if len(facts) >= 6:
+    for grounded in (True, False):
+        for s in sentences:
+            if 20 <= len(s) <= 240 and (not grounded or any(e in s for e in ents)):
+                f = _scrub(s)
+                if f and f not in facts:
+                    facts.append(f)
+            if len(facts) >= 6:
+                break
+        if facts:
             break
     return Extraction(entities=entities, relations=relations, facts=facts)
 
@@ -127,22 +143,54 @@ def _loads_json_object(text: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
-# Chat/tool control tokens a chat-tuned model can emit mid-output (qwen3's
-# <tool_call>…</tool_call>, ChatML <|im_start|>/<|im_end|>, etc.) must never end up
-# inside an entity name, relation, or fact — scrub them from every extracted string.
+# Chat/tool control tokens a chat-tuned model can emit mid-output (qwen3 <tool_call>,
+# ChatML <|im_start|>, gemma <start_of_turn>, DeepSeek fullwidth <｜…｜>, …) must never
+# reach an entity/fact/summary (it pollutes memory.md + recall, and is a mild injection
+# vector to Claude). Case-insensitive; the pipe arm allows the fullwidth ｜ (U+FF5C).
 _SPECIAL_TOK = re.compile(
-    r"<\|[^|>]{0,40}\|>"  # ChatML / Llama / qwen pipe tokens: <|im_start|> <|eot_id|> <|endoftext|> …
-    r"|</?(?:tool_call|tool_response|think|im_start|im_end|start_of_turn|end_of_turn)\s*>")
+    r"<[\|｜][^>]{0,80}?[\|｜]>"
+    r"|</?\s*(?:tool_call|tool_response|think|thinking|im_start|im_end|"
+    r"start_of_turn|end_of_turn|start_header_id|end_header_id|eot_id)\s*>",
+    re.IGNORECASE)
+
+# Prompt-fence delimiters wrapping document data. Document text must NOT be able to forge
+# them (second-order prompt injection), so we neutralise any occurrence inside the data.
+_FENCE_TOK = re.compile(r"<<<\s*(?:DATA|CHUNK|END)\s*>>>", re.IGNORECASE)
+_ENTITY_TYPES = {"person", "org", "place", "concept", "product", "event", "other"}
 
 
 def _scrub(s: str) -> str:
-    return re.sub(r"\s{2,}", " ", _SPECIAL_TOK.sub("", s)).strip()
+    s = s or ""
+    for _ in range(5):  # fixed-point: a single pass lets "<tool_<tool_call>call>" re-form
+        new = _SPECIAL_TOK.sub("", s)
+        if new == s:
+            break
+        s = new
+    return re.sub(r"\s{2,}", " ", s).strip()
+
+
+def _defang_fence(s: str) -> str:
+    """Make the <<<DATA>>>/<<<CHUNK>>>/<<<END>>> fence un-forgeable from inside data."""
+    return _FENCE_TOK.sub("[delim]", s or "")
+
+
+def _valid_entity(name: str) -> bool:
+    """Reject obvious non-entities a model or the regex can emit: sentence-length blobs,
+    URLs, pure numbers/punctuation, multi-line strings."""
+    if not name or len(name) > 80 or len(name.split()) > 8 or "\n" in name or "://" in name:
+        return False
+    return re.search(r"[^\W\d_]", name) is not None  # must contain at least one letter
+
+
+def _norm_type(t) -> str:
+    t = str(t or "other").strip().lower()
+    return t if t in _ENTITY_TYPES else "other"
 
 
 def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
     from . import backends
     resp = backends.generate(
-        cfg, ollama, _PROMPT + chunk.text[:6000] + "\n<<<END>>>",
+        cfg, ollama, _PROMPT + _defang_fence(chunk.text[:6000]) + "\n<<<END>>>",
         json_format=True, num_predict=1024, temperature=0.0, wait=25)
     if not resp:
         return None
@@ -150,16 +198,27 @@ def _llm(chunk: Chunk, cfg: Config, ollama: OllamaManager) -> Extraction | None:
     if obj is None:
         return None
 
+    # Grounding: keep only entities whose name actually appears in the chunk (punctuation/
+    # case-insensitive) → drops small-model hallucinations. \w is Unicode-aware (Bangla ok).
+    chunk_norm = re.sub(r"[^\w]", "", chunk.text.lower())
+
+    def _grounded(name: str) -> bool:
+        nn = re.sub(r"[^\w]", "", name.lower())
+        return bool(nn) and nn in chunk_norm
+
     def _clean_entities(raw) -> list[dict]:
-        out = []
+        out, seen = [], set()
         for e in raw or []:
             if isinstance(e, dict) and e.get("name"):
-                name = _scrub(str(e["name"]))
-                if name:
-                    out.append({"name": name,
-                                "type": str(e.get("type", "other")).strip().lower() or "other"})
-            elif isinstance(e, str) and _scrub(e):
-                out.append({"name": _scrub(e), "type": "other"})
+                name, typ = _scrub(str(e["name"]))[:120], _norm_type(e.get("type"))
+            elif isinstance(e, str):
+                name, typ = _scrub(e)[:120], "other"
+            else:
+                continue
+            if (not _valid_entity(name) or name.lower() in seen or not _grounded(name)):
+                continue
+            seen.add(name.lower())
+            out.append({"name": name, "type": typ})
         return out
 
     def _clean_relations(raw) -> list[dict]:
