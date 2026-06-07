@@ -465,3 +465,22 @@ User: test/fix/improve the plugin + all skills (esp. LLM functionalities) on the
 **Published:** PR #42→develop, #43→main, tag v1.8.0 → PyPI + GitHub + Homebrew + GHCR. Venv upgraded.
 
 **EXACT NEXT STEP:** None required — `main`=`develop`=v1.8.0, no Critical/High. Legacy-Bengali conversion + the `convert` feature are default-on and validated on the real corpus. For the user's 2 GB FY 25-26 corpus, bulk-digest with `--fast` (classical) or digest subsets; the per-doc LLM path is correct but slow on 16 GB. User-machine file-deletion investigation (S17–S18) still outstanding.
+
+---
+
+## Session 22 — 2026-06-08 — 6-expert guardrail brainstorm → WP-70 → 🚢 v1.9.0 (4 GB/no-GPU default + guardrails)
+
+User: continue; then think deeply + brainstorm stability/accuracy guardrails across ALL platforms using **as many expert agents as possible**, prioritising our test roadblocks; **configure the plugin for a 4 GB no-GPU machine as the default** (users opt up); headless, novice-friendly, simple summaries each turn.
+
+**Expert brainstorm (6 parallel agents, each given our real roadblocks):** resource/memory sizing · Ollama runtime reliability · conversion robustness · cross-platform correctness · LLM output safety · novice UX. Strongly-convergent, code-level findings (full reports in the session transcript). Top consensus: (a) the 16 GB-tuned default OOMs/thrashes small boxes — need RAM/GPU-adaptive tiers; (b) silent degradation (Ollama "up" via /api/tags but inference 500s, or thrash→classical/hash) is never surfaced — add an inference probe + honest "degraded" reporting; (c) MarkItDown can hang one file and stall the batch — need a cross-platform per-file timeout; (d) special-token scrub was only on entities/facts, not summaries/synopsis; (e) several atomic-write/spawn/Windows gaps.
+
+**Implemented (v1.9.0, WP-70) — the highest-value cohesive set:**
+- **NEW DEFAULT profile `micro`** (safe on 4 GB/no-GPU): `extract_mode=classical` (no heavy LLM → can't OOM/thrash) + `qwen3-embedding:0.6b` (hash fallback) + vision off + 1 worker + tiny whisper. A digest always COMPLETES on any machine. `config.py` `DEFAULT_PROFILE="micro"`; `load()` defaults to it.
+- **`MTA_PROFILE=auto`** → `platform.detect_tier()` (RAM-gated: <6 micro / 6-12 small / 12-24 standard=qwen3 stack / ≥24 large=qwen3:8b). Env / explicit profile overrides (env > profile > built-in). `.mcpb` manifest: new "Performance profile" dropdown (default `auto`) + model defaults blanked so the profile drives them (`_env` already treats "" as unset); `.mcp.json` → `MTA_PROFILE=auto`.
+- **`worker_count`**: clamp to 1 conversion worker on <6 GB (was `max(2,…)` → OOM risk on 4 GB).
+- **LLM safety:** `_llm_summarise` now `_scrub`s its output (covers community summaries + synopsis → memory.md/recall/mindmap); broadened `_SPECIAL_TOK` (gemma `<start_of_turn>`/`<end_of_turn>`, pipe tokens).
+- +8 tests (tiers, micro default, env-override precedence, detect_tier buckets, worker floor, summary scrub); 181 offline pass; full CI green. PR #44→develop, #45→main, tag v1.9.0 → all channels.
+
+**Tracked follow-ups from the review (not yet done):** cross-platform per-file conversion timeout (batch-hang guard; chip already filed); honest degraded-mode reporting in `memory_status`/`recall`/`doctor` (the silent classical/hash fallback — high novice value); richer classical extractor (now the default path on 4 GB: sentence-scoped relations, entity gating, grounding filter); atomic `render.py` writes (memory.md/mindmap.html); unique-temp-name in `setup.py`; CI test of the spawn/parallel path + 4 GB worker clamp; `bootstrap_path()` in spawned workers.
+
+**EXACT NEXT STEP:** None required — `main`=`develop`=v1.9.0, no Critical/High. Default is now 4 GB/no-GPU-safe; bigger machines opt up via `MTA_PROFILE=auto`. The user's own venv/Claude config should be set to `MTA_PROFILE=auto` (their 16 GB → standard). The follow-up guardrails above are the next worthwhile work if desired.
