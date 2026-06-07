@@ -320,6 +320,8 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | `MTA_NO_OLLAMA` | unset | force fully-offline mode (no AI model) |
 | `MTA_AUTO_UPDATE` | `on` | daily update check (`off` to disable) |
 | `MTA_PROFILE` | `micro` | sizing tier: **`micro`** (4 GB / no-GPU — the safe default) · `auto` (size to this machine) · `small` · `standard` (16 GB) · `large` (32 GB+) · `offline` |
+| `MTA_CONVERT_TIMEOUT` | `120` | per-file conversion timeout (seconds); a file that hangs the parser is skipped, never stalls the batch. `0` disables |
+| `MTA_MEMORY_GB` | auto | override detected RAM (for containers/VMs that misreport it, to pick the right profile) |
 | `MTA_BACKEND` / `MTA_BACKEND_URL` | `auto` | use another local model server (see above) |
 | `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
