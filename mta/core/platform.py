@@ -87,17 +87,36 @@ def memory_gb() -> float:
 
 
 def worker_count(requested: int = 0) -> int:
-    """Resolve the pool size.
+    """Resolve the conversion pool size.
 
-    On Apple silicon we cap to performance cores and further clamp by unified
-    memory (each markitdown/Office worker can transiently hold a few hundred MB),
-    so a 16 GB Mac doesn't thrash.
+    Clamps by unified memory (each markitdown/Office worker can transiently hold a
+    few hundred MB) so a small box doesn't thrash. A 4 GB-class machine — the new
+    default target — runs a SINGLE conversion worker.
     """
     if requested and requested > 0:
         return max(1, requested)
+    if memory_gb() < 6:                       # 4 GB-class box → one worker, no OOM
+        return 1
     cores = performance_cores()
-    mem_cap = max(2, int(memory_gb() // 2))  # ~2 GB headroom per worker
+    mem_cap = max(1, int(memory_gb() // 2))   # ~2 GB headroom per worker
     return max(1, min(cores, mem_cap, 8))
+
+
+@functools.lru_cache(maxsize=1)
+def detect_tier() -> str:
+    """Pick a resource tier from total RAM (the gate for whether a model *fits*):
+    ``micro`` (<6 GB — e.g. a 4 GB no-GPU box), ``small`` (6–12), ``standard``
+    (12–24), ``large`` (≥24). Used by ``MTA_PROFILE=auto`` and for status reporting.
+    RAM gates fit; a GPU only affects speed, so it isn't a tier gate (but the micro
+    tier turns vision off, since a local VLM is impractical without one)."""
+    gb = memory_gb()
+    if gb < 6:
+        return "micro"
+    if gb < 12:
+        return "small"
+    if gb < 24:
+        return "standard"
+    return "large"
 
 
 def pin_native_threads() -> None:
@@ -193,5 +212,6 @@ def summary() -> dict:
         "workers": worker_count(),
         "mlx_whisper": mlx_available(),
         "gpu": detect_gpu(),
+        "detected_tier": detect_tier(),
         "lm_studio": lm_studio_running(),
     }

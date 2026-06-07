@@ -107,6 +107,17 @@ def test_extract_scrubs_qwen3_special_tokens():
     assert _scrub("নি<tool_call>ম apps") == "নিম apps"
     assert _scrub("Aurora <|im_end|> Project </think>") == "Aurora Project"
     assert "tool_call" not in _scrub("a<tool_call>b</tool_call>c")
+    assert _scrub("X <start_of_turn> Y <|endoftext|>") == "X Y"  # gemma / pipe tokens
+
+
+def test_summary_path_also_scrubs_special_tokens(tmp_path, monkeypatch):
+    # The leak fix must cover LLM summaries/synopsis too — they feed memory.md + recall.
+    import mta.core.backends as backends
+    from mta.core.config import Config
+    from mta.core.digest import _llm_summarise
+    monkeypatch.setattr(backends, "generate", lambda *a, **k: "Theme <tool_call> about X <|im_end|>")
+    out = _llm_summarise("prompt", Config(home=tmp_path), None)
+    assert out == "Theme about X" and "tool_call" not in out
 
 
 def test_convert_to_markdown_writes_md(tmp_path):
