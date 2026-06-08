@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-06-08
+
+### Fixed / Added (stress-test loop Round 3 — lower-severity backlog cleanup)
+- **Empty files are now labelled "empty," not "unsupported."** A 0-byte file (placeholder,
+  failed download, `touch`'d) gets a clear status regardless of extension.
+- **Windows "Unicode" (UTF-16) text files now read correctly.** Files saved as UTF-16/UTF-8-BOM
+  (common from Windows Notepad/Excel) used to come out as mojibake — and as *unknown*-extension
+  files their interleaved NUL bytes got them misclassified as binary and skipped. A BOM-aware
+  decoder fixes both (`.txt`/`.csv`/unknown text alike).
+- **Truncated model output is salvaged instead of discarded.** When a small/cut-off local model
+  returns truncated JSON, the parser now recovers the complete entities/relations/facts (dropping
+  only the partial trailing element) rather than dropping the whole chunk to classical. Best-effort
+  and safe — if it still can't parse, behaviour is exactly as before.
+- **Container memory limits are respected.** `memory_gb()` now also reads the cgroup v2/v1 memory
+  cap and uses `min(host, cgroup-limit)`, so auto-tiering inside a memory-capped Docker/Kubernetes/CI
+  container picks a safe profile instead of the (possibly huge) host total.
+- **Out-of-tree symlinks are not followed on a folder walk.** A symlink planted inside a digested
+  folder whose target escapes that folder is skipped, so a digest can't be tricked into reading
+  arbitrary host files. Explicitly-named paths are still honoured.
+- +9 regression tests (`tests/test_backlog_round3.py`).
+
 ## [1.11.0] — 2026-06-08
 
 ### Added (honest degraded-mode reporting — Round 2 of the stress-test loop)

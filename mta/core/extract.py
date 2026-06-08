@@ -139,6 +139,54 @@ def _loads_json_object(text: str) -> dict | None:
     try:
         obj = json.loads(s or "{}")
     except (json.JSONDecodeError, ValueError):
+        obj = _salvage_json_object(s)   # truncated/cut-off output → best-effort repair
+        if obj is None:
+            return None
+    return obj if isinstance(obj, dict) else None
+
+
+def _salvage_json_object(s: str) -> dict | None:
+    """Recover a usable object from JSON that a small/cut-off model left TRUNCATED
+    (a frequent cause of a whole chunk silently dropping to classical). Cuts at the
+    last completed nested object, drops a dangling comma, and re-balances open
+    brackets/braces. Best-effort: returns None (same as before) if it still won't
+    parse — so this can only ever RECOVER extractions, never make things worse.
+
+    e.g. ``{"entities":[{"name":"A"},{"name":"B"},{"na`` → ``{"entities":[{"name":"A"},
+    {"name":"B"}]}`` (the partial trailing entity is dropped, the rest is kept)."""
+    start = s.find("{")
+    last = s.rfind("}")
+    if start < 0 or last <= start:
+        return None
+    head = s[start:last + 1]
+    depth_brace = depth_brack = 0
+    in_str = esc = False
+    for c in head:
+        if in_str:
+            if esc:
+                esc = False          # this char is escaped → consume it
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            continue
+        if c == '"':
+            in_str = True
+        elif c == "{":
+            depth_brace += 1
+        elif c == "}":
+            depth_brace -= 1
+        elif c == "[":
+            depth_brack += 1
+        elif c == "]":
+            depth_brack -= 1
+    fixed = head.rstrip()
+    if fixed.endswith(","):
+        fixed = fixed[:-1]
+    fixed += "]" * max(0, depth_brack) + "}" * max(0, depth_brace)
+    try:
+        obj = json.loads(fixed)
+    except (json.JSONDecodeError, ValueError):
         return None
     return obj if isinstance(obj, dict) else None
 
