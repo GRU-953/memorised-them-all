@@ -95,6 +95,17 @@ def _apply_main(text: str) -> str:
 
 # ---- rearrangement (port of rearrange.js : rearrangeUnicodeText) -------------------
 def _rearrange(text: str) -> str:
+    # Split on newlines first: no reordering rule ever spans a line break (a newline
+    # matches none of the consonant/kar/halant classes and stops every cluster scan),
+    # so per-line processing is OUTPUT-IDENTICAL while bounding each pass's repeated
+    # string rebuilds to a single line — linear in total document size, not quadratic
+    # in one giant string (a multi-MB Bengali doc previously paid O(n²)).
+    if "\n" in text:
+        return "\n".join(_rearrange_line(line) for line in text.split("\n"))
+    return _rearrange_line(text)
+
+
+def _rearrange_line(text: str) -> str:
     if not text:
         return text
     text = text.replace(_HALANT + _HALANT, _HALANT)  # fix double halant

@@ -55,6 +55,16 @@ def _expand(paths: list[str], *, all_types: bool = True) -> list[Path]:
                 return
         except (OSError, RuntimeError, ValueError):
             return  # broken/looping symlink or unresolvable path → skip, never crash the batch
+        # Out-of-tree symlink policy: a symlink found during a FOLDER walk whose target
+        # resolves OUTSIDE the digested root is skipped — a symlink planted in a folder
+        # must not trick the digest into reading arbitrary host files (e.g. ~/.ssh/…).
+        # Explicitly-named paths (and glob hits) are always honored — the user chose them.
+        if not explicit and root is not None:
+            try:
+                if p.is_symlink():
+                    Path(rp).relative_to(root.resolve())
+            except (ValueError, OSError):
+                return
         known = p.suffix.lower() in SUPPORTED_EXTS
         if not explicit and not known:
             # Unknown extension: include it (so convert_file's text-fallback can digest
