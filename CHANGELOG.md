@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [1.12.1] — 2026-06-08
+
+### Docs / packaging (no code changes)
+- Refreshed the README with a **"Built to be reliable"** section summarising the three
+  stress-hardening rounds (never hangs · one bad file won't sink the batch · crash-safe
+  memory · honest offline-mode reporting · reads awkward files · can't be tricked into
+  reading out-of-tree files), and fixed the tools table (now correctly lists all **nine**
+  tools, including `convert`).
+- Refreshed product descriptions across surfaces (`.mcpb` manifest, `server.json`,
+  Claude plugin/marketplace, GitHub repo) to mention reliability hardening.
+- Added **`glama.json`** so the server can be claimed/maintained on the
+  [Glama MCP registry](https://glama.ai/mcp/servers).
+
 ## [1.12.0] — 2026-06-08
 
 ### Fixed / Added (stress-test loop Round 3 — lower-severity backlog cleanup)

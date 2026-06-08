@@ -545,3 +545,18 @@ User: "do round 3 and the remaining." Implemented all six tracked lower-severity
 **Convergence:** reviewer's verdict across all three rounds (v1.10.0 hangs/crash/corruption · v1.11.0 degraded-honesty · v1.12.0 this) = **converged for a novice on ≤16 GB; no Critical/High open**. The stress backlog is now essentially empty — the only deferred item is a semantics-preserving `_rearrange` linearization (perf-only, never bites real newline-bearing docs, not worth the fidelity risk).
 
 **EXACT NEXT STEP:** None required to ship — `main`=`develop`=v1.12.0, venv on 1.12.0, all 3 stress rounds converged. The user must **fully quit Claude Desktop (⌘Q) and reopen** to load v1.12.0 (gets Rounds 1+2+3 in one bundle). No further loop work outstanding; future sessions are net-new features only (e.g. Phase-3 interop WP-20–24 already done; nothing pending). The recurring user-machine file-deletion root cause remains the owner's to investigate (cleaner/AV/sync/disk) — unrelated to the plugin.
+
+---
+
+## Session 26 — 2026-06-08 — WP-74 → 🚢 v1.12.1 (docs/metadata refresh + Glama listing prep)
+
+User: "Update the README.md and product details on all other platforms. Then publish the plugin on https://glama.ai/mcp/servers." Docs/packaging only — no code changes.
+
+- **README:** added a **"Built to be reliable"** section translating the three stress rounds (v1.10/1.11/1.12) into plain novice language (always finishes · one bad file won't sink the batch · crash-safe memory · honest offline-mode reporting · reads awkward files incl. Windows UTF-16 + legacy Bengali · can't be tricked into reading out-of-tree files). **Fixed a real staleness bug:** the tools table said "eight tools" and omitted `convert` (added v1.8.0) → now lists all **nine** with a `convert` row.
+- **Descriptions refreshed** to convey reliability hardening: `.mcpb` `manifest.json` `long_description`, `server.json` (MCP registry), `.claude-plugin/plugin.json` + `marketplace.json`, and the **GitHub repo description** (set via `gh repo edit`; topics already at the 20 max and current).
+- **Glama:** researched the process — ownership is claimed by adding **`glama.json`** (`{$schema, maintainers}`) at the repo root, then running the GitHub "Claim ownership" flow on glama.ai; `glama.json` is *required* for org-hosted repos (GRU-953 is a User account, so GitHub auth alone would also work, but the file makes it robust + lets the owner edit name/description). Added `glama.json` with `maintainers:["GRU-953"]`.
+- Version → **1.12.1** (so PyPI/GitHub/Homebrew project pages refresh the README/long-description). PR #52→develop (squash), #53→main (merge-commit), tag v1.12.1 → release train + GHCR. `build`'s `twine check` validated the README renders on PyPI. Venv upgraded to 1.12.1. `main`=`develop`=**v1.12.1**.
+
+**OWNER ACTION REQUIRED (Glama claim — cannot be done headlessly; needs the owner's GitHub login):** go to https://glama.ai → sign in with GitHub as **GRU-953** → find the server (search "memorised them all", or it auto-indexes the public repo) → **Claim ownership** (GitHub OAuth). `glama.json` is already on `main`, so after claiming, Glama picks up name/description/maintainer automatically. If the server isn't indexed yet, use Glama's "Add server" with the repo URL `https://github.com/GRU-953/memorised-them-all`.
+
+**EXACT NEXT STEP:** None required in-repo — `main`=`develop`=v1.12.1, venv current, all product surfaces refreshed, `glama.json` live on `main`. The only outstanding item is the owner-side Glama "Claim ownership" click (GitHub sign-in). Quit+reopen Claude Desktop to load 1.12.1 (optional for this docs release — no behaviour change vs 1.12.0).
