@@ -5,8 +5,8 @@
     "url": "https://github.com/GRU-953"
   },
   "metadata": {
-    "description": "Local, token-free file digestion → knowledge-graph memory for Claude.",
-    "version": "1.12.0",
+    "description": "Local, token-free, reliability-hardened file digestion → knowledge-graph memory for Claude.",
+    "version": "1.12.1",
     "pluginRoot": "."
   },
   "plugins": [

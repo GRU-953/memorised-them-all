@@ -178,6 +178,19 @@ The only times anything touches the network are clearly optional and on *your* c
 
 ---
 
+## 🛡️ Built to be reliable
+
+It's been hardened through repeated, deliberate stress-testing so it stays calm on real, messy folders:
+
+- **It always finishes.** A broken, enormous, or stuck file can't freeze the job — every file has a time limit and is skipped if it jams, so the rest still go through.
+- **One bad file won't sink the batch.** Unreadable files, looping shortcuts, and odd or over-long filenames are skipped, never fatal.
+- **Your memory is crash-safe.** If the computer is interrupted mid-write, your memory isn't corrupted or lost — writes are atomic, and anything that looks damaged is backed up before it's touched.
+- **It's honest about its mode.** If the local AI engine isn't responding, it tells you plainly and labels the memory as "basic" instead of pretending it's fine (see the FAQ below).
+- **It reads awkward files.** Windows "Unicode" (UTF-16) text, scanned images (OCR), audio, and even legacy Bengali (Bijoy/SutonnyMJ) fonts are handled; empty and binary files are skipped cleanly.
+- **It can't be tricked into reading elsewhere.** A shortcut planted in a folder that points *outside* that folder is ignored — a digest only ever reads what you pointed it at.
+
+---
+
 ## ❓ Questions & troubleshooting
 
 <details>
@@ -234,11 +247,12 @@ If you *expected* the sharper mode, ask Claude to *"check memory status"*. The `
 
 ## 🧰 The tools Claude gets
 
-Once installed, Claude can use these eight tools on your behalf (you just talk normally — Claude picks the right one):
+Once installed, Claude can use these nine tools on your behalf (you just talk normally — Claude picks the right one):
 
 | Tool | What it does for you |
 | --- | --- |
 | **digest** | Reads files/folders and builds (or updates) the memory. |
+| **convert** | Just converts files to clean Markdown (no memory) — handy for exporting or fixing legacy Bengali. |
 | **recall** | Answers a question from memory with a few relevant, cited snippets. |
 | **memory_overview** | Gives the big picture — a synopsis and the main themes. |
 | **list_digestible** | Shows which files in a folder it can read. |
