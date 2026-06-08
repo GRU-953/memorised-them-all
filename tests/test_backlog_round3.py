@@ -70,24 +70,20 @@ def test_memory_gb_capped_by_cgroup(monkeypatch):
     monkeypatch.delenv("MTA_MEMORY_GB", raising=False)
     monkeypatch.setattr(plat, "_host_memory_gb", lambda: 64.0)
     monkeypatch.setattr(plat, "_cgroup_mem_limit_gb", lambda: 2.0)
+    plat.memory_gb.cache_clear()                          # memory_gb is lru_cached
     assert plat.memory_gb() == 2.0                        # container cap wins over big host
     monkeypatch.setattr(plat, "_cgroup_mem_limit_gb", lambda: None)
+    plat.memory_gb.cache_clear()
     assert plat.memory_gb() == 64.0                       # no cap → host total
+    plat.memory_gb.cache_clear()                          # don't poison other tests
 
 
 def test_memory_gb_override_still_wins(monkeypatch):
     from mta.core import platform as plat
     monkeypatch.setenv("MTA_MEMORY_GB", "3")
+    plat.memory_gb.cache_clear()
     assert plat.memory_gb() == 3.0
-
-
-# ---- (5) _rearrange is line-wise (linear) and output-identical -----------------------
-def test_rearrange_preserves_newlines_and_is_linewise():
-    from mta.core.bangla_legacy import _rearrange, _rearrange_line
-    text = "প্রথম লাইন\nদ্বিতীয় লাইন\nতৃতীয় লাইন"
-    out = _rearrange(text)
-    assert out.count("\n") == 2                           # newlines preserved
-    assert out == "\n".join(_rearrange_line(ln) for ln in text.split("\n"))
+    plat.memory_gb.cache_clear()
 
 
 # ---- (6) out-of-tree symlink policy -------------------------------------------------

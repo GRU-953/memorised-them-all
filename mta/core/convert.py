@@ -300,7 +300,10 @@ def _decode_text_bytes(raw: bytes) -> str:
     for bom, codec in _BOMS:
         if raw.startswith(bom):
             try:
-                return raw.decode(codec, errors="replace")
+                # Explicit-endian utf-16/32 codecs KEEP the leading U+FEFF; strip it so
+                # it can't prepend a zero-width char to the first heading/entity. (utf-8-sig
+                # already strips its BOM; lstrip is then a harmless no-op.)
+                return raw.decode(codec, errors="replace").lstrip("\ufeff")
             except (LookupError, UnicodeError):
                 break
     return raw.decode("utf-8", errors="replace")

@@ -22,13 +22,10 @@ adheres to [Semantic Versioning](https://semver.org/) and
 - **Container memory limits are respected.** `memory_gb()` now also reads the cgroup v2/v1 memory
   cap and uses `min(host, cgroup-limit)`, so auto-tiering inside a memory-capped Docker/Kubernetes/CI
   container picks a safe profile instead of the (possibly huge) host total.
-- **Legacy-Bengali conversion is linear, not quadratic.** The reordering pass now works per line
-  (no rule ever spans a newline), so a multi-MB Bengali document converts in linear time. Output is
-  byte-identical (the 21-case oracle still matches).
 - **Out-of-tree symlinks are not followed on a folder walk.** A symlink planted inside a digested
   folder whose target escapes that folder is skipped, so a digest can't be tricked into reading
   arbitrary host files. Explicitly-named paths are still honoured.
-- +10 regression tests (`tests/test_backlog_round3.py`).
+- +9 regression tests (`tests/test_backlog_round3.py`).
 
 ## [1.11.0] — 2026-06-08
 

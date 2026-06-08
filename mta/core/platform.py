@@ -110,6 +110,7 @@ def _cgroup_mem_limit_gb() -> float | None:
     return None
 
 
+@functools.lru_cache(maxsize=1)
 def memory_gb() -> float:
     """Total RAM in GB — portable (Apple sysctl → psutil → POSIX sysconf → 8), capped
     by any cgroup limit.
