@@ -282,9 +282,36 @@ def _try_whisper(path: Path, cfg: Config) -> tuple[str | None, str]:
     return None, last
 
 
+# Byte-order marks for the Unicode encodings a Windows editor commonly writes. UTF-32
+# must precede UTF-16 (the UTF-16-LE BOM is a prefix of the UTF-32-LE BOM).
+_BOMS = (
+    (b"\xef\xbb\xbf", "utf-8-sig"),
+    (b"\xff\xfe\x00\x00", "utf-32-le"), (b"\x00\x00\xfe\xff", "utf-32-be"),
+    (b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be"),
+)
+
+
+def _decode_text_bytes(raw: bytes) -> str:
+    """Decode bytes to text honoring a Unicode BOM (UTF-8/16/32 — what Windows editors
+    write for 'Unicode' .txt/.csv), else UTF-8 with replacement. Always returns a str.
+
+    Reading a UTF-16 file as UTF-8 yields mojibake, and its interleaved NUL bytes used
+    to get the file misclassified as binary — this fixes both."""
+    for bom, codec in _BOMS:
+        if raw.startswith(bom):
+            try:
+                # Explicit-endian utf-16/32 codecs KEEP the leading U+FEFF; strip it so
+                # it can't prepend a zero-width char to the first heading/entity. (utf-8-sig
+                # already strips its BOM; lstrip is then a harmless no-op.)
+                return raw.decode(codec, errors="replace").lstrip("\ufeff")
+            except (LookupError, UnicodeError):
+                break
+    return raw.decode("utf-8", errors="replace")
+
+
 def _native_text(path: Path) -> tuple[str | None, str]:
     try:
-        raw = path.read_text(encoding="utf-8", errors="replace").strip()
+        raw = _decode_text_bytes(path.read_bytes()).strip()   # BOM/UTF-16-aware
     except OSError as e:
         return None, f"read-error:{type(e).__name__}"
     ext = path.suffix.lower()
@@ -311,16 +338,20 @@ def _try_unknown_text(path: Path) -> tuple[str | None, str]:
         return None, f"read-error:{type(e).__name__}"
     if not chunk:
         return None, "empty"
-    if b"\x00" in chunk:                                  # NUL byte → binary
-        return None, "binary"
-    printable = sum(1 for b in chunk if 9 <= b <= 13 or 32 <= b <= 126 or b >= 128)
-    if printable / len(chunk) < 0.85:                     # mostly control bytes → binary
-        return None, "binary"
+    bom = next((c for b, c in _BOMS if chunk.startswith(b)), None)
+    if bom is None:
+        # No BOM: a NUL byte or mostly-control content means a genuine binary. (A BOM'd
+        # UTF-16 file legitimately contains NULs, so it skips this and decodes below.)
+        if b"\x00" in chunk:
+            return None, "binary"
+        printable = sum(1 for b in chunk if 9 <= b <= 13 or 32 <= b <= 126 or b >= 128)
+        if printable / len(chunk) < 0.85:
+            return None, "binary"
     try:
-        raw = path.read_text(encoding="utf-8", errors="replace").strip()
+        raw = _decode_text_bytes(path.read_bytes()).strip()   # BOM/UTF-16-aware
     except OSError as e:
         return None, f"read-error:{type(e).__name__}"
-    return (raw or None), "text-fallback"
+    return (raw or None), ("text-fallback-bom" if bom else "text-fallback")
 
 
 def convert_file(path: Path, out_dir: Path, cfg: Config,
@@ -333,6 +364,15 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     if not path.exists() or not path.is_file():
         res.status, res.error = "failed", "not-a-file"
         return res
+
+    # A 0-byte file (placeholder, touch'd, failed download) is "empty" — a clear,
+    # honest status — never "unsupported"/"failed", regardless of its extension.
+    try:
+        if path.stat().st_size == 0:
+            res.status, res.method = "empty", "empty-file"
+            return res
+    except OSError:
+        pass
 
     # Bound memory: skip oversize files before reading them in.
     cap = getattr(cfg, "max_file_mb", 0)

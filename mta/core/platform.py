@@ -67,12 +67,57 @@ def performance_cores() -> int:
 
 
 @functools.lru_cache(maxsize=1)
-def memory_gb() -> float:
-    """Total RAM in GB — portable (Apple sysctl → psutil → POSIX sysconf → 8).
+def _host_memory_gb() -> float:
+    """Host RAM in GB (Apple sysctl → psutil → POSIX sysconf → 8)."""
+    if is_apple_silicon():
+        b = _sysctl_int("hw.memsize")
+        if b:
+            return b / (1024 ** 3)
+    ps = _psutil()
+    if ps:
+        try:
+            return ps.virtual_memory().total / (1024 ** 3)
+        except Exception:  # noqa: BLE001
+            pass
+    try:  # POSIX fallback (no Windows)
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024 ** 3)
+    except (ValueError, OSError, AttributeError):
+        return 8.0
 
-    Honors an ``MTA_MEMORY_GB`` override first, so a container/cgroup-limited box (where
-    the host total is misreported) or any sandbox can force the right resource tier
-    instead of auto-detection picking an OOM-inducing one."""
+
+def _cgroup_mem_limit_gb() -> float | None:
+    """The cgroup memory ceiling in GB, or None if unset/unlimited/non-Linux.
+
+    Reads cgroup v2 (``memory.max``) then v1 (``memory.limit_in_bytes``). Containers
+    (Docker / Kubernetes / CI) cap memory here while the HOST total is what sysctl/
+    psutil report — without this, auto-tiering can pick a profile that OOMs inside a
+    small container on a big host."""
+    for path in ("/sys/fs/cgroup/memory.max",
+                 "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            with open(path) as f:
+                raw = f.read().strip()
+        except OSError:
+            continue
+        if not raw or raw == "max":
+            continue
+        try:
+            gb = int(raw) / (1024 ** 3)
+        except ValueError:
+            continue
+        if 0.1 < gb < 100000:   # v1 uses a ~2^63 sentinel for "unlimited" — ignore it
+            return gb
+    return None
+
+
+@functools.lru_cache(maxsize=1)
+def memory_gb() -> float:
+    """Total RAM in GB — portable (Apple sysctl → psutil → POSIX sysconf → 8), capped
+    by any cgroup limit.
+
+    Honors an ``MTA_MEMORY_GB`` override first (forces a tier on a misreporting sandbox).
+    Otherwise takes ``min(host, cgroup-limit)`` so a memory-capped container sizes to a
+    safe tier instead of the host's (possibly huge) total."""
     ovr = os.environ.get("MTA_MEMORY_GB", "").strip()
     if ovr:
         try:
@@ -81,21 +126,9 @@ def memory_gb() -> float:
                 return round(v, 1)
         except ValueError:
             pass
-    if is_apple_silicon():
-        b = _sysctl_int("hw.memsize")
-        if b:
-            return round(b / (1024 ** 3), 1)
-    ps = _psutil()
-    if ps:
-        try:
-            return round(ps.virtual_memory().total / (1024 ** 3), 1)
-        except Exception:
-            pass
-    try:  # POSIX fallback (no Windows)
-        return round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
-                     / (1024 ** 3), 1)
-    except (ValueError, OSError, AttributeError):
-        return 8.0
+    host = _host_memory_gb()
+    lim = _cgroup_mem_limit_gb()
+    return round(min(host, lim), 1) if (lim is not None and lim < host) else round(host, 1)
 
 
 def worker_count(requested: int = 0) -> int:

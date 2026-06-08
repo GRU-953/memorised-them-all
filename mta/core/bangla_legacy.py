@@ -95,6 +95,12 @@ def _apply_main(text: str) -> str:
 
 # ---- rearrangement (port of rearrange.js : rearrangeUnicodeText) -------------------
 def _rearrange(text: str) -> str:
+    # NOTE: deliberately whole-string (not per-line). A naive newline split is NOT
+    # output-identical — the kar/nukta+halant reorder rule below is gated on POSITION
+    # (`i < len(text) - 1`), not character class, so on a whole string it can legitimately
+    # move a kar across a line break; splitting changes ~0.17% of multi-line Bijoy output.
+    # Fidelity to the Mukti reference (oracle-matched) wins over the O(n²) micro-opt, which
+    # only bites on a multi-MB single string and never on real, newline-bearing documents.
     if not text:
         return text
     text = text.replace(_HALANT + _HALANT, _HALANT)  # fix double halant
