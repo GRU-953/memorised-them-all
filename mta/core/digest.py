@@ -397,7 +397,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
         # A mid-run model failure must not abort the whole digest after we have
         # already written the converted markdown — degrade that chunk to empty.
         try:
-            return (c, extract_chunk(c, cfg, ollama))
+            return (c, extract_chunk(c))
         except Exception:  # noqa: BLE001
             return (c, Extraction())
 
