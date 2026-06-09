@@ -6,6 +6,71 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-06-09
+
+A major, deliberate re-architecture: **Memorised them All is now fully deterministic and
+100% model-free.** No local LLM, no embedding model, no vision/OCR model on the default
+path, no GPU, no network — two digests of the same corpus produce byte-identical output.
+
+### BREAKING
+
+- **Local LLM / Ollama removed entirely.** The on-demand Ollama model server, the
+  `OllamaManager` lifecycle, the OpenAI/Gemini/Ollama backend abstraction
+  (`mta/core/backends.py`, `mta/core/lifecycle.py`) and every model field
+  (`extract_model`, `embed_model`, `vision_model`, `whisper_model`) are gone. Entity /
+  relation / fact extraction and summaries are now the deterministic classical path only.
+- **Recall is now lexical / hash-based (quality tradeoff).** Embeddings are a fixed
+  256-dimension deterministic md5-hash vector with no semantic similarity; recall ranking
+  and the embedding-confirmed entity merge degrade to lexical-overlap grade. This is a
+  large, user-visible accuracy tradeoff vs. neural embeddings, made in exchange for full
+  determinism and zero model/GPU/network dependency.
+- **Mind map removed (9 → 8 tools).** The offline interactive HTML mind map and the
+  `open_mindmap` tool are gone; `templates/mindmap.html.j2` and `assets/cytoscape.min.js`
+  are deleted. The MCP/REST tool surface is now exactly 8 tools: `digest`, `convert`,
+  `recall`, `memory_overview`, `export_memory`, `list_digestible`, `forget`,
+  `memory_status`.
+- **`memory_status` response shape changed.** The `backend`, `profile`, `ollama_running`,
+  `ollama_inference`, `degraded`, `ollama_models` and `idle_seconds` keys are removed and
+  a constant offline/model-free backend descriptor is reported instead. Clients reading
+  those keys must be updated.
+- **Re-digest (reset) required for old projects.** Pre-v2 projects may hold neural-dimension
+  vectors (e.g. 1024-d) in `vectors.npz`; the new hash vectors are 256-d. Recall degrades
+  gracefully to lexical for mismatched dims, but a `digest(..., reset:true)` is needed to
+  rebuild 256-d hash vectors and restore ranked recall.
+- **Config knobs removed:** `MTA_PROFILE`, `MTA_EXTRACT_MODEL`, `MTA_EMBED_MODEL`,
+  `MTA_VISION_MODEL`, `MTA_WHISPER_MODEL`, `MTA_IDLE`, `MTA_NO_OLLAMA` (offline is now
+  unconditional), plus the profile/tier/GPU autodetection. Whisper/audio transcription is
+  dropped entirely (model + GPU).
+
+### Added
+
+- **Recursive, security-hardened archive expansion.** `.zip/.tar/.tar.gz/.tgz/.tar.bz2/`
+  `.tbz2/.tar.xz/.txz/.gz/.bz2/.xz` (and best-effort `.rar/.7z` via `unar`/`7z`/`7za`/
+  `rarfile`/`py7zr`) are expanded recursively into local memory with Zip-Slip / tar-symlink
+  path-traversal validation, per-member + cumulative uncompressed bomb budgets, an
+  entry-count cap, and a depth cap (zip-quine guard). OOXML/EPUB (`.docx/.xlsx/.pptx/.epub`)
+  are dispatched to MarkItDown by extension and are **never** unpacked.
+- **Content-hash dedup.** Byte-identical inputs (duplicate archives, already-extracted
+  archive twins) are converted and digested once, keyed on a streamed SHA-256 of the raw
+  file bytes.
+- **No-extension Office/zip sniffing.** A file with no/unknown extension that begins with
+  the ZIP magic `PK\x03\x04` is routed to MarkItDown (OOXML) or the archive expander, so a
+  misnamed `.xlsx`-without-extension still digests.
+- **Corpus-skip switches** (default ON): `MTA_SKIP_MEDIA` (images/video/audio),
+  `MTA_SKIP_FONTS`, `MTA_SKIP_GDRIVE` (Google-Drive pointer stubs), `MTA_SKIP_JUNK`
+  (`.tmp`/`.DS_Store`). Skipped types report `status='skipped'` honestly. With media
+  skipped, the non-deterministic media converters never run — this is the determinism
+  enabler.
+- **Archive switches:** `MTA_ARCHIVE_RECURSIVE` (on), `MTA_ARCHIVE_DEPTH` (8),
+  `MTA_ARCHIVE_ENTRIES` (100000).
+
+### Changed
+
+- Tesseract OCR is kept as an OPTIONAL converter but is default-skipped (`skip_media` on)
+  because it is not bit-deterministic across hardware. For a strict deterministic build,
+  keep `MTA_AUTO_UPDATE` off (or MarkItDown pinned), since MarkItDown is not guaranteed
+  byte-stable across versions either.
+
 ## [1.12.1] — 2026-06-08
 
 ### Docs / packaging (no code changes)
