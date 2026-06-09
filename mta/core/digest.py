@@ -10,6 +10,7 @@ of the same corpus produce byte-identical output.
 from __future__ import annotations
 
 import glob as _glob
+import hashlib
 import json
 import multiprocessing as _mp
 import os
@@ -40,7 +41,8 @@ def _walk_files(root: Path):
             yield Path(dirpath) / name
 
 
-def _expand(paths: list[str], *, all_types: bool = True) -> list[Path]:
+def _expand(paths: list[str], *, all_types: bool = True,
+            cfg: Config | None = None) -> list[Path]:
     files: list[Path] = []
     seen: set[str] = set()
 
@@ -88,6 +90,49 @@ def _expand(paths: list[str], *, all_types: bool = True) -> list[Path]:
                 add(child, root=p)
         else:
             add(p, explicit=True)   # an explicitly-named file is always digested
+
+    # Recursive archive expansion (v2): each archive is expanded (bounded, traversal-
+    # safe — see archive.py) into cfg.unpack_dir and REPLACED by its extracted members;
+    # an archive that can't be expanded (no rar/7z tool, corrupt, budget breach) stays
+    # in the list so convert_file reports an honest 'skipped'. Nested archives are
+    # handled inside expand_archive (depth-capped), so this loop terminates.
+    if cfg is not None and getattr(cfg, "archive_recursive", False):
+        from . import archive as _archive
+        i = 0
+        while i < len(files):
+            f = files[i]
+            if _archive.kind(f) is None:
+                i += 1
+                continue
+            dest = _archive.expand_archive(f, cfg)
+            if dest is None:
+                i += 1                                  # kept → honest skipped at convert
+                continue
+            files.pop(i)
+            for child in sorted(_walk_files(dest)):
+                add(child, root=dest)                   # appended at the end; re-checked
+
+    # Content-hash dedup (v2): byte-identical inputs (duplicate archives, already-
+    # extracted archive twins) are digested ONCE. First occurrence in the (stable)
+    # collection order wins, so the result is deterministic.
+    if cfg is not None:
+        by_hash: set[str] = set()
+        unique: list[Path] = []
+        for f in files:
+            try:
+                h = hashlib.sha256()
+                with open(f, "rb") as fh:
+                    for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                        h.update(chunk)
+                d = h.hexdigest()
+            except OSError:
+                unique.append(f)                        # unreadable → let convert report it
+                continue
+            if d in by_hash:
+                continue
+            by_hash.add(d)
+            unique.append(f)
+        files = unique
     return files
 
 
@@ -238,7 +283,7 @@ def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = Non
     """
     import os
     cfg.ensure_dirs()
-    files = _expand(paths, all_types=cfg.digest_all)
+    files = _expand(paths, all_types=cfg.digest_all, cfg=cfg)
     if not files:
         return {"status": "no_input", "paths": paths,
                 "message": "No convertible files found."}
@@ -248,6 +293,8 @@ def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = Non
         first = Path(os.path.expanduser(os.path.expandvars(paths[0])))
         outd = (first if first.is_dir() else first.parent) / "markdown_converted"
     results = _convert_all(files, cfg, out_dir=outd)
+    from .archive import cleanup_unpacked
+    cleanup_unpacked(cfg)            # extracted-archive scratch; converted .md persists
     ok = [r for r in results if r.get("status") == "ok"]
     bn = sum(1 for r in ok if "bn-unicode" in (r.get("method") or ""))
     return {
@@ -298,7 +345,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         _reset_project(cfg)
         cfg.ensure_dirs()
 
-    files = _expand(paths, all_types=cfg.digest_all)
+    files = _expand(paths, all_types=cfg.digest_all, cfg=cfg)
     if not files:
         return {"status": "no_input", "project": cfg.project,
                 "message": "No convertible files found.", "paths": paths}
@@ -442,6 +489,8 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         },
         "conversion": _conv_tally(conv),
     }
+    from .archive import cleanup_unpacked
+    cleanup_unpacked(cfg)            # extracted-archive scratch; the markdown persists
     return result
 
 
@@ -495,7 +544,7 @@ def _auto_extract_workers(cfg: Config) -> int:
 def _reset_project(cfg: Config) -> None:
     """Wipe a project's converted corpus and derived memory (for reset=True)."""
     import shutil
-    for path in (cfg.markdown_dir, cfg.memory_dir):
+    for path in (cfg.markdown_dir, cfg.memory_dir, cfg.unpack_dir):
         shutil.rmtree(path, ignore_errors=True)
     for f in (cfg.graph_path, cfg.vectors_path,
               cfg.vectors_path.with_suffix(".json"), cfg.memory_md):

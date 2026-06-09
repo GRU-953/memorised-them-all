@@ -25,9 +25,13 @@ _DATA_EXTS = {".csv", ".tsv", ".json", ".xml", ".yaml", ".yml", ".ndjson"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
 _AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac"}
 _MARKITDOWN_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm",
-                    ".epub", ".msg", ".rtf", ".doc", ".ppt", ".zip"}
+                    ".epub", ".msg", ".rtf", ".doc", ".ppt"}
+# Archives (zip/tar/gz/… + rar/7z) are expanded recursively at the digest level
+# (mta/core/archive.py) rather than converted as single documents.
+from .archive import ARCHIVE_EXTS as _ARCHIVE_EXTS  # noqa: E402 (after stdlib imports)
+from .archive import kind as _archive_kind  # noqa: E402
 SUPPORTED_EXTS = (_TEXT_EXTS | _DATA_EXTS | _IMAGE_EXTS | _AUDIO_EXTS
-                  | _MARKITDOWN_EXTS)
+                  | _MARKITDOWN_EXTS | _ARCHIVE_EXTS)
 
 # Config-driven skip categories (v2): matched by NAME ONLY — the file is never read.
 # With skip_media ON (the default) the non-deterministic media converters (OCR) never
@@ -359,6 +363,13 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     ext = path.suffix.lower()
     text: str | None = None
     method = ""
+
+    if _archive_kind(path) is not None:
+        # Archives are expanded at the digest level (archive.py). One reaching the
+        # converter means expansion was off, unavailable (no rar/7z tool), corrupt,
+        # or over budget → honest skip, never a crash.
+        res.status, res.method, res.error = "skipped", "archive", "not-expanded"
+        return res
 
     if ext in _TEXT_EXTS or ext in _DATA_EXTS:
         text, method = _native_text(path)

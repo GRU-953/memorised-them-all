@@ -239,15 +239,20 @@ def test_acronym_links_to_expansion():
 
 
 def test_zip_bomb_is_skipped(tmp_path):
-    """A high-ratio archive is skipped before MarkItDown extracts it."""
+    """A high-ratio archive is refused by the v2 expander (ratio guard) and the
+    archive file itself reports an honest 'skipped' — nothing is half-ingested."""
     import zipfile
     z = tmp_path / "bomb.zip"
     with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("big.txt", "a" * (8 * 1024 * 1024))  # compresses to ~KB
+        zf.writestr("big.txt", "a" * (8 * 1024 * 1024))  # compresses to ~KB (ratio ≫ 200)
     cfg = _fresh_cfg(tmp_path, "zip")
+    from mta.core.digest import _expand
+    files = _expand([str(z)], cfg=cfg)
+    assert [f.name for f in files] == ["bomb.zip"]      # expansion refused → archive kept
+    assert not any(cfg.unpack_dir.rglob("*")) if cfg.unpack_dir.exists() else True
     from mta.core.convert import convert_file
     r = convert_file(z, tmp_path / "out", cfg)
-    assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
+    assert r.status == "skipped" and r.method == "archive", (r.status, r.method)
 
 
 def test_convert_worker_accepts_payload(tmp_path):
@@ -264,20 +269,24 @@ def test_convert_worker_accepts_payload(tmp_path):
     assert r["output"].endswith("x.txt.md")
 
 
-def test_nested_archive_rejected(tmp_path):
-    """An archive containing a nested archive is rejected (recursive-bomb vector)."""
+def test_nested_archive_expands_through_digest(tmp_path):
+    """v2: nested archives EXPAND (depth-capped) instead of being rejected — the whole
+    digest pipeline picks up the inner document and its content lands in the memory."""
     import io
     import zipfile
     inner = io.BytesIO()
     with zipfile.ZipFile(inner, "w") as iz:
-        iz.writestr("inner.txt", "hello")
-    outer = tmp_path / "outer.zip"
+        iz.writestr("inner.txt", "Project Aurora hydropower budget was approved in Reykjavik.")
+    src = tmp_path / "in"; src.mkdir()
+    outer = src / "outer.zip"
     with zipfile.ZipFile(outer, "w") as oz:
         oz.writestr("nested.zip", inner.getvalue())
     cfg = _fresh_cfg(tmp_path, "nz")
-    from mta.core.convert import convert_file
-    r = convert_file(outer, tmp_path / "out", cfg)
-    assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
+    from mta.core.digest import digest
+    d = digest(cfg, [str(src)])
+    assert d["status"] == "ok" and d["stats"]["converted"] >= 1, d
+    assert not cfg.unpack_dir.exists()                  # scratch tree cleaned after the batch
+    assert "Aurora" in cfg.memory_md.read_text(encoding="utf-8")
 
 
 def test_oversize_file_is_skipped(tmp_path):
