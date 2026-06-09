@@ -433,10 +433,13 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     for n in G.nodes():
         G.nodes[n]["docs"] = sorted(G.nodes[n].get("docs", set()))
         G.nodes[n]["community"] = partition.get(n, 0)
+    # NOTE: no wall-clock fields ("created"/"seconds") are persisted — graph.json,
+    # vectors.npz and memory.md must be BYTE-IDENTICAL for the same corpus (the v2
+    # determinism contract). Timing lives only in the transient tool result below;
+    # build recency is observable from file mtimes.
     graph_doc = {
         "project": cfg.project,
         "version": 1,
-        "created": int(t0),
         "synopsis": synopsis,
         "nodes": [{"id": n, **{k: v for k, v in G.nodes[n].items()}} for n in G.nodes()],
         "edges": [{"source": u, "target": v, "weight": d["weight"],
@@ -458,7 +461,6 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
             # embeddings all use the on-device classical/hash path. The mode is a
             # constant descriptor (no LLM/accurate/fast distinction remains).
             "mode": "deterministic",
-            "seconds": round(time.time() - t0, 1),
         },
     }
     # Recall vectors: one card per entity + one per community summary. Persist these
@@ -481,7 +483,9 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     result = {
         "status": "ok",
         "project": cfg.project,
-        "stats": graph_doc["stats"],
+        # seconds is transient (tool result only) — never persisted, so artifacts
+        # stay byte-identical across runs of the same corpus.
+        "stats": {**graph_doc["stats"], "seconds": round(time.time() - t0, 1)},
         "outputs": {
             "graph": str(cfg.graph_path),
             "memory_md": str(cfg.memory_md),
