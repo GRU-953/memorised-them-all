@@ -113,6 +113,7 @@ def test_ocr_stdin_pipe(tmp_path):
     p = tmp_path / "note.png"
     img.save(p)
     cfg = _fresh_cfg(tmp_path, "ocr")
+    cfg.skip_media = False        # OCR is opt-in in v2 (media is skipped by default)
     from mta.core.convert import convert_file
     r = convert_file(p, tmp_path / "out", cfg)
     assert r.status == "ok" and r.method == "tesseract", (r.status, r.method)

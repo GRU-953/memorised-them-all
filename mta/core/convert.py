@@ -29,6 +29,31 @@ _MARKITDOWN_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm",
 SUPPORTED_EXTS = (_TEXT_EXTS | _DATA_EXTS | _IMAGE_EXTS | _AUDIO_EXTS
                   | _MARKITDOWN_EXTS)
 
+# Config-driven skip categories (v2): matched by NAME ONLY — the file is never read.
+# With skip_media ON (the default) the non-deterministic media converters (OCR) never
+# run, which is part of the determinism guarantee.
+_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".wmv", ".flv", ".mpg", ".mpeg"}
+_FONT_EXTS = {".otf", ".ttf", ".ttc", ".woff", ".woff2", ".eot"}
+_GDRIVE_EXTS = {".gdoc", ".gsheet", ".gform", ".gdrive", ".gslides", ".gdraw", ".gmap", ".gsite"}
+_JUNK_EXTS = {".tmp", ".ds_store", ".ini", ".lnk", ".crdownload", ".part"}
+_JUNK_NAMES = {".ds_store", "thumbs.db", "desktop.ini", "icon\r"}
+
+
+def _skip_category(path: Path, cfg: Config) -> str | None:
+    """Return the skip category for ``path`` (or None to convert it). Name-based only."""
+    ext = path.suffix.lower()
+    name = path.name.lower()
+    if getattr(cfg, "skip_media", True) and (
+            ext in _IMAGE_EXTS or ext in _VIDEO_EXTS or ext in _AUDIO_EXTS):
+        return "media"
+    if getattr(cfg, "skip_fonts", True) and ext in _FONT_EXTS:
+        return "font"
+    if getattr(cfg, "skip_gdrive_pointers", True) and ext in _GDRIVE_EXTS:
+        return "gdrive-pointer"
+    if getattr(cfg, "skip_junk", True) and (ext in _JUNK_EXTS or name in _JUNK_NAMES):
+        return "junk"
+    return None
+
 
 @dataclass
 class ConvResult:
@@ -304,6 +329,14 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
         res.status, res.error = "failed", "not-a-file"
         return res
 
+    # v2 skip filter (media/fonts/gdrive-pointers/junk): name-based, never reads the
+    # file, and wins over every other classification. status='skipped' so digest
+    # stats count them honestly (never 'unsupported'/'failed').
+    cat = _skip_category(path, cfg)
+    if cat:
+        res.status, res.method, res.error = "skipped", "skipped-type", cat
+        return res
+
     # A 0-byte file (placeholder, touch'd, failed download) is "empty" — a clear,
     # honest status — never "unsupported"/"failed", regardless of its extension.
     try:
@@ -345,9 +378,27 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     elif ext in _AUDIO_EXTS:
         text, method = None, "audio-unsupported"   # model-free: audio transcription dropped in v2
     else:
-        # All other file types: digest as plain text when the content looks textual;
-        # genuine binaries stay 'unsupported'.
-        text, method = _try_unknown_text(path)
+        # No/unknown extension: content-sniff first. ZIP magic (PK\x03\x04) usually
+        # means a misnamed Office file (an .xlsx/.docx saved without its extension) —
+        # MarkItDown sniffs the real type from content, so give it a shot (bomb-checked)
+        # before the plain-text fallback.
+        head = b""
+        try:
+            with open(path, "rb") as f:
+                head = f.read(4)
+        except OSError:
+            pass
+        if head == b"PK\x03\x04":
+            if not _zip_within_bounds(path, cfg):
+                res.status, res.method, res.error = "skipped", "zip-too-large", "decompression-bound"
+                return res
+            text, method = _try_markitdown(path, cfg)
+            if text:
+                method = method + "+sniffed-zip"
+        if text is None:
+            # Digest as plain text when the content looks textual; genuine binaries
+            # stay 'unsupported'.
+            text, method = _try_unknown_text(path)
         if text is None:
             res.status, res.method, res.error = "unsupported", ext or "no-ext", method
             return res
