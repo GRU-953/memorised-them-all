@@ -6,7 +6,7 @@
 
 <h3>Give Claude a private memory of your files — without paying for it in tokens.</h3>
 
-<p>Point it at a folder of PDFs, Word/Excel files, images, or audio. It reads and remembers them <b>entirely on your own computer</b>, so you can just <i>ask Claude</i> about them later — no copy-pasting, no uploads, no API keys, no surprise token bills.</p>
+<p>Point it at a folder of PDFs, Word/Excel files, or whole archives. It reads and remembers them <b>entirely on your own computer</b> — no AI models to install, no copy-pasting, no uploads, no API keys, no surprise token bills. Just <i>ask Claude</i> about them later.</p>
 
 [![PyPI](https://img.shields.io/pypi/v/memorised-them-all?color=ec4899&label=pip%20install)](https://pypi.org/project/memorised-them-all/)
 [![Release](https://img.shields.io/github/v/release/GRU-953/memorised-them-all?color=6366f1&label=release)](https://github.com/GRU-953/memorised-them-all/releases/latest)
@@ -35,8 +35,8 @@ Imagine you could hand Claude a **filing cabinet** of your documents and say *"r
 
 That's **Memorised them All**. It's a small add-on (an [MCP server](https://modelcontextprotocol.io)) for **Claude Desktop** and **Claude Code** that:
 
-1. **Reads your files** — PDFs, Word/Excel/PowerPoint, web pages, images (with OCR), even audio — and converts them to clean text **on your computer**.
-2. **Builds a memory** — a searchable map of the people, topics, and facts inside them (a "knowledge graph"), plus a tidy summary and an interactive **mind map**.
+1. **Reads your files** — PDFs, Word/Excel/PowerPoint, web pages, CSVs, even zip/rar archives (unpacked safely) — and converts them to clean text **on your computer**.
+2. **Builds a memory** — a searchable map of the people, topics, and facts inside them (a "knowledge graph"), plus a tidy summary and per-document notes.
 3. **Lets you ask** — Claude recalls just the relevant bits when you ask, instead of you pasting whole files into the chat.
 
 > **The one-line idea:** Claude tokens cost money; your computer's effort is free. So all the heavy lifting happens locally, and Claude only ever receives a tiny answer. Memorising a 500-page folder costs **roughly zero** chat tokens.
@@ -52,8 +52,8 @@ Claude: ✅ Digested 38 files → 421 facts across 7 themes. (took ~30s, all loc
 You:    Which contracts mention an auto-renewal clause, and when do they renew?
 Claude: Three do — the Globex MSA (renews 1 Jan, 60-day notice), … [cites each source]
 
-You:    Open the mind map.
-Claude: Here's your interactive map: /…/mindmap.html
+You:    What changed between the 2023 and 2024 progress reports?
+Claude: Three headline shifts — … [cites each source document]
 ```
 
 Nothing left your machine. Claude never saw the 38 files — only the small answers.
@@ -109,7 +109,7 @@ mta setup-claude     # writes the MCP server into Claude Desktop (and Claude Cod
 
 **No — it works the moment it's installed.** Out of the box it uses fast, built-in techniques (no downloads, fully offline).
 
-For **sharper** summaries and search, it can optionally use a **free local AI model** via [Ollama](https://ollama.com) (still 100% on your machine). If Ollama is present it's used automatically; if not, you're never blocked. To check what you have and get one-line setup tips, run:
+There are **no AI models to install** — the engine is deterministic (plain rules + maths), so it works the same on every computer, every time. To check your setup, run:
 
 ```bash
 mta doctor
@@ -130,7 +130,6 @@ mta doctor
    > *"Who is mentioned most often, and in which files?"*
 
 3. **Explore visually** *(optional)*:
-   > *"Open the mind map."* — an interactive, offline map of how everything connects.
 
 4. **Keep it tidy** — separate memories per topic with **projects**:
    > *"Memorise ~/work/clientA into a project called clientA."*
@@ -145,7 +144,6 @@ Your memory lives in a folder on your computer (`~/.memorised-them-all` by defau
 - **📚 Research & study** — digest a pile of papers or a textbook, then ask for explanations, comparisons, and citations.
 - **📑 Contracts & policies** — load all your agreements and ask "which ones auto-renew?" or "what are the termination clauses?"
 - **🗂️ Personal knowledge base** — point it at years of notes, receipts, or manuals and actually *find* things.
-- **🎧 Meetings & lectures** — drop in audio recordings; it transcribes locally and remembers the content.
 - **🖼️ Scanned documents & images** — it reads text from photos and scans (OCR) so they become searchable.
 - **🔒 Sensitive material** — legal, medical, financial, or confidential files that must **never leave your machine**.
 
@@ -185,8 +183,8 @@ It's been hardened through repeated, deliberate stress-testing so it stays calm 
 - **It always finishes.** A broken, enormous, or stuck file can't freeze the job — every file has a time limit and is skipped if it jams, so the rest still go through.
 - **One bad file won't sink the batch.** Unreadable files, looping shortcuts, and odd or over-long filenames are skipped, never fatal.
 - **Your memory is crash-safe.** If the computer is interrupted mid-write, your memory isn't corrupted or lost — writes are atomic, and anything that looks damaged is backed up before it's touched.
-- **It's honest about its mode.** If the local AI engine isn't responding, it tells you plainly and labels the memory as "basic" instead of pretending it's fine (see the FAQ below).
-- **It reads awkward files.** Windows "Unicode" (UTF-16) text, scanned images (OCR), audio, and even legacy Bengali (Bijoy/SutonnyMJ) fonts are handled; empty and binary files are skipped cleanly.
+- **It's the same every time.** The engine is deterministic — memorising the same folder twice produces the identical memory, on any machine.
+- **It reads awkward files.** Windows "Unicode" (UTF-16) text, archives (zip/rar — unpacked safely, duplicates detected), and legacy Bengali (Bijoy/SutonnyMJ) fonts are handled; media, fonts, and junk files are skipped cleanly.
 - **It can't be tricked into reading elsewhere.** A shortcut planted in a folder that points *outside* that folder is ignored — a digest only ever reads what you pointed it at.
 
 ---
@@ -208,13 +206,13 @@ Make sure the extension/plugin is installed **and enabled**, then fully **restar
 <details>
 <summary><b>The first "memorise" was slow.</b></summary>
 
-The first run sets things up (and, if you have Ollama, may load a model). Later runs are much faster, and re-memorising only processes what changed. Add `fast` ("memorise … in fast mode") to skip the AI step entirely for a quick, fully-deterministic pass.
+The first run sets things up. Later runs are much faster, and re-memorising only processes what changed. There's no AI model to download or load — the engine is deterministic and starts instantly.
 </details>
 
 <details>
 <summary><b>What files can it read?</b></summary>
 
-PDFs, Word/Excel/PowerPoint, plain text/Markdown, HTML, CSV/JSON/XML, RTF, EPUB, common images (via OCR), and audio (transcribed locally). Beyond those, **any other text-based file is digested too** (source code, `.log`, `.ini`, `.tex`, …); only genuine binaries are skipped — so a whole folder gets captured. Ask Claude to *"list what's digestible in this folder"* to see.
+PDFs, Word/Excel/PowerPoint, plain text/Markdown, HTML, CSV/JSON/XML, RTF, EPUB — plus **archives** (`.zip`/`.tar`/`.gz` natively; `.rar`/`.7z` when an extractor like `unar` is installed), which are unpacked safely and read. Beyond those, **any other text-based file is digested too** (source code, `.log`, `.tex`, …). Photos, video, audio, fonts, and junk files are skipped by default (scanned images can be OCR'd by setting `MTA_SKIP_MEDIA=off` if Tesseract is installed). Ask Claude to *"list what's digestible in this folder"* to see.
 </details>
 
 <details>
@@ -236,18 +234,16 @@ No. It's built to work completely offline. Internet is only used for optional, o
 </details>
 
 <details>
-<summary><b>It says "basic mode" or "degraded" — what does that mean?</b></summary>
+<summary><b>Does it use AI? Why are the summaries so plain?</b></summary>
 
-It's being honest with you. "Basic mode" (also called *classical*) means a memory was built **without** the local AI model — either because that's the default for your machine (the safe `micro` profile), or because the AI engine (Ollama) wasn't responding. The memory is still complete and searchable; it's just less detailed than the AI-assisted "accurate" mode.
-
-If you *expected* the sharper mode, ask Claude to *"check memory status"*. The `health` line tells you plainly what's wrong — most often **"Ollama is running but its AI engine isn't responding"**, which is fixed by fully quitting and reopening Ollama and making sure your model is installed (`ollama pull <model>`). The tool no longer hides this behind a long silent run — it warns you at the **start** of memorising and labels the result.
+No — and that's deliberate. Version 2 is **fully deterministic**: it extracts people, places, organisations, and facts with carefully-tuned rules (plain Python + maths), not an AI model. That means it **always works** (nothing to install, nothing to break, nothing to run out of memory), it's **fast**, and memorising the same folder twice gives the **identical** result. The trade-off is that summaries read more like structured notes than flowing prose — but every fact is grounded in your documents, and Claude (which IS the AI) does the smart reasoning at question time using the recalled facts.
 </details>
 
 ---
 
 ## 🧰 The tools Claude gets
 
-Once installed, Claude can use these nine tools on your behalf (you just talk normally — Claude picks the right one):
+Once installed, Claude can use these eight tools on your behalf (you just talk normally — Claude picks the right one):
 
 | Tool | What it does for you |
 | --- | --- |
@@ -256,7 +252,6 @@ Once installed, Claude can use these nine tools on your behalf (you just talk no
 | **recall** | Answers a question from memory with a few relevant, cited snippets. |
 | **memory_overview** | Gives the big picture — a synopsis and the main themes. |
 | **list_digestible** | Shows which files in a folder it can read. |
-| **open_mindmap** | Opens the interactive, offline mind map. |
 | **export_memory** | Saves the memory as portable Markdown notes you can keep or share. |
 | **memory_status** | Reports your local setup (models, tools, projects). |
 | **forget** | Deletes a project's memory (you name it explicitly). |
@@ -275,12 +270,11 @@ You don't need any of this to use the app — but it's here if you want it.
 The same engine ships as an `mta` command:
 
 ```bash
-mta digest ~/Documents/research        # build/update memory (--fast to skip the LLM)
+mta digest ~/Documents/research        # build/update memory (deterministic, model-free)
 mta recall "what about the Q3 budget?" # query it
 mta overview                            # synopsis + themes
 mta status                              # local stack health   ·   mta doctor  (fix deps)
 mta export ./notes                      # export portable Markdown
-mta mindmap --open                      # open the mind map
 ```
 </details>
 
@@ -314,19 +308,6 @@ It serves the tools over MCP HTTP and keeps memory in the `/data` volume. Mount 
 </details>
 
 <details>
-<summary><b>Use a different (or remote) AI model</b></summary>
-
-By default the optional AI step runs on local **Ollama**. To use another local server (LM Studio, llama.cpp, vLLM, …) set `MTA_BACKEND`:
-
-```bash
-MTA_BACKEND=lmstudio mta digest ~/docs          # OpenAI-compatible server on :1234
-MTA_BACKEND=openai MTA_BACKEND_URL=http://127.0.0.1:8080/v1 mta digest ~/docs
-```
-
-Set `MTA_EXTRACT_MODEL` / `MTA_EMBED_MODEL` to that server's model names. Pointing it at a **non-local** URL sends content off your machine — that's your explicit choice (you'll get a one-time warning).
-</details>
-
-<details>
 <summary><b>Configuration</b></summary>
 
 Everything has sensible defaults. Common knobs (set as environment variables):
@@ -334,76 +315,32 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memory is stored |
+| `MTA_SKIP_MEDIA` | `on` | skip photos/video/audio (set `off` to OCR images with Tesseract) |
+| `MTA_SKIP_FONTS` / `MTA_SKIP_GDRIVE` / `MTA_SKIP_JUNK` | `on` | skip font files / Google-Drive pointer stubs / `.tmp`,`.DS_Store` junk |
+| `MTA_ARCHIVE_RECURSIVE` | `on` | unpack zip/tar/gz (+ rar/7z via `unar`/`7z`) recursively, with bomb + path-traversal guards |
+| `MTA_ARCHIVE_DEPTH` / `MTA_ARCHIVE_ENTRIES` | `8` / `100000` | nesting depth / member-count caps for archives |
 | `MTA_OCR_LANG` | `eng+ben` | OCR languages (Tesseract codes; missing packs dropped automatically) |
-| `MTA_EXTRACT_MODEL` | _(set by profile)_ | extraction LLM — overrides the profile; alternatives under "Choosing a model" below |
-| `MTA_EMBED_MODEL` | `qwen3-embedding:0.6b` | multilingual embeddings (1024-d, incl. Bangla) |
-| `MTA_VISION_MODEL` | `qwen3-vl:4b-instruct` | image caption / OCR-assist (32-language) |
-| `MTA_WHISPER_MODEL` | `small` | on-device speech-to-text size |
-| `MTA_NO_OLLAMA` | unset | force fully-offline mode (no AI model) |
-| `MTA_AUTO_UPDATE` | `on` | daily update check (`off` to disable) |
-| `MTA_PROFILE` | `micro` | sizing tier: **`micro`** (4 GB / no-GPU — the safe default) · `auto` (size to this machine) · `small` · `standard` (16 GB) · `large` (32 GB+) · `offline` |
+| `MTA_BANGLA_LEGACY` | `on` | auto-convert legacy Bengali (Bijoy/SutonnyMJ) to Unicode |
 | `MTA_CONVERT_TIMEOUT` | `120` | per-file conversion timeout (seconds); a file that hangs the parser is skipped, never stalls the batch. `0` disables |
-| `MTA_MEMORY_GB` | auto | override detected RAM (for containers/VMs that misreport it, to pick the right profile) |
-| `MTA_BACKEND` / `MTA_BACKEND_URL` | `auto` | use another local model server (see above) |
+| `MTA_MAX_FILE_MB` | `200` | per-file size cap (also drives the archive budgets) |
+| `MTA_MEMORY_GB` | auto | override detected RAM (for containers/VMs that misreport it) |
+| `MTA_WORKERS` | auto | conversion workers (RAM/CPU-sized; 1 on small machines) |
+| `MTA_AUTO_UPDATE` | `on` | daily MarkItDown update check (`off` to disable) |
 | `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
 </details>
 
 <details>
-<summary><b>Choosing a local model (lighter / multilingual alternatives)</b><a id="choosing-a-model"></a></summary>
+<summary><b>Why no AI model? (v2 design)</b><a id="choosing-a-model"></a></summary>
 
-**The default is safe on a 4 GB machine with no graphics card.** Out of the box (profile `micro`) the plugin runs **fully offline** — classical extraction + a tiny embedding model — so a digest *always completes* and never thrashes, on any computer. To use sharper local AI, pick a bigger **profile** with one setting — the easiest is **`MTA_PROFILE=auto`**, which sizes the models to your computer (a 16 GB machine gets the qwen3 stack below; a 4 GB one stays on `micro`). You can also set any model directly (env var or extension setting), which overrides the profile. All tags are verified-real Ollama models pulled on demand. Sizes are q4-class downloads.
+Earlier versions could optionally use local AI models (via Ollama) for extraction and search. **Version 2 removed them on purpose.** The deterministic engine:
 
-| Profile | Good for | What it uses |
-| --- | --- | --- |
-| `micro` *(default)* | 4 GB, no GPU | offline/classical + tiny embedder + vision off |
-| `auto` | **recommended** | sizes the stack to your machine's RAM |
-| `standard` | ~16 GB | the qwen3 stack below |
-| `large` | 32 GB+ | qwen3:8b + vision |
+- **always works** — nothing to download, install, crash, or run out of memory; the same on a 4 GB laptop and a 64 GB workstation;
+- **is reproducible** — the same folder always produces the identical memory (great for auditing);
+- **is fast** — no model loading, no GPU, instant startup;
+- **stays private & token-free** — nothing ever leaves your machine, and Claude still only receives tiny slices.
 
-The model tables below apply when a profile (or you) turns the local LLM on:
-
-**Extraction LLM — `MTA_EXTRACT_MODEL`** (entity/relation/fact extraction + summaries):
-
-| Model | Size | Best for |
-| --- | --- | --- |
-| `qwen3:4b-instruct` *(default)* | 2.5 GB | **Optimum on 16 GB** — newer-gen, non-thinking (clean JSON), 119 languages incl. Bangla |
-| `qwen3:8b` | 5.2 GB | Higher quality if you have RAM — best Bangla + instruction-following |
-| `gemma3:4b-it-qat` | 4.0 GB | QAT ≈ BF16 quality, 140+ languages |
-| `llama3.2:3b` | 2.0 GB | Lightest solid English-centric option |
-| `qwen2.5:7b` | 4.7 GB | Previous default (older generation) |
-
-> **Pin the `-instruct` builds.** Bare `qwen3:4b` / `qwen3-vl:4b` are *thinking* models that emit chain-of-thought (bad for strict JSON / captions). Newest/experimental (mid-2026, less battle-tested): `qwen3.5:4b` (text) and `gemma4:e2b-it-qat` (text+vision) exist now — fine to try, but the picks above are the stable, instruct-guaranteed defaults.
-
-**Embeddings — `MTA_EMBED_MODEL`** (entity resolution + recall):
-
-| Model | Size | Best for |
-| --- | --- | --- |
-| `qwen3-embedding:0.6b` *(default)* | 0.64 GB | **Optimum** — 1024-d, 100+ languages incl. Bangla, top multilingual retrieval (MMTEB ≈ 64) |
-| `bge-m3` | 1.2 GB | Explicit Bengali + hybrid dense/sparse (helps fuzzy entity matching) |
-| `embeddinggemma:300m` | 0.62 GB | 768-d multilingual; smaller footprint |
-| `nomic-embed-text` | 0.27 GB | English-only (previous default) |
-
-> Switching the embedding model changes the vector dimension, so **re-digest with `reset: true`** afterwards — recall transparently falls back to lexical scoring until you do (it never errors).
-
-**Vision — `MTA_VISION_MODEL`** (captions images OCR can't read):
-
-| Model | Size | Best for |
-| --- | --- | --- |
-| `qwen3-vl:4b-instruct` *(default)* | 3.3 GB | 32-language OCR incl. Bangla; reads charts / diagrams / forms |
-| `qwen3-vl:2b-instruct` | 1.9 GB | Same OCR engine, lighter |
-| `gemma3:4b` | 3.3 GB | 140+ languages |
-| `granite3.2-vision:2b` | 2.4 GB | Document / table / chart OCR (IBM) |
-| `moondream` | 1.7 GB | Tiniest / fastest (English-only; previous default) |
-
-**Speech-to-text — `MTA_WHISPER_MODEL`:** default `small` (good speed/accuracy on 16 GB); `medium` or `large-v3-turbo` for maximum accuracy, `tiny`/`base` for low-resource. Runs on the Apple GPU via MLX-Whisper.
-
-The default stack is already optimal for 16 GB. To favour maximum quality (needs more RAM), escalate the extractor and re-digest:
-
-```bash
-MTA_EXTRACT_MODEL=qwen3:8b mta digest ~/docs --reset
-```
-
+The trade-off: extraction and search are rule-/keyword-based rather than semantic. In practice Claude compensates at question time — it reasons over the recalled facts. If you used v1.x with models: your old memories still load; re-memorise once (`reset: true`) to rebuild them with the deterministic engine.
 </details>
 
 <details>
@@ -427,7 +364,7 @@ mta convert ~/docs --out ~/md_out  # …or choose the output folder
 <details>
 <summary><b>How it works under the hood</b></summary>
 
-`convert` (files → Markdown, locally) → `extract` (entities, relations, facts) → `graph` (build + detect communities/themes) → `summarise` (layered: per-theme + a global synopsis) → `embed` (vectors for search) → `materialise` (memory.md, per-doc notes, mind map). `recall` embeds your question and returns the closest, capped, cited snippets. With no AI model available it falls back to fast classical techniques, so a digest **always** succeeds. See [`CHANGELOG.md`](CHANGELOG.md) and [`SECURITY.md`](SECURITY.md) for details.
+`convert` (files → Markdown, locally; archives unpacked safely; duplicates deduped) → `extract` (entities, relations, facts — rule-based, deterministic) → `graph` (build + detect communities/themes) → `summarise` (layered: per-theme + a global synopsis, fact-joined) → `index` (deterministic vectors for search) → `materialise` (memory.md + per-doc notes). `recall` matches your question against the graph and returns the closest, capped, cited snippets. No models, no network — a digest **always** succeeds and is byte-for-byte reproducible. See [`CHANGELOG.md`](CHANGELOG.md) and [`SECURITY.md`](SECURITY.md) for details.
 </details>
 
 ---
@@ -438,7 +375,7 @@ macOS (Apple-silicon optimised), Linux, and Windows · Python 3.10–3.12 · tes
 
 ## 🙏 Credits & license
 
-Built on the shoulders of [MarkItDown](https://github.com/microsoft/markitdown), [Ollama](https://ollama.com), [NetworkX](https://networkx.org), and the [Model Context Protocol](https://modelcontextprotocol.io). Optional community-detection extras (`python-igraph`, `leidenalg`) are GPL-licensed and **not** installed by the MIT core. See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
+Built on the shoulders of [MarkItDown](https://github.com/microsoft/markitdown), [NetworkX](https://networkx.org), and the [Model Context Protocol](https://modelcontextprotocol.io). Optional community-detection extras (`python-igraph`, `leidenalg`) are GPL-licensed and **not** installed by the MIT core. See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
 
 **MIT licensed** · made by [GRU-953](https://github.com/GRU-953). Issues and contributions welcome — start with [`SECURITY.md`](SECURITY.md) for the security model.
 

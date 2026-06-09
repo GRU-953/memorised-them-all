@@ -13,11 +13,11 @@ Steps:
 2. Call the `digest` tool with the path(s). It converts every attachment to Markdown
    locally (MarkItDown + Tesseract OCR + Whisper + Ollama vision), builds a knowledge
    graph with community-detected themes, and writes `memory.md`, per-document notes,
-   `graph.json`, and an offline `mindmap.html`.
+   and `graph.json`.
 3. The tool returns **only metadata** (counts, paths, stats) — do not try to read the
    converted documents back into the conversation; that would waste tokens.
 4. Report a short summary: files converted, entities, relations, themes, and where the
-   outputs were written. Offer `/recall`, `/memory-map`, or `/export-memory` as next steps.
+   outputs were written. Offer `/recall` or `/export-memory` as next steps.
 
 Tip: for a large or frequently-refreshed corpus, pass `fast: true` to `digest` — it
 skips the local LLM for a deterministic, much faster digest (still builds the graph

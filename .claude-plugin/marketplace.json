@@ -13,11 +13,11 @@
     {
       "name": "memorised-them-all",
       "source": "./",
-      "description": "Convert any attachment to Markdown locally, then digest it into a token-free knowledge graph + exportable memory + offline mind map. 100% local & open-source; auto-installing; Apple-silicon first.",
+      "description": "Convert any attachment to Markdown locally, then digest it into a token-free knowledge graph + exportable memory. Deterministic and model-free — no LLM/Ollama/GPU; 100% local & open-source; auto-installing.",
       "license": "MIT",
       "homepage": "https://github.com/GRU-953/memorised-them-all",
-      "keywords": ["memory", "knowledge-graph", "mind-map", "markitdown", "ocr",
-                   "local-llm", "ollama", "token-free", "graphrag", "mcp"]
+      "keywords": ["memory", "knowledge-graph", "markitdown", "ocr", "deterministic",
+                   "offline", "token-free", "graphrag", "mcp"]
     }
   ]
 }

@@ -53,11 +53,6 @@ else
   log "Using the pinned PyPI MarkItDown (offline-correct); set MTA_MARKITDOWN_UPSTREAM=on for the latest upstream build."
 fi
 
-# Optional accelerators (best-effort; engine falls back if they fail to build).
-if [ "$(uname -m)" = "arm64" ] && [ "$(uname -s)" = "Darwin" ]; then
-  "$PYBIN" -m pip install --quiet "mlx-whisper>=0.4" >/dev/null 2>&1 \
-    && log "Enabled GPU Whisper via Apple MLX." || true
-fi
 "$PYBIN" -m pip install --quiet "python-igraph>=0.11" "leidenalg>=0.10" >/dev/null 2>&1 \
   && log "Enabled Leiden community detection." || \
   log "Leiden unavailable — using NetworkX Louvain (fine)."
@@ -72,7 +67,7 @@ if [ "$(id -u 2>/dev/null)" != "0" ] && command -v sudo >/dev/null 2>&1 && sudo 
   SUDO="sudo -n"
 fi
 if command -v brew >/dev/null 2>&1; then
-  for app in ollama tesseract ffmpeg; do
+  for app in tesseract ffmpeg unar; do
     command -v "$app" >/dev/null 2>&1 || { log "brew install $app"; brew install "$app" || true; }
   done
   # Many OCR languages (incl. Bengali) + igraph C lib for python-igraph.
@@ -80,39 +75,18 @@ if command -v brew >/dev/null 2>&1; then
 elif command -v apt-get >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via apt…"
   $SUDO apt-get update -y >/dev/null 2>&1 || true
-  $SUDO apt-get install -y tesseract-ocr tesseract-ocr-all ffmpeg >/dev/null 2>&1 || true
-  if ! command -v ollama >/dev/null 2>&1; then
-    # Download then execute (not curl|sh) so partial/garbled output can't run.
-    _oll="$(mktemp)"; curl -fsSL https://ollama.com/install.sh -o "$_oll" \
-      && sh "$_oll" >/dev/null 2>&1; rm -f "$_oll" || true
-  fi
+  $SUDO apt-get install -y tesseract-ocr tesseract-ocr-all ffmpeg unar >/dev/null 2>&1 || true
 elif command -v dnf >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via dnf…"
-  $SUDO dnf install -y tesseract tesseract-langpack-eng tesseract-langpack-ben ffmpeg >/dev/null 2>&1 || true
-  if ! command -v ollama >/dev/null 2>&1; then
-    # Download then execute (not curl|sh) so partial/garbled output can't run.
-    _oll="$(mktemp)"; curl -fsSL https://ollama.com/install.sh -o "$_oll" \
-      && sh "$_oll" >/dev/null 2>&1; rm -f "$_oll" || true
-  fi
+  $SUDO dnf install -y tesseract tesseract-langpack-eng tesseract-langpack-ben ffmpeg unar >/dev/null 2>&1 || true
 elif command -v pacman >/dev/null 2>&1 && [ -n "$SUDO$( [ "$(id -u)" = 0 ] && echo root )" ]; then
   log "Installing system apps via pacman…"
-  $SUDO pacman -S --noconfirm tesseract tesseract-data-eng tesseract-data-ben ffmpeg ollama >/dev/null 2>&1 || true
+  $SUDO pacman -S --noconfirm tesseract tesseract-data-eng tesseract-data-ben ffmpeg unarchiver >/dev/null 2>&1 || true
 else
-  log "No usable package manager (or sudo unavailable) — install Ollama/Tesseract/ffmpeg manually for full features."
+  log "No usable package manager (or sudo unavailable) — install Tesseract/ffmpeg/unar manually for OCR + rar support."
 fi
 
-# --- 4. Local models (background unless MTA_SKIP_MODELS=1) ------------------
-if [ "${MTA_SKIP_MODELS:-0}" != "1" ] && command -v ollama >/dev/null 2>&1; then
-  EXTRACT="${MTA_EXTRACT_MODEL:-qwen3:4b-instruct}"
-  EMBED="${MTA_EMBED_MODEL:-qwen3-embedding:0.6b}"
-  VISION="${MTA_VISION_MODEL:-qwen3-vl:4b-instruct}"
-  log "Pulling local models ($EXTRACT, $EMBED, $VISION)…"
-  ( ollama serve >/dev/null 2>&1 & sleep 2
-    for m in "$EXTRACT" "$EMBED" "$VISION"; do ollama pull "$m" >/dev/null 2>&1 || true; done
-  ) &
-fi
-
-# --- 5. Register the MCP server in Claude's config (the "Claude Setup file") -------
+# --- 4. Register the MCP server in Claude's config (the "Claude Setup file") -------
 if [ "${MTA_SKIP_CLAUDE_SETUP:-0}" != "1" ]; then
   log "Registering the MCP server in Claude's config…"
   PATH="$VENV/bin:$PATH" "$PYBIN" -m mta.cli setup-claude 2>&1 | sed 's/^/  /' \
