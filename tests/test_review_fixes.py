@@ -42,15 +42,14 @@ def test_recall_on_torn_store_does_not_crash(tmp_path):
 
 
 # ---- H2: config.load() profile race under concurrency ---------------------
-def test_concurrent_offline_profile_no_leak(tmp_path, monkeypatch):
+def test_concurrent_load_is_consistent(tmp_path, monkeypatch):
+    # v2 is profile-free (no os.environ seeding window), so concurrent load() is trivially
+    # race-free; assert every concurrent load yields the same deterministic model-free config.
     monkeypatch.setenv("MTA_HOME", str(tmp_path))
-    monkeypatch.setenv("MTA_PROFILE", "offline")
-    for k in ("MTA_NO_OLLAMA", "MTA_EXTRACT", "MTA_AUTO_UPDATE"):
-        monkeypatch.delenv(k, raising=False)
     from mta.core.config import load
     with ThreadPoolExecutor(max_workers=8) as ex:
-        flags = list(ex.map(lambda _: load().no_ollama, range(64)))
-    assert all(flags), f"profile leaked under concurrent load(): {flags.count(False)}/64 False"
+        flags = list(ex.map(lambda _: load().skip_media, range(64)))
+    assert all(flags), "concurrent load() produced inconsistent config"
 
 
 # ---- H3: _lexical fallback keeps the relevance contract (DOC-01) ----------

@@ -2,15 +2,14 @@
 
 Conversion order of preference for each file:
   1. Native passthrough for text/markdown/csv/json/xml (no dependency needed).
-  2. Microsoft **MarkItDown** (latest, auto-updated) for PDF/Office/HTML/EPub/…
-  3. **Tesseract** OCR for images and scanned/image-only PDFs.
-  4. **Whisper** (Apple-MLX accelerated on arm64, faster-whisper fallback) for audio.
-  5. Local **Ollama vision** captioning for images OCR can't read.
+  2. Microsoft **MarkItDown** (latest) for PDF/Office/HTML/EPub/…
+  3. **Tesseract** OCR (optional, offline) for images and scanned/image-only PDFs.
+  4. Recursive expansion of archives (zip/tar/gz/bz2/xz, + optional rar/7z).
 
-Every converter runs entirely on-device. The function returns only metadata
-(paths, sizes, status) — never file content — so a whole folder costs ~0 tokens.
-Missing optional dependencies degrade to a clear ``unsupported``/``empty`` status
-rather than crashing a batch.
+v2 is **deterministic and model-free** — no Ollama, no embedding/vision/whisper models,
+no GPU, no network. The function returns only metadata (paths, sizes, status) — never
+file content — so a whole folder costs ~0 tokens. Missing optional dependencies degrade
+to a clear ``unsupported``/``empty``/``skipped`` status rather than crashing a batch.
 """
 from __future__ import annotations
 
@@ -223,37 +222,6 @@ def _ocr_pdf(path: Path, cfg: Config, max_pages: int = 50) -> tuple[str | None, 
                 pass
 
 
-def _try_whisper(path: Path, cfg: Config) -> tuple[str | None, str]:
-    if cfg.transcribe_mode == "off":
-        return None, "transcribe-off"
-    from .platform import mlx_available
-    # Apple MLX (GPU) first.
-    if mlx_available():
-        try:
-            import mlx_whisper
-            repo = f"mlx-community/whisper-{cfg.whisper_model}-mlx"
-            res = mlx_whisper.transcribe(str(path), path_or_hf_repo=repo)
-            text = (res.get("text") or "").strip()
-            return (text or None), "mlx-whisper"
-        except Exception:  # noqa: BLE001 — fall through to CPU
-            pass
-    # Prefer a CUDA GPU when present (Linux/Windows), else CPU int8 everywhere.
-    import shutil
-    devices = ([("cuda", "float16")] if shutil.which("nvidia-smi") else []) + [("cpu", "int8")]
-    last = "transcribe-error"
-    for device, ctype in devices:
-        try:
-            from faster_whisper import WhisperModel
-            model = WhisperModel(cfg.whisper_model, device=device, compute_type=ctype)
-            segments, _ = model.transcribe(str(path))
-            text = " ".join(s.text for s in segments).strip()
-            return (text or None), f"faster-whisper-{device}"
-        except Exception as e:  # noqa: BLE001 — try the next device
-            last = f"transcribe-error:{type(e).__name__}"
-            continue
-    return None, last
-
-
 # Byte-order marks for the Unicode encodings a Windows editor commonly writes. UTF-32
 # must precede UTF-16 (the UTF-16-LE BOM is a prefix of the UTF-32-LE BOM).
 _BOMS = (
@@ -375,7 +343,7 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
         if cfg.ocr_mode != "off":
             text, method = _try_ocr(path, cfg)
     elif ext in _AUDIO_EXTS:
-        text, method = _try_whisper(path, cfg)
+        text, method = None, "audio-unsupported"   # model-free: audio transcription dropped in v2
     else:
         # All other file types: digest as plain text when the content looks textual;
         # genuine binaries stay 'unsupported'.
