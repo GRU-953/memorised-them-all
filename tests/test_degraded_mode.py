@@ -67,53 +67,6 @@ def _seed(tmp_path):
     return src
 
 
-def test_digest_flags_degraded_when_llm_expected_but_unavailable(tmp_path):
-    from mta.core.digest import digest
-    src = _seed(tmp_path)
-    # extract_mode=auto (the default) WANTS the LLM but falls back to classical when
-    # Ollama is down → the result must say degraded=True with a human reason.
-    cfg = Config(home=tmp_path / "h", extract_mode="auto", no_ollama=True, convert_timeout=60)
-    d = digest(cfg, [str(src)])
-    assert d["status"] == "ok"
-    assert d["degraded"] is True and isinstance(d.get("degraded_reason"), str)
-    assert d["stats"]["mode"] == "classical"
-
-
-def test_digest_not_degraded_when_basic_mode_is_the_choice(tmp_path):
-    from mta.core.digest import digest
-    src = _seed(tmp_path)
-    # fast=True is a deliberate basic-mode request → completing in classical is NOT
-    # a degradation, so the flag stays False (no false alarm for micro/offline users).
-    cfg = Config(home=tmp_path / "h", fast=True, convert_timeout=60)
-    d = digest(cfg, [str(src)])
-    assert d["status"] == "ok" and d["degraded"] is False
-
-
-def test_digest_preflight_no_false_alarm_when_engine_stopped(tmp_path, capsys):
-    # Reviewer finding A1: a merely idle-stopped/unreachable engine must NOT trigger
-    # the up-front "failed a health check" warning (inference_ok is None there). The
-    # result still HONESTLY flags degraded after the classical fallback — but there's
-    # no cry-wolf warning on the routine happy path.
-    from mta.core.digest import digest
-    src = _seed(tmp_path)
-    cfg = Config(home=tmp_path / "h", extract_mode="auto", no_ollama=True, convert_timeout=60)
-    d = digest(cfg, [str(src)])
-    assert "failed a health check" not in capsys.readouterr().err
-    assert d["degraded"] is True
-
-
-# ---- recall transparency -----------------------------------------------------
-def test_recall_reports_memory_mode(tmp_path):
-    from mta.core.digest import digest
-    from mta.core.recall import recall
-    src = _seed(tmp_path)
-    cfg = Config(home=tmp_path / "h", fast=True, convert_timeout=60)
-    digest(cfg, [str(src)])
-    r = recall(cfg, "Helios consortium")
-    assert r["status"] == "ok"
-    assert r.get("memory_mode") == "fast"   # surfaced how the memory was built
-
-
 # ---- memory_status honesty ---------------------------------------------------
 def test_memory_status_reports_inference_health(tmp_path, monkeypatch):
     monkeypatch.setenv("MTA_HOME", str(tmp_path))

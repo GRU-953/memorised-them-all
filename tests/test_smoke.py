@@ -49,8 +49,8 @@ def test_digest_end_to_end(tmp_path):
     assert stats["files"] >= 2
     assert stats["converted"] >= 2
     assert stats["entities"] >= 3, stats
-    assert stats["embed_mode"] == "hash"  # offline fallback
-    assert stats["mode"] == "classical"   # no LLM ran offline → honest label (PIPE-04)
+    assert stats["embed_mode"] == "hash"      # deterministic hash embedding (no model)
+    assert stats["mode"] == "deterministic"   # v2 is fully model-free
 
     # Artefacts exist.
     assert cfg.graph_path.exists()
@@ -184,8 +184,8 @@ def test_entity_resolution_no_overmerge():
     assert cid_for("Dr. Lena Marsh", a2c) == cid_for("Lena Marsh", a2c)
 
 
-def test_fast_mode_is_deterministic(tmp_path):
-    """Fast mode (no LLM) yields a byte-stable graph across runs (same content)."""
+def test_digest_is_deterministic(tmp_path):
+    """The (sole) model-free path yields a byte-stable graph across runs (same content)."""
     import json
 
     def sig(cfg):
@@ -196,11 +196,11 @@ def test_fast_mode_is_deterministic(tmp_path):
 
     from mta.core.digest import digest
     c1 = _fresh_cfg(tmp_path / "a", "f")
-    digest(c1, [str(SAMPLE)], fast=True)
+    digest(c1, [str(SAMPLE)])
     c2 = _fresh_cfg(tmp_path / "b", "f")
-    digest(c2, [str(SAMPLE)], fast=True)
+    digest(c2, [str(SAMPLE)])
     assert sig(c1) == sig(c2)
-    assert json.loads(c1.graph_path.read_text(encoding="utf-8"))["stats"]["mode"] == "fast"
+    assert json.loads(c1.graph_path.read_text(encoding="utf-8"))["stats"]["mode"] == "deterministic"
 
 
 def test_fact_attribution_word_boundary_and_no_dup():

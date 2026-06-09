@@ -61,17 +61,3 @@ def test_mindmap_is_zero_network(tmp_path):
     assert "cytoscape" in html.lower()      # the library is present (inlined)
     assert "unpkg" not in html              # no CDN fallback
     assert "<script src=" not in html       # no external script tags at all
-
-
-def test_summary_prompt_is_fenced(monkeypatch):
-    """SEC-02: the theme summariser fences document-derived text as data."""
-    from mta.core import digest
-    from mta.core.config import load
-    monkeypatch.delenv("MTA_EXTRACT", raising=False)
-    captured = {}
-    monkeypatch.setattr(digest, "_llm_summarise",
-                        lambda prompt, cfg, ollama: captured.setdefault("p", prompt) or "ok")
-    cfg = load()
-    cfg.extract_mode = "auto"   # force the LLM-summary branch
-    digest._community_summary(["Helios operates in Reykjavik."], ["Helios"], cfg, ollama=None)
-    assert "<<<DATA>>>" in captured["p"] and "<<<END>>>" in captured["p"]
