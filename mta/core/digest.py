@@ -317,7 +317,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
     all_md = sorted(cfg.markdown_dir.glob("*.md"))
 
     # Segment + extract.
-    embedder = Embedder(cfg, ollama)
+    embedder = Embedder(cfg)
     all_chunks = []
     for md in all_md:
         all_chunks.extend(segment_file(md, cfg.chunk_chars))

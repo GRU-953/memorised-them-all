@@ -1,9 +1,11 @@
 """Token-free recall — return only a tiny, relevant slice of memory.
 
-The query is embedded with the same local model used at digest time, scored by
-cosine against the stored recall units (theme summaries + entity cards), and the
-top-k units are returned with provenance. Whole documents are never returned —
-Claude gets a compact, citable slice, which is what keeps recall near-zero-token.
+The query is embedded with the same deterministic hashing embedding used at digest
+time, scored by cosine against the stored recall units (theme summaries + entity
+cards), and the top-k units are returned with provenance. Because the hash embedding
+has no semantic similarity, lexical overlap gates the confidence signal. Whole
+documents are never returned — Claude gets a compact, citable slice, which is what
+keeps recall near-zero-token.
 """
 from __future__ import annotations
 
@@ -66,8 +68,7 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
         return {"status": "no_memory", "project": cfg.project,
                 "message": "Nothing digested for this project yet."}
     matrix, meta = loaded
-    ollama = ollama or OllamaManager(cfg)
-    embedder = Embedder(cfg, ollama)
+    embedder = Embedder(cfg)
     qv = embedder.embed([query], kind="query")
     if qv.shape[1] != matrix.shape[1]:
         # Embedding backend changed since digest; degrade to lexical overlap.
@@ -84,14 +85,12 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
     if cfg.recall_min_score > 0:
         hits = [h for h in hits if h["score"] >= cfg.recall_min_score]
     # Relevance signal so an off-topic query doesn't feed Claude confident-looking
-    # junk. Real embeddings → cosine threshold. The hashing fallback's cosine isn't
-    # calibrated, so there we use lexical overlap between the query and the best
-    # hit (no shared content words ⇒ low confidence) — this is what makes
-    # low_confidence work with no model at all (DOC-01).
+    # junk. The deterministic hashing embedding's cosine isn't calibrated, so we use
+    # lexical overlap between the query and the best hit (no shared content words ⇒
+    # low confidence) — this is what makes low_confidence work with no model at all
+    # (DOC-01).
     if not hits:
         low_conf = True
-    elif embedder.mode == "ollama":
-        low_conf = hits[0]["score"] < 0.5
     else:
         low_conf = _lexical_overlap(query, hits[0].get("text", "")) == 0
     # top_score reflects what is actually RETURNED (RECALL-03); raw_top_score keeps
@@ -99,8 +98,8 @@ def _recall_locked(cfg: Config, query: str, k: int | None,
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
             "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
-            # The mode this memory was last BUILT in (accurate|classical|fast) — so a
-            # recall over a basic-mode memory is transparent, not silently assumed rich.
+            # The mode this memory was last BUILT in (always "deterministic" in v2) —
+            # surfaced so a client can see how the memory was constructed.
             "memory_mode": (doc or {}).get("stats", {}).get("mode"),
             "top_score": (hits[0]["score"] if hits else 0.0),
             "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}

@@ -1,10 +1,11 @@
-"""Local text embeddings via Ollama (``qwen3-embedding:0.6b`` by default).
+"""Deterministic, model-free text embeddings.
 
-When Ollama or the embedding model is unavailable we fall back to a deterministic
-hashing embedding (a token "hashing trick" into a fixed dimension). The fallback
-keeps the whole pipeline — segmentation, resolution, recall — working offline and
-in CI without any model download. It is obviously weaker than a real embedding,
-but it is stable and never blocks a digest.
+A token "hashing trick" maps each text to a fixed 256-dimension L2-normalised
+vector — no model, no network, no GPU. The same text always yields the same vector,
+which is what makes the whole pipeline (segmentation → resolution → recall) byte-stable
+across runs and machines. It has no semantic similarity (this is a deliberate v2
+tradeoff — recall degrades to lexical-overlap grade), but it never blocks a digest and
+needs no download.
 
 Nothing here returns text to the caller; embeddings are numeric vectors only.
 """
@@ -16,7 +17,6 @@ import re
 import numpy as np
 
 from .config import Config
-from .lifecycle import OllamaManager
 
 _FALLBACK_DIM = 256
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -42,54 +42,22 @@ def _hash_embed_one(text: str) -> np.ndarray:
 
 
 class Embedder:
-    def __init__(self, cfg: Config, ollama: OllamaManager | None = None):
+    def __init__(self, cfg: Config):
         self.cfg = cfg
-        self.ollama = ollama or OllamaManager(cfg)
-        self._dim: int | None = None
-        self._mode: str | None = None  # "ollama" | "hash"
+        self._dim = _FALLBACK_DIM
 
     @property
     def mode(self) -> str:
-        if self._mode is None:
-            self.embed(["probe"])
-        return self._mode or "hash"
-
-    def _prefix(self, kind: str) -> str:
-        # Some embedders want task prefixes; without them short strings embed almost
-        # identically. nomic uses search_query/search_document on both sides; Qwen3-
-        # Embedding wants a one-line instruction on the QUERY side only (documents get
-        # none) — this measurably improves its retrieval. Anything else gets no prefix.
-        name = (self.cfg.embed_model or "").lower()
-        if "nomic" in name:
-            return "search_query: " if kind == "query" else "search_document: "
-        if "qwen3-embedding" in name:
-            return ("Instruct: Retrieve passages relevant to the query.\nQuery: "
-                    if kind == "query" else "")
-        return ""
+        return "hash"
 
     def embed(self, texts: list[str], kind: str = "document") -> np.ndarray:
-        """Embed a list of texts → (n, dim) L2-normalised float32 matrix.
+        """Embed a list of texts → (n, 256) L2-normalised float32 matrix.
 
-        ``kind`` is "document" (default) or "query"; it only changes the task
-        prefix for prefix-aware models (nomic).
+        Always the deterministic hashing embedding. ``kind`` ("document"/"query")
+        is accepted as a no-op for call-site compatibility.
         """
         if not texts:
             return np.zeros((0, _FALLBACK_DIM), dtype=np.float32)
-
-        from . import backends
-        prefix = self._prefix(kind)
-        vecs = backends.embed(self.cfg, self.ollama,
-                              [(prefix + t)[:8000] for t in texts])
-        if vecs:
-            # "ollama" | "openai" — used downstream to label real vs hashing embeddings.
-            self._mode = backends.backend_kind(self.cfg)
-            mat = np.asarray(vecs, dtype=np.float32)
-            self._dim = mat.shape[1]
-            return _normalize(mat)
-
-        # Fallback: deterministic hashing embedding.
-        self._mode = "hash"
-        self._dim = _FALLBACK_DIM
         mat = np.vstack([_hash_embed_one(t) for t in texts]).astype(np.float32)
         return _normalize(mat)
 
