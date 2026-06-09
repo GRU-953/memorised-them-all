@@ -59,10 +59,6 @@ def test_full_cli_lifecycle_offline(tmp_path):
     assert rc["status"] == "ok" and all(len(h["text"]) <= 600 for h in rc["hits"])
     exp = _json(["--project", "e2e", "export", str(tmp_path / "out")])
     assert exp["status"] == "ok"
-    mm = _json(["--project", "e2e", "mindmap"])
-    assert mm["status"] == "ok" and Path(mm["path"]).exists()
-    html = Path(mm["path"]).read_text(encoding="utf-8")
-    assert "cytoscape" in html.lower() and "unpkg" not in html and "<script src=" not in html
     assert _json(["--project", "e2e", "forget"])["status"] == "ok"
     assert not (tmp_path / "projects" / "e2e").exists()
 

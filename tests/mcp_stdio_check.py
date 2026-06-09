@@ -9,8 +9,8 @@ import asyncio
 import os
 import sys
 
-EXPECTED = {"digest", "recall", "memory_overview", "export_memory",
-            "list_digestible", "memory_status", "open_mindmap", "forget"}
+EXPECTED = {"digest", "convert", "recall", "memory_overview", "export_memory",
+            "list_digestible", "memory_status", "forget"}
 
 
 async def _main() -> int:

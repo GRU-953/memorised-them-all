@@ -194,10 +194,6 @@ class Config:
         return self.project_dir / "memory.md"
 
     @property
-    def mindmap_html(self) -> Path:
-        return self.project_dir / "mindmap.html"
-
-    @property
     def state_dir(self) -> Path:
         return self.home / "state"
 

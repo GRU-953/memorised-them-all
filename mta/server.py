@@ -88,8 +88,8 @@ def memory_overview(project: str | None = None) -> dict:
 
 
 def export_memory(dest: str, project: str | None = None) -> dict:
-    """Export the memory (memory.md, per-document notes, graph.json, mind map) as
-    portable Markdown files to a destination directory."""
+    """Export the memory (memory.md, per-document notes, graph.json) as portable
+    Markdown files to a destination directory."""
     if not isinstance(dest, str) or not dest.strip():
         return _err("'dest' must be a non-empty destination directory path")
     return render.export_bundle(_cfg(project), dest)
@@ -118,24 +118,15 @@ def list_digestible(directory: str) -> dict:
 
 
 def forget(project: str | None = None) -> dict:
-    """Delete a project's memory (graph, converted Markdown, vectors, mind map).
+    """Delete a project's memory (graph, converted Markdown, vectors).
     Irreversible. Pass the project name explicitly."""
     return store.delete_project(_cfg(project))
 
 
 def memory_status() -> dict:
-    """Report the local stack: Ollama, models, Tesseract, MarkItDown version,
-    platform tuning, and existing projects."""
+    """Report the local stack: Tesseract, MarkItDown version, platform tuning,
+    and existing projects. Fully deterministic + model-free (no inference engine)."""
     return _status()
-
-
-def open_mindmap(project: str | None = None) -> dict:
-    """Return the path to the offline interactive mind map for a project."""
-    cfg = _cfg(project)
-    if not cfg.mindmap_html.exists():
-        return {"status": "no_memory", "project": cfg.project}
-    return {"status": "ok", "project": cfg.project, "path": str(cfg.mindmap_html),
-            "open_with": f"open '{cfg.mindmap_html}'"}
 
 
 def _status() -> dict:
@@ -174,7 +165,7 @@ def _status() -> dict:
 
 
 def build_server() -> FastMCP:
-    """Construct a fresh MCP server with all nine tools registered.
+    """Construct a fresh MCP server with all eight tools registered.
 
     A factory (not just a module singleton) so each transport owns its server +
     session manager: the stdio launcher and an opt-in HTTP server (mta/transport.py)
@@ -183,7 +174,7 @@ def build_server() -> FastMCP:
     (``python -m mta.server``) and tooling import."""
     srv = FastMCP("memorised-them-all")
     for fn in (digest, convert, recall, memory_overview, export_memory,
-               list_digestible, forget, memory_status, open_mindmap):
+               list_digestible, forget, memory_status):
         srv.tool()(fn)
     return srv
 

@@ -55,7 +55,6 @@ def test_digest_end_to_end(tmp_path):
     # Artefacts exist.
     assert cfg.graph_path.exists()
     assert cfg.memory_md.exists()
-    assert cfg.mindmap_html.exists()
     assert list(cfg.memory_dir.glob("*.md"))
 
     # The tool result must NOT contain raw document text (token-free contract).
@@ -79,14 +78,6 @@ def test_recall_returns_small_slice(tmp_path):
     assert len(out["hits"]) <= 5
     # A slice, not whole documents.
     assert all(len(h["text"]) < 1000 for h in out["hits"])
-
-
-def test_mindmap_is_offline(tmp_path):
-    cfg = _fresh_cfg(tmp_path)
-    from mta.core.digest import digest
-    digest(cfg, [str(SAMPLE)])
-    html = cfg.mindmap_html.read_text(encoding="utf-8")
-    assert "cytoscape" in html.lower()
 
 
 def test_accumulation_and_reset(tmp_path):

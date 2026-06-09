@@ -430,7 +430,6 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     # Materialise human-facing outputs.
     render.write_memory_md(cfg, graph_doc)
     render.write_doc_memories(cfg, graph_doc, G)
-    render.write_mindmap(cfg, graph_doc)
 
     result = {
         "status": "ok",
@@ -440,7 +439,6 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
             "graph": str(cfg.graph_path),
             "memory_md": str(cfg.memory_md),
             "memory_dir": str(cfg.memory_dir),
-            "mindmap": str(cfg.mindmap_html),
         },
         "conversion": _conv_tally(conv),
     }
@@ -500,7 +498,7 @@ def _reset_project(cfg: Config) -> None:
     for path in (cfg.markdown_dir, cfg.memory_dir):
         shutil.rmtree(path, ignore_errors=True)
     for f in (cfg.graph_path, cfg.vectors_path,
-              cfg.vectors_path.with_suffix(".json"), cfg.memory_md, cfg.mindmap_html):
+              cfg.vectors_path.with_suffix(".json"), cfg.memory_md):
         try:
             f.unlink()
         except OSError:

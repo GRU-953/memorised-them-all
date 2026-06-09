@@ -51,13 +51,3 @@ def test_vector_store_rejects_pickle(tmp_path):
     from mta.core.store import load_vectors
     assert load_vectors(cfg) is None        # allow_pickle=False → refused → None
 
-
-def test_mindmap_is_zero_network(tmp_path):
-    """SEC-10: the mind map inlines Cytoscape and loads NOTHING from the network."""
-    cfg = _cfg(tmp_path, "mm")
-    from mta.core.digest import digest
-    digest(cfg, [str(SAMPLE)])
-    html = cfg.mindmap_html.read_text(encoding="utf-8")
-    assert "cytoscape" in html.lower()      # the library is present (inlined)
-    assert "unpkg" not in html              # no CDN fallback
-    assert "<script src=" not in html       # no external script tags at all
