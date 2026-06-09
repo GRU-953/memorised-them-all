@@ -27,7 +27,7 @@ def _fresh_cfg(tmp_path, project="t"):
 def test_imports():
     import mta
     from mta.core import (config, convert, digest, embed, extract, graph,
-                          lifecycle, platform, recall, render, resolve,
+                          platform, recall, render, resolve,
                           segment, store, updater)  # noqa: F401
     assert mta.__version__
 
@@ -418,16 +418,6 @@ def test_long_project_name_capped(tmp_path):
     cfg = load().with_project("x" * 500)
     cfg.ensure_dirs()                                   # must not raise OSError
     assert len(cfg.project) <= 120
-
-
-def test_idle_shutdown_only_stops_ours(tmp_path):
-    # With Ollama disabled, ensure_running is False and nothing is started/stopped.
-    os.environ["MTA_HOME"] = str(tmp_path)
-    from mta.core.config import load
-    from mta.core.lifecycle import OllamaManager
-    m = OllamaManager(load())
-    assert m.ensure_running(wait=1) is False
-    m.stop()  # no-op, must not raise
 
 
 def test_server_tool_input_validation():

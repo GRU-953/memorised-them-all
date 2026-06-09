@@ -14,13 +14,11 @@ rather than crashing a batch.
 """
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import Config
-from .lifecycle import OllamaManager
 
 # File-type groupings.
 _TEXT_EXTS = {".txt", ".md", ".markdown", ".text", ".log", ".rst"}
@@ -225,32 +223,6 @@ def _ocr_pdf(path: Path, cfg: Config, max_pages: int = 50) -> tuple[str | None, 
                 pass
 
 
-def _try_vision(path: Path, cfg: Config, ollama: OllamaManager) -> tuple[str | None, str]:
-    if cfg.vision_mode == "off":
-        return None, "vision-off"
-    if not ollama.ensure_running(wait=20):
-        return None, "vision-unavailable"
-    import base64
-    import urllib.request
-    try:
-        b64 = base64.b64encode(path.read_bytes()).decode()
-        payload = json.dumps({
-            "model": cfg.vision_model,
-            "prompt": "Describe this image.",
-            "images": [b64],
-            "stream": False,
-        }).encode()
-        req = urllib.request.Request(f"{ollama.host}/api/generate", data=payload,
-                                     headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            data = json.loads(r.read())
-        ollama.touch()
-        text = (data.get("response") or "").strip()
-        return (text or None), "ollama-vision"
-    except Exception as e:  # noqa: BLE001
-        return None, f"vision-error:{type(e).__name__}"
-
-
 def _try_whisper(path: Path, cfg: Config) -> tuple[str | None, str]:
     if cfg.transcribe_mode == "off":
         return None, "transcribe-off"
@@ -355,7 +327,6 @@ def _try_unknown_text(path: Path) -> tuple[str | None, str]:
 
 
 def convert_file(path: Path, out_dir: Path, cfg: Config,
-                 ollama: OllamaManager | None = None,
                  out_name: str | None = None) -> ConvResult:
     """Convert a single file to a Markdown file on disk. Returns metadata only."""
     path = Path(path)
@@ -403,8 +374,6 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     elif ext in _IMAGE_EXTS:
         if cfg.ocr_mode != "off":
             text, method = _try_ocr(path, cfg)
-        if not text and cfg.vision_mode != "off":
-            text, method = _try_vision(path, cfg, ollama or OllamaManager(cfg))
     elif ext in _AUDIO_EXTS:
         text, method = _try_whisper(path, cfg)
     else:

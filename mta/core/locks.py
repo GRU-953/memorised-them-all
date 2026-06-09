@@ -8,9 +8,9 @@ project; readers (recall, overview) take a SHARED lock. This guarantees:
 * a reader never observes a half-updated graph/vectors pair;
 * ``forget`` / ``reset`` never race a concurrent digest.
 
-A separate *named* lock (``ollama-start``) serialises the on-demand Ollama start
-so two processes (e.g. Claude Desktop + Claude Code) can't both spawn
-``ollama serve``.
+A separate *named* lock primitive (``named_lock``) is still available for any
+operation that needs cross-process serialisation outside the per-project read/write
+locks.
 
 Lock files live under ``MTA_HOME/state/locks/`` — **not** inside the project dir,
 so ``forget``/``reset`` (which ``rmtree`` the project dir) can't delete a held

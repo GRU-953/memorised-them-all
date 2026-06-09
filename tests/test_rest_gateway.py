@@ -76,7 +76,9 @@ def test_memory_status_offline_ok(client):
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["ollama_running"] is False                        # offline, no network
+    # v2 is model-free: a constant deterministic backend descriptor, no Ollama keys.
+    assert body["backend"] == {"kind": "deterministic", "local": True, "model_free": True}
+    assert "ollama_running" not in body and "ollama_inference" not in body
 
 
 def test_list_digestible(client, tmp_path):

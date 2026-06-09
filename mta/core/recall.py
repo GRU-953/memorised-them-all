@@ -16,7 +16,6 @@ import numpy as np
 from . import locks
 from .config import Config
 from .embed import Embedder, cosine
-from .lifecycle import OllamaManager
 from .store import load_graph, load_vectors
 
 # Hard per-hit caps so a verbose (or prompt-injected) local-model summary can
@@ -46,16 +45,14 @@ def _lexical_overlap(query: str, text: str) -> int:
     return len(q & t)
 
 
-def recall(cfg: Config, query: str, k: int | None = None,
-           ollama: OllamaManager | None = None) -> dict:
+def recall(cfg: Config, query: str, k: int | None = None) -> dict:
     # Shared (multi-reader) lock: never observe a half-updated graph<->vectors
     # pair while a digest is persisting (LIFE-01).
     with locks.read_lock(cfg):
-        return _recall_locked(cfg, query, k, ollama)
+        return _recall_locked(cfg, query, k)
 
 
-def _recall_locked(cfg: Config, query: str, k: int | None,
-                   ollama: OllamaManager | None) -> dict:
+def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
     # Hard-clamp k so a caller can never pull the whole graph's text into Claude's
     # context — the token-free guarantee depends on recall returning a tiny slice.
     try:

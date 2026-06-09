@@ -100,26 +100,3 @@ def test_forget_serialises_via_write_lock(tmp_path):
     assert cfg.project_dir.exists()
     r = delete_project(cfg)
     assert r["status"] == "ok" and not cfg.project_dir.exists()
-
-
-def test_ollama_unreachable_fast_fail(tmp_path, monkeypatch):
-    """PIPE-03: a failed start sets a cooldown so we don't re-wait every call."""
-    import time as _t
-
-    from mta.core.lifecycle import OllamaManager
-    monkeypatch.delenv("MTA_NO_OLLAMA", raising=False)  # un-disable for this test
-    cfg = _cfg(tmp_path, "oll")
-    m = OllamaManager(cfg)
-    monkeypatch.setattr(m, "is_up", lambda: False)            # never comes up
-    monkeypatch.setattr(m, "stop", lambda: None)              # neuter atexit hook
-    monkeypatch.setattr("mta.core.lifecycle._which", lambda prog: "/usr/bin/ollama")
-    monkeypatch.setattr("mta.core.lifecycle.subprocess.Popen", lambda *a, **k: object())
-
-    t0 = _t.monotonic()
-    assert m.ensure_running(wait=0.5) is False     # pays the ~0.5s start wait once
-    slow = _t.monotonic() - t0
-    t1 = _t.monotonic()
-    assert m.ensure_running(wait=0.5) is False     # cooldown → returns immediately
-    fast = _t.monotonic() - t1
-    assert m._giveup_until > _t.monotonic()
-    assert fast < slow                              # the cooldown short-circuited

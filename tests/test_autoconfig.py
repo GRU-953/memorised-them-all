@@ -133,12 +133,3 @@ def test_summary_reports_gpu_and_lm_studio(tmp_path, monkeypatch):
     assert isinstance(s["lm_studio"], bool)
 
 
-def test_disabled_respects_cfg_no_ollama(tmp_path, monkeypatch):
-    monkeypatch.setenv("MTA_HOME", str(tmp_path))
-    monkeypatch.delenv("MTA_NO_OLLAMA", raising=False)
-    monkeypatch.setenv("MTA_PROFILE", "offline")
-    from mta.core.config import load
-    from mta.core.lifecycle import OllamaManager
-    m = OllamaManager(load())          # cfg.no_ollama True via the offline profile
-    assert m._disabled() is True
-    assert m.ensure_running(wait=0.1) is False

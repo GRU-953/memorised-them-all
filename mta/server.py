@@ -2,9 +2,8 @@
 
 Exposes eight token-free tools. Every tool returns only compact metadata or a
 small, relevant slice of memory — never document contents — so digesting and
-recalling whole folders costs ~0 Claude context tokens. All heavy work runs
-locally; the local model server (Ollama) is started on demand and stopped after
-``MTA_IDLE`` seconds of inactivity (default 5 minutes).
+recalling whole folders costs ~0 Claude context tokens. All work runs locally and
+is fully deterministic + model-free: no LLM, no embedding model, no GPU, no network.
 """
 from __future__ import annotations
 
@@ -15,24 +14,12 @@ from .core import recall as recall_mod
 from .core import render, store, updater
 from .core.config import load as load_config, persist_config
 from .core.digest import digest as run_digest
-from .core.lifecycle import OllamaManager
 from .core.platform import summary as platform_summary
 
 try:
     from mcp.server.fastmcp import FastMCP
 except Exception as exc:  # pragma: no cover - only when mcp not installed
     raise SystemExit("The 'mcp' package is required to run the server: pip install mcp") from exc
-
-# One Ollama manager per process so the idle watchdog and "started-by-us" flag
-# are shared across all tool calls.
-_OLLAMA: OllamaManager | None = None
-
-
-def _ollama() -> OllamaManager:
-    global _OLLAMA
-    if _OLLAMA is None:
-        _OLLAMA = OllamaManager(load_config())
-    return _OLLAMA
 
 
 def _cfg(project: str | None = None):
@@ -53,14 +40,14 @@ def digest(paths: list[str], project: str | None = None, reset: bool = False,
     """Convert files/dirs/globs to Markdown locally, then build a knowledge graph
     + layered memory. Returns ONLY counts, paths and graph stats (token-free).
 
-    fast=True skips the local LLM (classical extraction + deterministic summaries,
-    fully reproducible); the default uses the local LLM for higher accuracy."""
+    Fully deterministic and model-free: extraction, summaries and embeddings all use
+    the on-device classical/hash path, so two digests of the same corpus match."""
     if not isinstance(paths, list) or not paths or not all(
             isinstance(p, str) and p.strip() for p in paths):
         return _err("'paths' must be a non-empty list of file/dir/glob strings")
     cfg = _cfg(project)
     try:
-        return run_digest(cfg, paths, reset=reset, fast=fast, ollama=_ollama())
+        return run_digest(cfg, paths, reset=reset, fast=fast)
     except Exception as exc:  # noqa: BLE001 - never surface a raw traceback to the client
         return _err(f"digest failed: {exc}", type=type(exc).__name__)
 
@@ -78,7 +65,7 @@ def convert(paths: list[str], out_dir: str | None = None, project: str | None = 
     cfg = _cfg(project)
     try:
         from .core.digest import convert_to_markdown
-        return convert_to_markdown(cfg, paths, out_dir=out_dir, ollama=_ollama())
+        return convert_to_markdown(cfg, paths, out_dir=out_dir)
     except Exception as exc:  # noqa: BLE001 - never surface a raw traceback to the client
         return _err(f"convert failed: {exc}", type=type(exc).__name__)
 
@@ -90,7 +77,7 @@ def recall(query: str, project: str | None = None, k: int = 0) -> dict:
         return _err("'query' must be a non-empty string")
     cfg = _cfg(project)
     try:
-        return recall_mod.recall(cfg, query, k=k or None, ollama=_ollama())
+        return recall_mod.recall(cfg, query, k=k or None)
     except Exception as exc:  # noqa: BLE001
         return _err(f"recall failed: {exc}", type=type(exc).__name__)
 
@@ -153,20 +140,8 @@ def open_mindmap(project: str | None = None) -> dict:
 
 def _status() -> dict:
     cfg = load_config()
-    o = _ollama()
-    ollama_up = o.is_up()
-    models = []
-    if ollama_up:
-        import json
-        import urllib.request
-        try:
-            with urllib.request.urlopen(f"{o.host}/api/tags", timeout=3) as r:
-                models = [m["name"] for m in json.loads(r.read()).get("models", [])]
-        except Exception:  # noqa: BLE001
-            pass
     # v2 is fully model-free: there is no inference engine to probe. Memories always
     # build in the deterministic, on-device path.
-    inference = "disabled"
     health = "Fully deterministic, model-free mode — no external AI engine is used."
     try:
         import importlib.metadata as md
@@ -186,18 +161,12 @@ def _status() -> dict:
     return {
         "status": "ok",
         "backend": {"kind": "deterministic", "local": True, "model_free": True},
-        "ollama_running": ollama_up,
-        "ollama_inference": inference,   # ok | degraded | down | disabled | unknown
-        "degraded": inference == "degraded",
         "health": health,
-        "ollama_models": models,
         "tesseract": shutil.which("tesseract") is not None,
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "markitdown_version": mid,
         "platform": platform_summary(),
-        "profile": cfg.profile_name,
         "auto_update": cfg.auto_update,
-        "idle_seconds": cfg.idle_seconds,
         "config_file": cfg_file,
         "dependencies": dep_summary,
         "projects": store.list_projects(cfg),

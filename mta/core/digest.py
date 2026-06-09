@@ -23,7 +23,6 @@ from .config import Config
 from .convert import SUPPORTED_EXTS, convert_file
 from .embed import Embedder
 from .extract import Extraction, extract_chunk
-from .lifecycle import OllamaManager
 from .platform import worker_count
 from .resolve import resolve_entities
 from .segment import segment_file
@@ -188,7 +187,7 @@ def _assign_output_names(files: list[Path]) -> dict[str, str]:
     return assigned
 
 
-def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager,
+def _convert_all(files: list[Path], cfg: Config,
                  out_dir: Path | None = None) -> list[dict]:
     out_dir = out_dir or cfg.markdown_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -219,17 +218,16 @@ def _convert_all(files: list[Path], cfg: Config, ollama: OllamaManager,
                         results.append(fut.result())
                     except Exception:  # noqa: BLE001 — isolate one bad file
                         bad = Path(futs[fut][0])
-                        results.append(convert_file(bad, out_dir, cfg, ollama,
+                        results.append(convert_file(bad, out_dir, cfg,
                                                     out_name=futs[fut][3]).as_dict())
             return results
         except Exception:  # noqa: BLE001 — pool construction / BrokenProcessPool
             pass
-    return [convert_file(f, out_dir, cfg, ollama, out_name=names[str(f)]).as_dict()
+    return [convert_file(f, out_dir, cfg, out_name=names[str(f)]).as_dict()
             for f in files]
 
 
-def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = None,
-                        ollama: OllamaManager | None = None) -> dict:
+def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = None) -> dict:
     """Convert files/dirs/globs to Markdown locally and write the .md files to ``out_dir``
     (default: a ``markdown_converted/`` folder beside the input). Legacy Bengali
     (Bijoy/SutonnyMJ ANSI fonts) is auto-upgraded to Unicode during conversion.
@@ -240,7 +238,6 @@ def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = Non
     """
     import os
     cfg.ensure_dirs()
-    ollama = ollama or OllamaManager(cfg)
     files = _expand(paths, all_types=cfg.digest_all)
     if not files:
         return {"status": "no_input", "paths": paths,
@@ -250,7 +247,7 @@ def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = Non
     else:
         first = Path(os.path.expanduser(os.path.expandvars(paths[0])))
         outd = (first if first.is_dir() else first.parent) / "markdown_converted"
-    results = _convert_all(files, cfg, ollama, out_dir=outd)
+    results = _convert_all(files, cfg, out_dir=outd)
     ok = [r for r in results if r.get("status") == "ok"]
     bn = sum(1 for r in ok if "bn-unicode" in (r.get("method") or ""))
     return {
@@ -284,20 +281,17 @@ def _community_summary(label_facts: list[str], names: list[str], cfg: Config) ->
 
 # ---- main entry -------------------------------------------------------
 def digest(cfg: Config, paths: list[str], reset: bool = False,
-           fast: bool = False, ollama: OllamaManager | None = None) -> dict:
+           fast: bool = False) -> dict:
+    # ``fast`` is accepted for MCP-client compatibility but is now a no-op: v2 always
+    # uses the single deterministic, model-free path.
     cfg.ensure_dirs()
-    if fast:
-        cfg.fast = True
-        cfg.extract_mode = "classical"
-    ollama = ollama or OllamaManager(cfg)
     # Single-writer per project: serialise concurrent digests / reset / forget so
     # two callers can't interleave into a torn graph<->vectors pair (LIFE-01).
     with locks.write_lock(cfg):
-        return _digest_locked(cfg, paths, reset, ollama)
+        return _digest_locked(cfg, paths, reset)
 
 
-def _digest_locked(cfg: Config, paths: list[str], reset: bool,
-                   ollama: OllamaManager) -> dict:
+def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     t0 = time.time()
 
     if reset:
@@ -309,7 +303,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool,
         return {"status": "no_input", "project": cfg.project,
                 "message": "No convertible files found.", "paths": paths}
 
-    conv = _convert_all(files, cfg, ollama)
+    conv = _convert_all(files, cfg)
 
     # Accumulative: rebuild the graph from the FULL markdown corpus on disk, so
     # digesting another folder into the same project extends the memory rather
