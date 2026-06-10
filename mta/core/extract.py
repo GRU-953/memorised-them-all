@@ -17,18 +17,47 @@ from .segment import Chunk
 
 _ENTITY_RE = re.compile(
     r"\b([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,3}|[A-Z]{2,6})\b")
+# Bengali (U+0980–U+09FF) proper-noun candidates: runs of 1–4 Bengali "words". Bengali
+# has no capitalisation, so we can't use case as the proper-noun signal — instead we
+# take multi-word Bengali phrases (and recurring single words), strip edge particles,
+# and let salience/community detection surface the real names/orgs/places. Noisier than
+# the English path, but it means a Bengali-heavy corpus (UPGP) is no longer invisible.
+_BN = r"ঀ-৿"
+_BN_WORD = rf"[{_BN}]+"
+_BN_RE = re.compile(rf"((?:{_BN_WORD})(?:\s+{_BN_WORD}){{0,3}})")
+# Common Bengali function words / particles that must not start or end an entity (or
+# stand alone). Small, high-frequency closed-class set — safe to strip.
+_BN_STOP = {
+    "এবং", "ও", "বা", "এই", "সেই", "যে", "যা", "তার", "তাদের", "এর", "ের", "টি", "টা",
+    "করা", "করে", "করেন", "হয়", "হয়েছে", "হবে", "ছিল", "জন", "জনের", "থেকে", "জন্য",
+    "সাথে", "মধ্যে", "কাছে", "পর", "আগে", "কিন্তু", "তবে", "যদি", "নয়", "না", "কে",
+    "একটি", "একটা", "অংশগ্রহণকারী", "প্রধান", "মোঃ", "মোছাঃ", "জনাব",
+}
 _STOPWORDS = {
     "The", "This", "That", "These", "Those", "It", "We", "You", "They", "He",
     "She", "I", "A", "An", "And", "But", "Or", "If", "For", "In", "On", "At",
     "To", "Of", "As", "By", "Is", "Are", "Was", "Were", "Be", "Section",
     "Figure", "Table", "Chapter", "Note", "Page", "However", "Therefore",
-    # Honorifics (kept out so "Dr. Lena Marsh" → "Lena Marsh", not "Dr").
-    "Dr", "Mr", "Mrs", "Ms", "Prof", "Sir", "Mx", "St",
+    # Honorifics (kept out so "Dr. Lena Marsh" → "Lena Marsh", not "Dr"). Md/Mohd/Engr
+    # cover the Bangladeshi NGO corpus's common name prefixes.
+    "Dr", "Mr", "Mrs", "Ms", "Prof", "Sir", "Mx", "St", "Md", "Mohd", "Mohammad",
+    "Mohammed", "Muhammad", "Engr", "Eng", "Adv", "Begum",
+    # Common sentence-initial / imperative words that masquerade as single-token entities.
+    "Ignore", "New", "Normal", "Please", "See", "Using", "Based", "Following", "Given",
+    "Each", "Both", "All", "Some", "Many", "Most", "Such", "Other", "Overall", "Total",
     # Months & weekdays are rarely useful standalone entities.
     "January", "February", "March", "April", "May", "June", "July", "August",
     "September", "October", "November", "December", "Monday", "Tuesday",
     "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Meeting",
 }
+# Suffix/keyword heuristics for lightweight entity typing (deterministic, no model).
+_ORG_HINTS = ("Authority", "Programme", "Program", "Foundation", "Association",
+              "Ministry", "Department", "Bank", "University", "College", "School",
+              "Institute", "Committee", "Council", "Commission", "Corporation",
+              "Company", "Ltd", "Inc", "Corp", "Co", "Network", "Unit", "Office",
+              "Agency", "Society", "Federation", "Union", "Group", "Limited")
+_PLACE_HINTS = ("District", "Division", "Upazila", "Union", "Village", "City",
+                "Town", "Region", "Zone", "Sub-district", "Thana", "Ward")
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|(?<=[।。！？])\s*")
 
 # Strip a leading determiner so "The Nordic Grid Authority" resolves to the same node
@@ -54,29 +83,83 @@ class Extraction:
     facts: list[str] = field(default_factory=list)
 
 
+def _infer_type(name: str, text: str) -> str:
+    """Best-effort entity type (person | org | place | other) from deterministic cues."""
+    if any("ঀ" <= ch <= "৿" for ch in name):
+        return "other"                                  # Bengali: no cheap sub-typing
+    words = name.split()
+    if re.search(r"\b(?:Dr|Mr|Mrs|Ms|Md|Mohd|Mohammad|Mohammed|Muhammad|Prof|Engr|Eng|"
+                 r"Adv|Begum)\.?\s+" + re.escape(name), text):
+        return "person"
+    if any(w in _ORG_HINTS for w in words):
+        return "org"
+    if any(w in _PLACE_HINTS for w in words):
+        return "place"
+    return "other"
+
+
+_BN_DIGITS = "০১২৩৪৫৬৭৮৯"
+
+
+def _bn_candidate(raw: str) -> str | None:
+    """Trim edge particles + Bengali numerals from a Bengali phrase; None if nothing
+    meaningful remains (so '১২৪০' counts and 'ভোলা জেলায় ১২৪০' → 'ভোলা জেলায়')."""
+    toks = [t for t in raw.split() if t and not all(ch in _BN_DIGITS for ch in t)]
+    while toks and toks[0] in _BN_STOP:
+        toks = toks[1:]
+    while toks and toks[-1] in _BN_STOP:
+        toks = toks[:-1]
+    if not toks or all(t in _BN_STOP for t in toks):
+        return None
+    name = " ".join(toks)
+    return name if len(name) >= 3 else None
+
+
 def _classical(chunk: Chunk) -> Extraction:
-    """Dependency-free extraction — the DEFAULT path on the micro/4 GB profile, so quality
-    matters. Capitalised-phrase entities (gated to drop junk), relations scoped to
-    same-SENTENCE co-occurrence (not a chunk-wide O(n²) clique), and entity-bearing facts.
-    Every string is scrubbed of control/fence tokens so injected docs can't poison memory."""
-    text = chunk.text
+    """Dependency-free extraction — the ONLY path in v2, so quality matters. Capitalised
+    (Latin) AND Bengali-script phrase entities (gated to drop junk: sentence-initial lone
+    words and fence/control tokens are removed), lightweight person/org/place typing,
+    same-sentence relations, and entity-bearing facts. Fully deterministic."""
+    # Neutralise fence delimiters + control tokens BEFORE extraction so a document can't
+    # plant "<<<END>>>" / "<tool_call>" as entities or facts (defence-in-depth; there's
+    # no LLM to hijack, but it keeps memory.md clean).
+    text = _defang_fence(_scrub(chunk.text))
     sentences = [re.sub(r"\s+", " ", s).strip() for s in _split_sentences(text)]
     counts: dict[str, int] = {}
+    provisional: set[str] = set()   # single lone-word entities → keep only if they recur
+
     for m in _ENTITY_RE.finditer(text):
         # Collapse internal whitespace/newlines so a label spanning a line break
         # (e.g. table cells) becomes "Lena Marsh", not "Lena\nMarsh".
         name = re.sub(r"\s+", " ", m.group(1)).strip()
-        # Strip a leading determiner so "The Nordic Grid Authority" counts as
-        # "Nordic Grid Authority" (PIPE-06).
-        head, _, rest = name.partition(" ")
-        if rest and head in _LEADING_DET:
-            name = rest
+        # Strip a leading determiner / honorific so "The Nordic Grid Authority" and
+        # "Md Karim Rahman" resolve to "Nordic Grid Authority" / "Karim Rahman".
+        for _ in range(2):
+            head, _, rest = name.partition(" ")
+            if rest and (head in _LEADING_DET or head in _STOPWORDS):
+                name = rest
         if name in _STOPWORDS or len(name) < 2 or not _valid_entity(name):
             continue
+        if " " not in name and not name.isupper():
+            provisional.add(name)        # lone mixed-case word (often sentence-initial junk)
         counts[name] = counts.get(name, 0) + 1
+
+    for m in _BN_RE.finditer(text):
+        name = _bn_candidate(m.group(1))
+        if not name:
+            continue
+        if " " not in name:
+            provisional.add(name)        # lone Bengali word → keep only if it recurs
+        counts[name] = counts.get(name, 0) + 1
+
+    # Drop lone single-occurrence words (sentence-initial junk, incidental words); keep
+    # multi-word names, ALL-CAPS acronyms, and anything that appears more than once.
+    for n in [k for k in counts if k in provisional and counts[k] < 2]:
+        del counts[n]
+
     # Keep the most salient entities in the chunk.
     ents = sorted(counts, key=lambda n: (-counts[n], n))[:8]
-    entities = [{"name": _scrub(n), "type": "other"} for n in ents if _scrub(n)]
+    entities = [{"name": _scrub(n), "type": _infer_type(n, text)} for n in ents if _scrub(n)]
 
     # Relations: co-occurrence WITHIN A SENTENCE only (was a chunk-wide clique → mostly
     # meaningless O(n²) edges that diluted community detection). De-duplicated.
