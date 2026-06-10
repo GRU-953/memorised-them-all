@@ -28,6 +28,10 @@ from .platform import worker_count
 from .resolve import resolve_entities
 from .segment import segment_file
 
+import re as _re
+# A "numeric-ish" token: digits with currency/percent/separators/parens (table cells).
+_NUMERICISH = _re.compile(r"[-+(]?[\d][\d.,%/:()\-]*\)?")
+
 
 # ---- input expansion --------------------------------------------------
 def _walk_files(root: Path):
@@ -524,16 +528,20 @@ def _recall_units(graph_doc: dict) -> tuple[list[dict], list[str]]:
 
 
 def _low_value(text: str) -> bool:
-    """True for degenerate, near-zero-information passages (repetitive filler).
-
-    Real prose has high lexical diversity; a window of one word repeated hundreds
-    of times does not and is not worth an LLM call.
+    """True for degenerate, near-zero-information passages — repetitive filler OR
+    numeric/cell data dumps (beneficiary-survey spreadsheet rows), which carry almost
+    no narrative knowledge but huge chunk volume.
     """
     words = text.split()
     if len(words) < 40:
         return False
     uniq = len(set(w.lower() for w in words))
-    return (uniq / len(words)) < 0.12
+    if uniq / len(words) < 0.12:                       # repetitive filler
+        return True
+    # Data/table dump: a window that is mostly numbers/codes (e.g. a spreadsheet grid)
+    # is data, not prose. >55% numeric-ish tokens → skip.
+    numeric = sum(1 for w in words if _NUMERICISH.fullmatch(w))
+    return numeric / len(words) > 0.55
 
 
 def _auto_extract_workers(cfg: Config) -> int:
