@@ -118,8 +118,8 @@ def list_digestible(directory: str) -> dict:
 
 
 def forget(project: str | None = None) -> dict:
-    """Delete a project's memory (graph, converted Markdown, vectors).
-    Irreversible. Pass the project name explicitly."""
+    """Delete a project's memory (knowledge graph, converted Markdown, summaries
+    and notes). Irreversible. Pass the project name explicitly."""
     return store.delete_project(_cfg(project))
 
 

@@ -7,9 +7,9 @@ description: Digest a folder of documents into local, token-free knowledge-graph
 
 Turn any pile of documents into **local, token-free** graph memory for Claude, and
 recall from it cheaply. All conversion and digestion runs on the user's machine
-(MarkItDown + Tesseract OCR + Whisper + Ollama); Claude only ever issues a small
-tool call and gets back compact metadata or a tiny relevant slice — never whole
-documents.
+(MarkItDown, plus optional Tesseract OCR) — fully deterministic and model-free, no
+LLM/Ollama/GPU. Claude only ever issues a small tool call and gets back compact
+metadata or a tiny relevant slice — never whole documents.
 
 ## When to use
 - The user wants to ingest/digest/memorise files, attachments, or a whole folder.
@@ -18,23 +18,25 @@ documents.
 
 ## How it works (the pipeline)
 1. **Convert** — every attachment → Markdown locally (PDF/Office/HTML via MarkItDown,
-   images via Tesseract OCR + Ollama vision, audio via Whisper). Legacy Bengali typed in
+   incl. legacy binary `.doc/.ppt/.xls` via optional LibreOffice; scanned images via
+   optional Tesseract OCR; archives unpacked safely). Legacy Bengali typed in
    Bijoy/SutonnyMJ ANSI fonts is auto-upgraded to Unicode (font-aware, so mixed
    English+Bengali documents convert cleanly).
-2. **Segment → Embed → Extract** — structure-aware chunks, local embeddings, and a
-   local LLM (with a classical fallback) extract entities, relations, and atomic facts.
+2. **Segment → Extract** — structure-aware chunks; rule-based, deterministic extraction
+   of entities, relations, and atomic facts (no LLM/model).
 3. **Graph + themes** — a knowledge graph with community-detected themes.
 4. **Layered memory** — a global synopsis, per-theme summaries, per-document notes,
-   and `graph.json`.
+   and `graph.json`. Recall ranks with model-free BM25 (Bengali-aware) and returns a
+   tiny cited slice, declining off-topic queries.
 
 ## Tools
-- `digest(paths, project?, reset?, fast?)` — build/refresh memory (`fast` skips the local LLM: deterministic + much faster). Returns metadata only.
+- `digest(paths, project?, reset?)` — build/refresh memory (`reset: true` rebuilds from scratch). Returns metadata only.
 - `convert(paths, out_dir?, project?)` — convert files/dirs/globs to Markdown locally (legacy Bengali/SutonnyMJ → Unicode); writes `.md` files to `out_dir` (default `markdown_converted/` beside the input). Token-free. Use when the user just wants Markdown, not a digest.
 - `recall(query, project?, k?)` — return a small, citable slice of memory.
 - `memory_overview(project?)` — synopsis + themes.
 - `export_memory(dest, project?)` — export portable Markdown files.
 - `list_digestible(directory)` — list convertible files (paths/sizes only).
-- `forget(project?)` — delete a project's memory (graph, markdown, vectors). Irreversible.
+- `forget(project?)` — delete a project's memory (graph, converted Markdown, summaries/notes). Irreversible.
 - `memory_status()` — local stack health.
 
 ## Rules

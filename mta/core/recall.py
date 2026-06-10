@@ -1,11 +1,12 @@
 """Token-free recall — return only a tiny, relevant slice of memory.
 
-The query is embedded with the same deterministic hashing embedding used at digest
-time, scored by cosine against the stored recall units (theme summaries + entity
-cards), and the top-k units are returned with provenance. Because the hash embedding
-has no semantic similarity, lexical overlap gates the confidence signal. Whole
-documents are never returned — Claude gets a compact, citable slice, which is what
-keeps recall near-zero-token.
+The query is ranked against the stored recall units (theme summaries + entity cards)
+with model-free **BM25 lexical** scoring (script-agnostic, Bengali-aware), and the
+top-k units are returned with provenance. Lexical overlap of the top hit gates a
+low-confidence signal so off-topic queries stay declinable. Whole documents are never
+returned — Claude gets a compact, citable slice, which is what keeps recall
+near-zero-token. (A legacy hash-embedding store is still loaded for back-compat but is
+not used for ranking.)
 """
 from __future__ import annotations
 
@@ -152,11 +153,10 @@ def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
 
 
 def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
-    """Fallback when the query embedding's dimension != the stored matrix (e.g. the
-    embedding backend changed since digest — an offline hash store queried with
-    Ollama up). It keeps the SAME relevance contract as the main path so an
-    off-topic query stays declinable (DOC-01): `low_confidence`, `top_score`,
-    `raw_top_score`, and a (capped) `synopsis` are all present."""
+    """Legacy whole-word-overlap fallback, retained for back-compat (the main path is
+    BM25). It keeps the SAME relevance contract so an off-topic query stays declinable
+    (DOC-01): `low_confidence`, `top_score`, `raw_top_score`, and a (capped) `synopsis`
+    are all present."""
     q = set(query.lower().split())
     scored = []
     for u in meta:
