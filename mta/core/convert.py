@@ -2,25 +2,22 @@
 
 Conversion order of preference for each file:
   1. Native passthrough for text/markdown/csv/json/xml (no dependency needed).
-  2. Microsoft **MarkItDown** (latest, auto-updated) for PDF/Office/HTML/EPub/…
-  3. **Tesseract** OCR for images and scanned/image-only PDFs.
-  4. **Whisper** (Apple-MLX accelerated on arm64, faster-whisper fallback) for audio.
-  5. Local **Ollama vision** captioning for images OCR can't read.
+  2. Microsoft **MarkItDown** (latest) for PDF/Office/HTML/EPub/…
+  3. **Tesseract** OCR (optional, offline) for images and scanned/image-only PDFs.
+  4. Recursive expansion of archives (zip/tar/gz/bz2/xz, + optional rar/7z).
 
-Every converter runs entirely on-device. The function returns only metadata
-(paths, sizes, status) — never file content — so a whole folder costs ~0 tokens.
-Missing optional dependencies degrade to a clear ``unsupported``/``empty`` status
-rather than crashing a batch.
+v2 is **deterministic and model-free** — no Ollama, no embedding/vision/whisper models,
+no GPU, no network. The function returns only metadata (paths, sizes, status) — never
+file content — so a whole folder costs ~0 tokens. Missing optional dependencies degrade
+to a clear ``unsupported``/``empty``/``skipped`` status rather than crashing a batch.
 """
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import Config
-from .lifecycle import OllamaManager
 
 # File-type groupings.
 _TEXT_EXTS = {".txt", ".md", ".markdown", ".text", ".log", ".rst"}
@@ -28,9 +25,38 @@ _DATA_EXTS = {".csv", ".tsv", ".json", ".xml", ".yaml", ".yml", ".ndjson"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
 _AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac"}
 _MARKITDOWN_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm",
-                    ".epub", ".msg", ".rtf", ".doc", ".ppt", ".zip"}
+                    ".epub", ".msg", ".rtf", ".doc", ".ppt"}
+# Archives (zip/tar/gz/… + rar/7z) are expanded recursively at the digest level
+# (mta/core/archive.py) rather than converted as single documents.
+from .archive import ARCHIVE_EXTS as _ARCHIVE_EXTS  # noqa: E402 (after stdlib imports)
+from .archive import kind as _archive_kind  # noqa: E402
 SUPPORTED_EXTS = (_TEXT_EXTS | _DATA_EXTS | _IMAGE_EXTS | _AUDIO_EXTS
-                  | _MARKITDOWN_EXTS)
+                  | _MARKITDOWN_EXTS | _ARCHIVE_EXTS)
+
+# Config-driven skip categories (v2): matched by NAME ONLY — the file is never read.
+# With skip_media ON (the default) the non-deterministic media converters (OCR) never
+# run, which is part of the determinism guarantee.
+_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".wmv", ".flv", ".mpg", ".mpeg"}
+_FONT_EXTS = {".otf", ".ttf", ".ttc", ".woff", ".woff2", ".eot"}
+_GDRIVE_EXTS = {".gdoc", ".gsheet", ".gform", ".gdrive", ".gslides", ".gdraw", ".gmap", ".gsite"}
+_JUNK_EXTS = {".tmp", ".ds_store", ".ini", ".lnk", ".crdownload", ".part"}
+_JUNK_NAMES = {".ds_store", "thumbs.db", "desktop.ini", "icon\r"}
+
+
+def _skip_category(path: Path, cfg: Config) -> str | None:
+    """Return the skip category for ``path`` (or None to convert it). Name-based only."""
+    ext = path.suffix.lower()
+    name = path.name.lower()
+    if getattr(cfg, "skip_media", True) and (
+            ext in _IMAGE_EXTS or ext in _VIDEO_EXTS or ext in _AUDIO_EXTS):
+        return "media"
+    if getattr(cfg, "skip_fonts", True) and ext in _FONT_EXTS:
+        return "font"
+    if getattr(cfg, "skip_gdrive_pointers", True) and ext in _GDRIVE_EXTS:
+        return "gdrive-pointer"
+    if getattr(cfg, "skip_junk", True) and (ext in _JUNK_EXTS or name in _JUNK_NAMES):
+        return "junk"
+    return None
 
 
 @dataclass
@@ -225,63 +251,6 @@ def _ocr_pdf(path: Path, cfg: Config, max_pages: int = 50) -> tuple[str | None, 
                 pass
 
 
-def _try_vision(path: Path, cfg: Config, ollama: OllamaManager) -> tuple[str | None, str]:
-    if cfg.vision_mode == "off":
-        return None, "vision-off"
-    if not ollama.ensure_running(wait=20):
-        return None, "vision-unavailable"
-    import base64
-    import urllib.request
-    try:
-        b64 = base64.b64encode(path.read_bytes()).decode()
-        payload = json.dumps({
-            "model": cfg.vision_model,
-            "prompt": "Describe this image.",
-            "images": [b64],
-            "stream": False,
-        }).encode()
-        req = urllib.request.Request(f"{ollama.host}/api/generate", data=payload,
-                                     headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            data = json.loads(r.read())
-        ollama.touch()
-        text = (data.get("response") or "").strip()
-        return (text or None), "ollama-vision"
-    except Exception as e:  # noqa: BLE001
-        return None, f"vision-error:{type(e).__name__}"
-
-
-def _try_whisper(path: Path, cfg: Config) -> tuple[str | None, str]:
-    if cfg.transcribe_mode == "off":
-        return None, "transcribe-off"
-    from .platform import mlx_available
-    # Apple MLX (GPU) first.
-    if mlx_available():
-        try:
-            import mlx_whisper
-            repo = f"mlx-community/whisper-{cfg.whisper_model}-mlx"
-            res = mlx_whisper.transcribe(str(path), path_or_hf_repo=repo)
-            text = (res.get("text") or "").strip()
-            return (text or None), "mlx-whisper"
-        except Exception:  # noqa: BLE001 — fall through to CPU
-            pass
-    # Prefer a CUDA GPU when present (Linux/Windows), else CPU int8 everywhere.
-    import shutil
-    devices = ([("cuda", "float16")] if shutil.which("nvidia-smi") else []) + [("cpu", "int8")]
-    last = "transcribe-error"
-    for device, ctype in devices:
-        try:
-            from faster_whisper import WhisperModel
-            model = WhisperModel(cfg.whisper_model, device=device, compute_type=ctype)
-            segments, _ = model.transcribe(str(path))
-            text = " ".join(s.text for s in segments).strip()
-            return (text or None), f"faster-whisper-{device}"
-        except Exception as e:  # noqa: BLE001 — try the next device
-            last = f"transcribe-error:{type(e).__name__}"
-            continue
-    return None, last
-
-
 # Byte-order marks for the Unicode encodings a Windows editor commonly writes. UTF-32
 # must precede UTF-16 (the UTF-16-LE BOM is a prefix of the UTF-32-LE BOM).
 _BOMS = (
@@ -355,7 +324,6 @@ def _try_unknown_text(path: Path) -> tuple[str | None, str]:
 
 
 def convert_file(path: Path, out_dir: Path, cfg: Config,
-                 ollama: OllamaManager | None = None,
                  out_name: str | None = None) -> ConvResult:
     """Convert a single file to a Markdown file on disk. Returns metadata only."""
     path = Path(path)
@@ -363,6 +331,14 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     res = ConvResult(source=str(path))
     if not path.exists() or not path.is_file():
         res.status, res.error = "failed", "not-a-file"
+        return res
+
+    # v2 skip filter (media/fonts/gdrive-pointers/junk): name-based, never reads the
+    # file, and wins over every other classification. status='skipped' so digest
+    # stats count them honestly (never 'unsupported'/'failed').
+    cat = _skip_category(path, cfg)
+    if cat:
+        res.status, res.method, res.error = "skipped", "skipped-type", cat
         return res
 
     # A 0-byte file (placeholder, touch'd, failed download) is "empty" — a clear,
@@ -388,6 +364,13 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     text: str | None = None
     method = ""
 
+    if _archive_kind(path) is not None:
+        # Archives are expanded at the digest level (archive.py). One reaching the
+        # converter means expansion was off, unavailable (no rar/7z tool), corrupt,
+        # or over budget → honest skip, never a crash.
+        res.status, res.method, res.error = "skipped", "archive", "not-expanded"
+        return res
+
     if ext in _TEXT_EXTS or ext in _DATA_EXTS:
         text, method = _native_text(path)
     elif ext in _MARKITDOWN_EXTS:
@@ -403,14 +386,30 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
     elif ext in _IMAGE_EXTS:
         if cfg.ocr_mode != "off":
             text, method = _try_ocr(path, cfg)
-        if not text and cfg.vision_mode != "off":
-            text, method = _try_vision(path, cfg, ollama or OllamaManager(cfg))
     elif ext in _AUDIO_EXTS:
-        text, method = _try_whisper(path, cfg)
+        text, method = None, "audio-unsupported"   # model-free: audio transcription dropped in v2
     else:
-        # All other file types: digest as plain text when the content looks textual;
-        # genuine binaries stay 'unsupported'.
-        text, method = _try_unknown_text(path)
+        # No/unknown extension: content-sniff first. ZIP magic (PK\x03\x04) usually
+        # means a misnamed Office file (an .xlsx/.docx saved without its extension) —
+        # MarkItDown sniffs the real type from content, so give it a shot (bomb-checked)
+        # before the plain-text fallback.
+        head = b""
+        try:
+            with open(path, "rb") as f:
+                head = f.read(4)
+        except OSError:
+            pass
+        if head == b"PK\x03\x04":
+            if not _zip_within_bounds(path, cfg):
+                res.status, res.method, res.error = "skipped", "zip-too-large", "decompression-bound"
+                return res
+            text, method = _try_markitdown(path, cfg)
+            if text:
+                method = method + "+sniffed-zip"
+        if text is None:
+            # Digest as plain text when the content looks textual; genuine binaries
+            # stay 'unsupported'.
+            text, method = _try_unknown_text(path)
         if text is None:
             res.status, res.method, res.error = "unsupported", ext or "no-ext", method
             return res

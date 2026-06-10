@@ -6,7 +6,6 @@ Subcommands:
   mta overview [--project P]                     synopsis + themes
   mta export <dest> [--project P]                export portable markdown
   mta status                                     local stack health
-  mta mindmap [--project P] [--open]             path to the mind map
   mta update [--force]                           update MarkItDown + deps
   mta doctor [--fix] [--dry-run]                 scan deps; suggest or apply fixes
   mta serve [--http | --rest] [--host H] [--port N]  run the server (stdio; --http=MCP HTTP; --rest=JSON gateway)
@@ -56,9 +55,6 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("dest")
 
     sub.add_parser("status", help="local stack health")
-
-    m = sub.add_parser("mindmap", help="path to the offline mind map")
-    m.add_argument("--open", action="store_true")
 
     u = sub.add_parser("update", help="update MarkItDown + dependencies")
     u.add_argument("--force", action="store_true")
@@ -155,14 +151,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "status":
         from .server import _status
         _print(_status())
-    elif args.cmd == "mindmap":
-        if not cfg.mindmap_html.exists():
-            _print({"status": "no_memory", "project": cfg.project})
-        else:
-            if args.open:
-                import webbrowser  # portable across macOS/Linux/Windows
-                webbrowser.open(cfg.mindmap_html.as_uri())
-            _print({"status": "ok", "path": str(cfg.mindmap_html)})
     elif args.cmd == "forget":
         _print(store.delete_project(cfg))
     elif args.cmd == "update":

@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "memorised-them-all",
   "display_name": "Memorised them All (local, token-free)",
-  "version": "1.12.1",
-  "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally.",
-  "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, images, audio, and more) to Markdown locally using Microsoft's MarkItDown (kept up to date from upstream automatically), Tesseract OCR, on-device Whisper, and a local Ollama vision model. It then runs an original local pipeline — semantic chunking, local embeddings, local-LLM (with a classical fallback) extraction of entities/relations/facts, embedding+fuzzy entity resolution, and community detection — to build a layered knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, an exportable memory bundle, and an offline interactive mind map. Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens. Everything is free and open-source and runs locally; the Ollama model server starts on demand and stops after 5 minutes idle. Tuned for Apple M-series silicon (performance-core parallelism, GPU Whisper via MLX, unified-memory-aware concurrency).\n\nIt also converts legacy Bengali (Bijoy/SutonnyMJ ANSI fonts) to standard Unicode automatically (font-aware, so mixed English+Bengali documents convert cleanly).\n\nReliability-hardened through repeated stress-testing: a digest always finishes (per-file timeouts mean one stuck or oversized file can't hang the batch), memory writes are atomic and crash-safe, awkward inputs (UTF-16/Windows text, empty/binary files, symlink loops) are handled gracefully, and it reports honestly when it falls back to offline/classical mode instead of degrading silently.\n\nTools: digest, convert, recall, memory_overview, export_memory, list_digestible, forget, memory_status, open_mindmap.",
+  "version": "2.0.0",
+  "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally, deterministically, no AI models needed.",
+  "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, CSV, and more) to Markdown locally using Microsoft's MarkItDown plus optional Tesseract OCR, recursively unpacks archives (zip/tar/gz, and rar/7z when an extractor is installed) with bomb- and path-traversal guards, and skips media/font/junk files cleanly. It then runs a fully **deterministic, model-free** pipeline — rule-based extraction of entities/relations/facts, fuzzy entity resolution, community detection, and layered summaries — to build a knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, and an exportable memory bundle. No Ollama, no LLM, no embedding model, no GPU, no network: the same corpus always produces the same memory, and a digest always completes on any machine (per-file timeouts, crash-safe atomic writes). Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens.\n\nIt also converts legacy Bengali (Bijoy/SutonnyMJ ANSI fonts) to standard Unicode automatically (font-aware, so mixed English+Bengali documents convert cleanly).\n\nTools: digest, convert, recall, memory_overview, export_memory, list_digestible, forget, memory_status.",
   "author": {
     "name": "Aninda Sundar Howlader",
     "url": "https://github.com/GRU-953"
@@ -14,8 +14,8 @@
   "support": "https://github.com/GRU-953/memorised-them-all/issues",
   "license": "MIT",
   "icon": "assets/icon.png",
-  "keywords": ["memory", "knowledge-graph", "mind-map", "markitdown", "ocr",
-               "local-llm", "ollama", "token-free", "graphrag", "mcp"],
+  "keywords": ["memory", "knowledge-graph", "markitdown", "ocr", "deterministic",
+               "offline", "token-free", "graphrag", "mcp"],
   "server": {
     "type": "binary",
     "entry_point": "launch.sh",
@@ -24,29 +24,22 @@
       "args": ["${__dirname}/launch.sh"],
       "env": {
         "PYTHONUNBUFFERED": "1",
-        "MTA_PROFILE": "${user_config.profile}",
         "MTA_HOME": "${user_config.project_dir}",
-        "MTA_EXTRACT_MODEL": "${user_config.extract_model}",
-        "MTA_EMBED_MODEL": "${user_config.embed_model}",
-        "MTA_VISION_MODEL": "${user_config.vision_model}",
         "MTA_OCR_LANG": "${user_config.ocr_lang}",
-        "MTA_WHISPER_MODEL": "${user_config.whisper_model}",
-        "MTA_IDLE": "${user_config.idle_seconds}",
         "MTA_WORKERS": "${user_config.workers}",
         "MTA_AUTO_UPDATE": "${user_config.auto_update}"
       }
     }
   },
   "tools": [
-    {"name": "digest", "description": "Convert + digest files/dirs/globs into local graph memory. Returns metadata only (token-free)."},
+    {"name": "digest", "description": "Convert + digest files/dirs/globs into local graph memory (archives unpacked, media skipped, duplicates deduped). Returns metadata only (token-free)."},
     {"name": "convert", "description": "Convert files/dirs/globs to Markdown locally (legacy Bengali/SutonnyMJ→Unicode); writes .md files. Token-free."},
     {"name": "recall", "description": "Return a small, citable slice of memory for a query. Never returns whole documents."},
     {"name": "memory_overview", "description": "Synopsis, stats and theme list for a project's memory."},
-    {"name": "export_memory", "description": "Export memory.md, per-document notes, graph.json and the mind map to a folder."},
+    {"name": "export_memory", "description": "Export memory.md, per-document notes and graph.json to a folder."},
     {"name": "list_digestible", "description": "List convertible files under a directory (paths/sizes only)."},
-    {"name": "forget", "description": "Delete a project's memory (graph, converted Markdown, vectors, mind map). Irreversible."},
-    {"name": "memory_status", "description": "Local stack health: Ollama, models, Tesseract, MarkItDown version, projects."},
-    {"name": "open_mindmap", "description": "Path to the offline interactive mind map."}
+    {"name": "forget", "description": "Delete a project's memory (graph, converted Markdown, vectors). Irreversible."},
+    {"name": "memory_status", "description": "Local setup health: deterministic engine, Tesseract, MarkItDown version, projects."}
   ],
   "user_config": {
     "project_dir": {
@@ -56,44 +49,14 @@
       "required": false,
       "default": "${HOME}/.memorised-them-all"
     },
-    "profile": {
-      "type": "string", "title": "Performance profile",
-      "description": "How big a local AI to use. 'auto' (recommended) sizes it to your computer. 'micro' is safe on a 4GB machine with no graphics card (offline/classical — always works). 'standard' = a 16GB machine, 'large' = 32GB+. Anything below stays blank unless you want to override the profile.",
-      "required": false, "default": "auto"
-    },
-    "extract_model": {
-      "type": "string", "title": "Extraction model (Ollama)",
-      "description": "Local LLM for entity/relation/fact extraction & summaries. Default qwen3:4b-instruct (2.5GB; newer-gen, non-thinking so clean JSON, 119 languages incl. Bangla — best quality-per-GB on a 16GB machine). More quality if you have RAM: qwen3:8b (5.2GB). Other solid picks: gemma3:4b-it-qat (4GB, QAT≈BF16, 140+ langs), llama3.2:3b (2GB, lightest), qwen2.5:7b (previous default). Newest/experimental: qwen3.5:4b, gemma4:e2b-it-qat (text+vision).",
-      "required": false, "default": ""
-    },
-    "embed_model": {
-      "type": "string", "title": "Embedding model (Ollama)",
-      "description": "Local embedding model for entity resolution and recall. Default qwen3-embedding:0.6b (0.64GB, 1024-d, 100+ languages incl. Bangla — top multilingual retrieval at a tiny footprint). Alternatives: bge-m3 (1.2GB, explicit Bengali + hybrid dense/sparse matching), embeddinggemma:300m (0.62GB, 768-d), nomic-embed-text (English-only, previous default). NOTE: changing this changes the vector dimension — re-digest a project with reset:true after switching (recall falls back to lexical until you do).",
-      "required": false, "default": ""
-    },
-    "vision_model": {
-      "type": "string", "title": "Vision model (Ollama)",
-      "description": "Captions images that OCR can't read. Default qwen3-vl:4b-instruct (3.3GB; 32-language OCR incl. Bangla, reads charts/diagrams/forms). Lighter: qwen3-vl:2b-instruct (1.9GB). Alternatives: gemma3:4b (3.3GB, 140+ langs), granite3.2-vision:2b (2.4GB, document/table OCR), moondream (1.7GB, tiniest but English-only, previous default).",
-      "required": false, "default": ""
-    },
     "ocr_lang": {
       "type": "string", "title": "OCR language(s)",
-      "description": "Tesseract language codes, e.g. 'eng', 'eng+ben'. Missing packs are dropped gracefully.",
+      "description": "Tesseract language codes for scanned documents, e.g. 'eng', 'eng+ben'. Missing packs are dropped gracefully. (Images are skipped by default; set MTA_SKIP_MEDIA=off to OCR them.)",
       "required": false, "default": "eng+ben"
-    },
-    "whisper_model": {
-      "type": "string", "title": "Whisper model",
-      "description": "On-device speech-to-text size (tiny/base/small/medium/large-v3-turbo). Default small (good speed/accuracy balance on a 16GB machine); use medium or large-v3-turbo for max accuracy if you have RAM, tiny/base for very low-resource.",
-      "required": false, "default": ""
-    },
-    "idle_seconds": {
-      "type": "number", "title": "Idle shutdown (seconds)",
-      "description": "Stop the on-demand Ollama after this many seconds idle.",
-      "required": false, "default": 300, "min": 30, "max": 3600
     },
     "workers": {
       "type": "number", "title": "Parallel workers (0 = auto)",
-      "description": "Conversion workers; 0 auto-sizes to performance cores.",
+      "description": "Conversion workers; 0 auto-sizes to performance cores and RAM.",
       "required": false, "default": 0, "min": 0, "max": 32
     },
     "auto_update": {
