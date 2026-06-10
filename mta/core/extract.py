@@ -70,7 +70,11 @@ _VALUE_STOP = {
     "True", "False", "High", "Low", "Medium", "Good", "Poor", "Average", "Total",
     "Name", "Age", "Sex", "Gender", "Address", "Phone", "Mobile", "Date", "Status",
     "Type", "Category", "Amount", "Number", "Count", "Code", "Id", "Sl", "Serial",
+    "Nan", "NaN", "Na", "N/A", "Nil", "Tk", "Taka", "Pcs", "Kg", "Hh",
 }
+# Case-insensitive membership: spreadsheet exports vary the casing ("NaN"/"NAN"/"nan",
+# "No"/"NO"). Compare lower-cased so a single styling variant can't slip through.
+_VALUE_STOP_LC = frozenset(v.lower() for v in _VALUE_STOP)
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|(?<=[।。！？])\s*")
 
 # Strip a leading determiner so "The Nordic Grid Authority" resolves to the same node
@@ -151,7 +155,11 @@ def _classical(chunk: Chunk) -> Extraction:
             head, _, rest = name.partition(" ")
             if rest and (head in _LEADING_DET or head in _STOPWORDS):
                 name = rest
-        if name in _STOPWORDS or name in _VALUE_STOP or len(name) < 2 or not _valid_entity(name):
+        if len(name) < 2 or not _valid_entity(name):
+            continue
+        # Drop names made ENTIRELY of stop / survey-value words — single tokens
+        # ("NaN"/"Male") and table-cell runs ("Name NaN NAN", "No Total Tk").
+        if all(t in _STOPWORDS or t.lower() in _VALUE_STOP_LC for t in name.split()):
             continue
         if " " not in name and not name.isupper():
             provisional.add(name)        # lone mixed-case word (often sentence-initial junk)

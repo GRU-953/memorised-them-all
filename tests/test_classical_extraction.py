@@ -121,3 +121,15 @@ def test_low_value_skips_numeric_table_dump():
              "income generating activities and the community based facilitator network "
              "supported many villages during the reporting period this year. ") * 2
     assert _low_value(prose) is False                       # real prose kept
+
+
+def test_nan_and_case_variants_suppressed():
+    from mta.core.extract import _classical
+    from mta.core.segment import Chunk
+    txt = ("Gender NaN NAN nan. Status No NO. The BRAC field office in Bhola District "
+           "ran the Income Generating Activity programme.")
+    ex = _classical(Chunk(id="c", doc="d", heading_path="", text=txt, index=0))
+    names = {e["name"] for e in ex.entities}
+    assert not any(set(n.split()) <= {"NaN", "NAN", "nan", "No", "NO", "Gender", "Status"}
+                   for n in names), names
+    assert "BRAC" in names
