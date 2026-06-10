@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "memorised-them-all",
   "display_name": "Memorised them All (local, token-free)",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally, deterministically, no AI models needed.",
   "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, CSV, and more) to Markdown locally using Microsoft's MarkItDown plus optional Tesseract OCR, recursively unpacks archives (zip/tar/gz, and rar/7z when an extractor is installed) with bomb- and path-traversal guards, and skips media/font/junk files cleanly. It then runs a fully **deterministic, model-free** pipeline — rule-based extraction of entities/relations/facts, fuzzy entity resolution, community detection, and layered summaries — to build a knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, and an exportable memory bundle. No Ollama, no LLM, no embedding model, no GPU, no network: the same corpus always produces the same memory, and a digest always completes on any machine (per-file timeouts, crash-safe atomic writes). Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens.\n\nIt also converts legacy Bengali (Bijoy/SutonnyMJ ANSI fonts) to standard Unicode automatically (font-aware, so mixed English+Bengali documents convert cleanly).\n\nTools: digest, convert, recall, memory_overview, export_memory, list_digestible, forget, memory_status.",
   "author": {

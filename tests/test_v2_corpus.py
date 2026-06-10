@@ -192,14 +192,18 @@ def test_targz_and_single_stream_gz(tmp_path):
     assert "doc.txt" in names and "notes.txt" in names
 
 
-def test_corrupt_rar_is_kept_and_skipped_cleanly(tmp_path):
+def test_corrupt_rar_is_handled_cleanly(tmp_path):
+    # Invariant (regardless of whether unar/7z is installed): a corrupt rar never
+    # crashes _expand, never injects garbage members, and — if it's kept (no extractor,
+    # or the extractor declined it) — convert_file reports a clean 'skipped'.
     src = tmp_path / "in"; src.mkdir()
     bad = src / "broken.rar"; bad.write_bytes(b"Rar!\x1a\x07\x00garbagegarbage")
     cfg = _cfg(tmp_path)
-    files = _expand_with(tmp_path, cfg, [src])
-    assert any(f.name == "broken.rar" for f in files)      # kept, not crashed
-    res = convert_file(bad, tmp_path / "out", cfg)
-    assert res.status == "skipped" and res.method == "archive"
+    files = _expand_with(tmp_path, cfg, [src])              # must not raise
+    assert not any("garbage" in f.name for f in files)     # no junk member leaked
+    if any(f.name == "broken.rar" for f in files):
+        res = convert_file(bad, tmp_path / "out", cfg)
+        assert res.status == "skipped" and res.method == "archive"
 
 
 def test_content_hash_dedup(tmp_path):
@@ -211,3 +215,42 @@ def test_content_hash_dedup(tmp_path):
     files = _expand_with(tmp_path, cfg, [src])
     assert len(files) == 2                                  # one of the twins dropped
     assert any(f.name == "c.txt" for f in files)
+
+
+# ---- legacy binary Office (LibreOffice fallback, v2.0.1) -----------------------------
+def test_legacy_office_helper_degrades_without_libreoffice(tmp_path, monkeypatch):
+    # Without LibreOffice on PATH, a .doc must degrade cleanly (never crash).
+    from mta.core import convert as cv
+    monkeypatch.setattr(cv, "_soffice_bin", lambda: None)
+    f = tmp_path / "old.doc"
+    f.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)   # OLE2 magic
+    res = cv.convert_file(f, tmp_path / "out", _cfg(tmp_path))
+    # .doc is in the markitdown set → routed to legacy handler → libreoffice-missing →
+    # markitdown can't read it either → a clean terminal status, not a crash.
+    assert res.status in ("unsupported", "failed", "empty"), (res.status, res.method)
+
+
+def test_legacy_office_converts_when_soffice_present(tmp_path):
+    import shutil
+    import pytest
+    from mta.core.convert import _soffice_bin, convert_file
+    if _soffice_bin() is None:
+        pytest.skip("LibreOffice not installed")
+    # Build a real .doc by converting a .docx (needs python-docx); else skip.
+    try:
+        import docx
+    except ImportError:
+        pytest.skip("python-docx not installed to build a .doc fixture")
+    d = docx.Document()
+    d.add_paragraph("Dr. Karim Rahman leads Project Aurora for the Nordic Grid Authority.")
+    src_docx = tmp_path / "src.docx"; d.save(src_docx)
+    # LibreOffice-convert docx → doc to get a genuine legacy binary fixture
+    import subprocess
+    subprocess.run([_soffice_bin(), "--headless", "--convert-to", "doc",
+                    "--outdir", str(tmp_path), str(src_docx)], capture_output=True, timeout=240)
+    doc = tmp_path / "src.doc"
+    if not doc.exists():
+        pytest.skip("could not build a .doc fixture")
+    res = convert_file(doc, tmp_path / "out", _cfg(tmp_path))
+    assert res.status == "ok" and "soffice+" in res.method, (res.status, res.method)
+    assert "Karim Rahman" in (tmp_path / "out").glob("*.md").__next__().read_text(encoding="utf-8")
