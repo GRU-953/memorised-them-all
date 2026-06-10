@@ -68,10 +68,15 @@ def test_no_extension_xlsx_is_sniffed(tmp_path):
         with zipfile.ZipFile(target, "w") as z:
             z.writestr("content.txt", "hello")
     res = convert_file(target, tmp_path / "out", _cfg(tmp_path))
-    # Either MarkItDown read it (ok + sniffed) or it failed cleanly — never 'binary'.
-    assert res.error != "binary"
-    if res.status == "ok":
-        assert "sniffed-zip" in res.method
+    import importlib.util
+    if importlib.util.find_spec("markitdown") is not None:
+        # With a converter present, the PK-magic file is sniffed and read as OOXML.
+        assert res.status == "ok" and "sniffed-zip" in res.method, (res.status, res.method)
+    else:
+        # No converter installed (CI's minimal offline env): a zip can't be read, so a
+        # clean terminal status is correct — the point is it never CRASHES and isn't
+        # mis-handled as a missing file.
+        assert res.status in ("unsupported", "empty"), (res.status, res.method)
 
 
 # ---- recursive archive expansion (security-critical) --------------------------------
