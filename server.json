@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
   "name": "io.github.gru-953/memorised-them-all",
   "description": "Local, token-free file → knowledge-graph memory for Claude. Converts any attachment to Markdown and digests it into a graph + exportable memory, entirely on-device — deterministic and model-free (no LLM/Ollama/GPU), so it always works and always completes. Archives unpacked safely; legacy Bengali auto-converted.",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "repository": {
     "url": "https://github.com/GRU-953/memorised-them-all",
     "source": "github"
@@ -12,7 +12,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "memorised-them-all",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {

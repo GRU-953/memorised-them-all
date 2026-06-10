@@ -76,10 +76,40 @@ def test_min_score_floor_applies_offline(tmp_path):
     and top_score reflects the RETURNED hits (RECALL-03)."""
     cfg = _cfg(tmp_path, "floor")
     _digest(cfg)
-    cfg.recall_min_score = 0.99                 # impossibly high for hashing cosine
+    cfg.recall_min_score = 99999                # impossibly high for the BM25 scale
     from mta.core.recall import recall
     out = recall(cfg, "Aurora", k=5)
     assert out["hits"] == []                    # the floor filtered everything
     assert out["low_confidence"] is True
     assert out["top_score"] == 0.0              # matches the (empty) returned hits
     assert out["raw_top_score"] >= out["top_score"]   # pre-floor best preserved
+
+
+def test_bm25_ranker_relevance_and_bengali():
+    """BM25 lexical recall (v2.2.0): ranks the on-topic unit first, returns nothing for
+    an off-topic query (→ low_confidence), and matches Bengali via NFC tokenisation."""
+    from mta.core.recall import _bm25_rank, _tokens
+    assert _tokens("ব্র্যাক প্রোগ্রাম")                          # Bengali tokenises (\w + NFC)
+    meta = [
+        {"kind": "entity", "label": "Nordic Grid Authority",
+         "text": "The Nordic Grid Authority approved Project Aurora in Reykjavik."},
+        {"kind": "entity", "label": "Helios Energy",
+         "text": "Helios Energy funded the geothermal plant expansion."},
+        {"kind": "entity", "label": "আল্ট্রা-পুওর গ্র্যাজুয়েশন প্রোগ্রাম",
+         "text": "ব্র্যাক আল্ট্রা-পুওর গ্র্যাজুয়েশন প্রোগ্রাম ভোলা জেলায় পরিচালনা করে।"},
+    ]
+    rk = _bm25_rank("who approved Project Aurora", meta, 3)
+    assert rk and meta[rk[0][1]]["label"] == "Nordic Grid Authority", rk
+    assert _bm25_rank("xylophone quantum chromodynamics", meta, 3) == []   # off-topic
+    rb = _bm25_rank("ব্র্যাক প্রোগ্রাম", meta, 3)                          # Bengali query
+    assert rb and any("ঀ" <= c <= "৿" for c in meta[rb[0][1]]["label"]), rb
+
+
+def test_bm25_recall_end_to_end(tmp_path):
+    """End-to-end: a relevant query is confident, an off-topic one is declinable."""
+    cfg = _cfg(tmp_path, "bm25e2e")
+    _digest(cfg)
+    from mta.core.recall import recall
+    r = recall(cfg, "who leads Project Aurora", k=3)
+    assert r["status"] == "ok" and not r["low_confidence"] and r["hits"]
+    assert recall(cfg, "xylophone quantum chromodynamics zzzq", k=3)["low_confidence"] is True
