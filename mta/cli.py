@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("paths", nargs="+")
     d.add_argument("--reset", action="store_true")
     d.add_argument("--fast", action="store_true",
-                   help="skip the LLM (classical extraction); faster, fully deterministic")
+                   help="(deprecated no-op; v2 is always deterministic and model-free)")
 
     cv = sub.add_parser("convert", help="convert files/dirs/globs to Markdown (legacy Bengali→Unicode)")
     cv.add_argument("paths", nargs="+")

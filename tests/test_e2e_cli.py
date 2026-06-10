@@ -52,7 +52,7 @@ def test_full_cli_lifecycle_offline(tmp_path):
     os.environ["MTA_HOME"] = str(tmp_path)
     res = _json(["--project", "e2e", "digest", str(FIXTURES)])
     assert res["status"] == "ok" and res["stats"]["converted"] >= 5, res["stats"]
-    assert res["stats"]["mode"] == "classical"            # offline → honest label
+    assert res["stats"]["mode"] == "deterministic"        # v2: the only mode
     assert "Lena Marsh" not in json.dumps(res)            # token-free: no raw doc text
     assert _json(["--project", "e2e", "overview"])["status"] == "ok"
     rc = _json(["--project", "e2e", "recall", "Who leads Project Aurora?"])
@@ -63,10 +63,12 @@ def test_full_cli_lifecycle_offline(tmp_path):
     assert not (tmp_path / "projects" / "e2e").exists()
 
 
-def test_fast_mode_cli(tmp_path):
+def test_fast_flag_is_accepted_noop(tmp_path):
+    # --fast is kept as a deprecated NO-OP for back-compat (v2 has one deterministic
+    # mode); it must be accepted and still produce the deterministic engine's output.
     os.environ["MTA_HOME"] = str(tmp_path)
     res = _json(["--project", "f", "digest", str(FIXTURES), "--fast"])
-    assert res["status"] == "ok" and res["stats"]["mode"] == "fast"
+    assert res["status"] == "ok" and res["stats"]["mode"] == "deterministic"
 
 
 def test_offline_recall_declines_offtopic(tmp_path):
