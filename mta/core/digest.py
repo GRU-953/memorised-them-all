@@ -156,7 +156,7 @@ def _convert_timeout(src: str, cfg: Config) -> int:
     except OSError:
         mb = 0
     per_mb = 4 if os.path.splitext(src)[1].lower() in {
-        ".pptx", ".docx", ".xlsx", ".xls", ".doc", ".pdf", ".epub", ".zip"} else 1
+        ".pptx", ".docx", ".xlsx", ".xls", ".doc", ".ppt", ".pps", ".dot", ".xlt", ".pdf", ".epub", ".zip"} else 1
     cap = getattr(cfg, "convert_timeout_max", 900) or 10 ** 9
     return int(min(base + per_mb * mb, cap))
 

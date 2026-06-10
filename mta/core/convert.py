@@ -107,6 +107,60 @@ def _zip_within_bounds(path: Path, cfg: Config) -> bool:
         return True
 
 
+# Legacy BINARY Office formats MarkItDown can't read → LibreOffice converts them to the
+# modern OOXML equivalent first (then MarkItDown + SutonnyMJ delegacification take over).
+_LEGACY_OFFICE = {".doc": "docx", ".dot": "docx", ".ppt": "pptx", ".pps": "pptx",
+                  ".xls": "xlsx", ".xlt": "xlsx"}
+
+
+def _soffice_bin() -> str | None:
+    """Locate the LibreOffice headless binary (optional, offline). None if absent."""
+    import shutil
+    from .platform import bootstrap_path
+    bootstrap_path()
+    for cand in ("soffice", "libreoffice"):
+        p = shutil.which(cand)
+        if p:
+            return p
+    mac = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+    return mac if os.path.exists(mac) else None
+
+
+def _try_legacy_office(path: Path, cfg: Config) -> tuple[str | None, str]:
+    """Convert a legacy binary Office file to OOXML via LibreOffice headless, then run
+    MarkItDown on the result. Optional + offline + deterministic-enough; returns
+    ``(None, reason)`` (never raises) if LibreOffice is absent or conversion fails, so
+    the batch degrades to 'unsupported' rather than crashing. Each call uses a UNIQUE
+    LibreOffice profile dir so parallel conversion workers can't collide on LO's lock."""
+    target = _LEGACY_OFFICE.get(path.suffix.lower())
+    soffice = _soffice_bin()
+    if not target:
+        return None, "not-legacy-office"
+    if not soffice:
+        return None, "libreoffice-missing"
+    import subprocess
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="mta-lo-")
+    try:
+        profile = "file://" + os.path.join(tmp, "profile")
+        r = subprocess.run(
+            [soffice, "-env:UserInstallation=" + profile, "--headless", "--norestore",
+             "--convert-to", target, "--outdir", tmp, str(path)],
+            capture_output=True, timeout=240)
+        out = Path(tmp) / (path.stem + "." + target)
+        if r.returncode != 0 or not out.exists():
+            return None, "libreoffice-error"
+        text, method = _try_markitdown(out, cfg)
+        if not text:
+            return None, "legacy-office-empty"
+        return text, "soffice+" + method
+    except (OSError, subprocess.SubprocessError):
+        return None, "libreoffice-error"
+    finally:
+        import shutil as _sh
+        _sh.rmtree(tmp, ignore_errors=True)
+
+
 def _try_markitdown(path: Path, cfg: Config) -> tuple[str | None, str]:
     try:
         from markitdown import MarkItDown
@@ -380,7 +434,13 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
         if not _zip_within_bounds(path, cfg):
             res.status, res.method, res.error = "skipped", "zip-too-large", "decompression-bound"
             return res
-        text, method = _try_markitdown(path, cfg)
+        if ext in _LEGACY_OFFICE:
+            # Legacy BINARY Office (.doc/.ppt/.xls) — MarkItDown can't read these.
+            # Convert to OOXML via LibreOffice headless first (optional, offline), then
+            # MarkItDown (which also delegacifies SutonnyMJ in the converted .docx).
+            text, method = _try_legacy_office(path, cfg)
+        else:
+            text, method = _try_markitdown(path, cfg)
         if not text and ext == ".pdf" and cfg.ocr_mode != "off":  # scanned PDF → OCR
             text, method = _ocr_pdf(path, cfg)
     elif ext in _IMAGE_EXTS:
