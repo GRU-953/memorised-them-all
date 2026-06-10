@@ -1,6 +1,6 @@
 {
   "name": "memorised-them-all",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Locally convert any attachment to Markdown and digest it into a token-free knowledge-graph memory for Claude — global synopsis, per-theme summaries, exportable Markdown notes. 100% local, deterministic and model-free (no LLM/Ollama/GPU needed), free & open-source, auto-installing. A digest always finishes (per-file timeouts), memory writes are crash-safe, archives are unpacked safely, and legacy Bengali (SutonnyMJ) is auto-converted to Unicode.",
   "author": {
     "name": "Aninda Sundar Howlader",

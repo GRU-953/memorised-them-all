@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-06-10
+
+### Added
+- **Bengali OCR recovery for broken-font PDFs.** Bengali PDFs whose legacy (Bijoy/SutonnyMJ) font has a broken ToUnicode map extract as mojibake (orphaned vowel signs) even though the page renders correct Bengali. v2.1.0 detects this (`_looks_like_broken_bengali`: >15% orphaned dependent vowel-signs) and re-OCRs the rendered page with Tesseract (`eng+ben`), recovering correct Unicode Bengali. Gated to PDFs with OCR enabled; clean text is untouched.
+
 ## [2.0.3] — 2026-06-10
 
 ### Fixed

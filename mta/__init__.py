@@ -3,5 +3,5 @@
 Clean-room implementation by GRU-953 (Aninda Sundar Howlader).
 """
 
-__version__ = "2.0.3"
+__version__ = "2.1.0"
 __author__ = "Aninda Sundar Howlader"
