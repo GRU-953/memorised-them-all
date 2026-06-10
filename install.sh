@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Memorised them All — idempotent installer.
-# Installs every dependency: Homebrew apps (Ollama, Tesseract, ffmpeg, igraph),
-# a Python venv with MarkItDown (pinned PyPI by default; upstream is opt-in), and
-# the local models.
-# Safe to re-run; only does work that is actually missing. Apple-silicon first,
-# but degrades cleanly on Intel/Linux.
+# Sets up a Python venv with MarkItDown (pinned PyPI by default; upstream is opt-in),
+# installs optional system tools (Tesseract OCR + language packs, unar for rar archives),
+# and registers the MCP server in Claude. The engine is deterministic and model-free —
+# there are NO AI models to download. Safe to re-run; only does missing work. Works on
+# macOS and Linux (Windows uses launch.py).
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

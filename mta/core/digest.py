@@ -388,9 +388,9 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         truncated = len(unique_chunks) - cfg.max_chunks
         unique_chunks = unique_chunks[:cfg.max_chunks]
 
-    # Extract across a modest, memory-aware pool — LLM calls are I/O-bound (HTTP
-    # to Ollama); too much concurrency thrashes a unified-memory Mac running a 7B
-    # model, so the default scales with RAM.
+    # Extract across a modest, memory-aware pool. Rule-based extraction is fast and
+    # CPU-bound, but on a small machine too many parallel workers still thrash memory,
+    # so the default scales with RAM.
     extractions: list[tuple] = []
     mentions: list[dict] = []
     workers = max(1, min(_auto_extract_workers(cfg), len(unique_chunks))) if unique_chunks else 1

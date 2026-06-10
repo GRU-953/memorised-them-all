@@ -1,10 +1,9 @@
-"""Apple M-series first platform tuning.
+"""Cross-platform CPU/RAM tuning.
 
 Sizes the process pool to the number of *performance* cores, pins each worker's
-native math libraries to a single thread (avoiding oversubscription on the
-unified-memory Apple GPU/CPU), reports unified-memory headroom, and detects
-whether GPU-accelerated Whisper via Apple MLX is available. Everything degrades
-cleanly to portable defaults on non-Apple hardware so CI on Linux still works.
+native math libraries to a single thread (avoiding oversubscription), and reports
+available-memory headroom. Tuned for Apple M-series but degrades cleanly to portable
+defaults on Linux/Windows/Intel so CI works everywhere.
 """
 from __future__ import annotations
 
