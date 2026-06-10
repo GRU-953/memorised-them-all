@@ -51,9 +51,26 @@ def _tokens(s: str) -> list[str]:
     return [w for w in _TOK.findall(s) if len(w) > 1]
 
 
+# Content-free words excluded from the off-topic OVERLAP guard so a single common-word
+# coincidence ("best pizza" ↔ "Best Practices") can't keep an irrelevant hit confident.
+# Reuses the extractor's English + Bengali stoplists + a tiny recall-local set. This only
+# affects the advisory low_confidence flag — never BM25 ranking or scores.
+from .extract import _BN_STOP as _EX_BN_STOP  # noqa: E402
+from .extract import _STOPWORDS as _EX_STOP  # noqa: E402
+
+_OVERLAP_STOP = frozenset(
+    {w.lower() for w in _EX_STOP} | set(_EX_BN_STOP)
+    | {"best", "recipe", "new", "total", "overall", "part", "using", "good", "report",
+       "data", "information", "general", "various", "different", "make", "made"})
+
+
 def _lexical_overlap(query: str, text: str) -> int:
-    """# of distinct content words (len>1) shared by the query and a hit's text."""
-    return len(set(_tokens(query)) & set(_tokens(text)))
+    """# of distinct CONTENT words (len>1, non-stopword) shared by the query and a hit's
+    text. Stopword-filtered so a lone common-word match (e.g. "best") doesn't read as
+    topical overlap and wrongly keep an off-topic hit confident."""
+    q = set(_tokens(query)) - _OVERLAP_STOP
+    t = set(_tokens(text)) - _OVERLAP_STOP
+    return len(q & t)
 
 
 def _bm25_rank(query: str, meta: list[dict], k: int) -> list[tuple[float, int]]:

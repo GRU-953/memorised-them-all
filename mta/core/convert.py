@@ -511,13 +511,25 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
             res.error = method
         return res
 
-    # Plain-text legacy-Bengali safety net (Office is handled font-aware in _try_markitdown;
-    # OCR/vision/whisper already emit Unicode, so density-gated maybe_convert is a no-op there).
-    if cfg.bangla_legacy and "markitdown" not in method:
-        from .bangla_legacy import maybe_convert
-        text, _bn = maybe_convert(text)
-        if _bn:
-            method = res.method = method + "+bn-unicode"
+    # Legacy-Bengali (Bijoy/SutonnyMJ) safety nets.
+    if cfg.bangla_legacy:
+        from .bangla_legacy import maybe_convert, recover_mixed
+        if "markitdown" not in method:
+            # Plain-text path: density-gated maybe_convert (OCR/vision already emit Unicode,
+            # so this is a no-op there).
+            text, _bn = maybe_convert(text)
+            if _bn:
+                method = res.method = method + "+bn-unicode"
+        else:
+            # MarkItDown text (esp. PDF text layers): the font-aware OOXML delegacifier is a
+            # no-op for PDFs, so a Bijoy-ASCII text layer arrives as Latin mojibake — and
+            # mixed English+Bijoy docs dilute the whole-doc density below the floor. Recover
+            # LINE-WISE: each line is converted only if it's densely Bijoy with no real
+            # Bengali AND the conversion yields real Bengali, so English / already-Unicode
+            # Office text / symbol noise are all left untouched.
+            text, _bn = recover_mixed(text)
+            if _bn:
+                method = res.method = method + "+bn-bijoy-recover"
 
     out = (out_dir / out_name) if out_name else _safe_out_name(path, out_dir)
     header = f"<!-- source: {path.name} · method: {method} -->\n\n"
