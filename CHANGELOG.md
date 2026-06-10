@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-06-10
+
+### Changed (Bengali recall quality — vetted artifact repair)
+- **Repaired a Unicode-Bengali PDF-font reorder artifact** that left common words
+  unsearchable: a u-kar vowel sign was mis-encoded as the sequence «রম্ন», so গ্রুপ (group),
+  শুরু (start), পুরুষ (man), করুন (do), গরু (cow), দ্রুত (fast), গুরুত্ব (importance),
+  জরুরি (urgent) were stored as গ্রম্নপ/শুরম্ন/… (~5,700 tokens) and never matched a correct
+  query. A new deterministic `bangla_legacy.normalize_reorder_artifacts` (applied at
+  extraction, so a graph rebuild fixes an existing memory with **no re-conversion**, and at
+  conversion for new files) now repairs «রম্ন»→«রু».
+  - **Safety:** the rule was vetted by a 3-lens Bengali-expert panel (linguist /
+    counterexample-adversary / corpus-auditor) against all 96.8k corpus word-forms. «রম্ন»
+    is orthographically impossible in valid Bengali (র never abuts the ম্ন conjunct), so it
+    is artifact-only — the genuine নিম্ন/সর্বনিম্ন (“lower/lowest”) family is **preserved**
+    (verified: 0 corruptions, নিম্ন intact). Three other candidate rules were **deliberately
+    rejected** by the panel because they corrupt correct words — «ম্ন»→«ু» (নিম্ন),
+    «েস্ন»→«্লে» (the join “করে স্নান”), «ে্য»→«্য» (প্রত্যেক), «ণরে»→«ণের» (the -রে particle) —
+    and remain deferred pending a dictionary / reposition logic.
+
 ## [2.3.0] — 2026-06-10
 
 ### Changed (memory quality — from an expert-panel audit of the completed corpus)

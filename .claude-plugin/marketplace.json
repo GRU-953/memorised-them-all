@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Local, token-free, reliability-hardened file digestion → knowledge-graph memory for Claude.",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "pluginRoot": "."
   },
   "plugins": [

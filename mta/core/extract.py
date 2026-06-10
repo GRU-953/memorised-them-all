@@ -203,8 +203,11 @@ def _classical(chunk: Chunk) -> Extraction:
     same-sentence relations, and entity-bearing facts. Fully deterministic."""
     # Neutralise fence delimiters + control tokens BEFORE extraction so a document can't
     # plant "<<<END>>>" / "<tool_call>" as entities or facts (defence-in-depth; there's
-    # no LLM to hijack, but it keeps memory.md clean).
-    text = _defang_fence(_scrub(chunk.text))
+    # no LLM to hijack, but it keeps memory.md clean). Also repair vetted artifact-only
+    # Bengali reorder mojibake (e.g. গ্রম্নপ→গ্রুপ) so entities/facts/recall use the correct
+    # word — a graph rebuild cleans an existing memory without re-conversion.
+    from .bangla_legacy import normalize_reorder_artifacts
+    text = normalize_reorder_artifacts(_defang_fence(_scrub(chunk.text)))
     sentences = [re.sub(r"\s+", " ", s).strip() for s in _split_sentences(text)]
     counts: dict[str, int] = {}
     provisional: set[str] = set()   # single lone-word entities → keep only if they recur
