@@ -6,6 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-06-10
+
+### Changed (memory quality — from an expert-panel audit of the completed corpus)
+All deterministic / model-free. An expert-panel audit of the finished UPGP memory drove a
+focused, high-value fix set; recall (already strong) is preserved.
+- **Beneficiary PII no longer leaks into theme summaries or recall units.** Survey-export
+  rows (names + ages + phone numbers) measured ~0.26–0.30 numeric, under the old 0.55
+  table-dump gate, so they survived into facts and community summaries. A deterministic
+  tabular/PII guard now drops pipe-delimited rows and any string with a long digit-run
+  (Latin **or** Bengali numerals) from facts and summaries; long digit-runs that slip
+  through are redacted to `[number]`; and `_low_value` skips beneficiary-roster chunks
+  (pipe-density + digit-runs) — which also reclaimed a large slice of survey-noise volume,
+  freeing the chunk budget for narrative content.
+- **Legacy-Bengali (Bijoy/SutonnyMJ) recovery now works on PDF text layers.** The
+  font-aware delegacifier only rewrote OOXML runs, so Bijoy-ASCII PDF text reached memory
+  as Latin mojibake (one of the largest themes was unreadable). A new **line-wise**
+  recovery (`bangla_legacy.recover_mixed`) converts only lines that are densely
+  Bijoy-letterish (≥4 high-byte chars, ≥0.07 density — Bijoy encodes many letters as
+  ASCII, so a whole-doc test misses mixed docs), carry **no English function words**, and
+  whose conversion actually yields real Bengali. English/Spanish prose (even accent-dense)
+  and already-correct Bengali are never touched.
+- **Cleaner knowledge graph:** the pandas/openpyxl `Unnamed[: N]` empty-column placeholder
+  is blocklisted; hex / binary-blob junk (embedded colour profiles, XMP packets, base16
+  dumps from design files) is rejected as entities and skipped as low-value; a static
+  **Bangladesh gazetteer** (8 divisions + 64 districts, with transliteration variants) and
+  a small known-org set type places/orgs that were previously all `other`.
+- **Off-topic recall guard is stopword-aware:** a lone common-word coincidence (e.g.
+  "best pizza" ↔ "Best Practices") no longer keeps an irrelevant hit confident. Affects
+  only the advisory `low_confidence` flag — never BM25 ranking or scores (no re-digest).
+
 ## [2.2.0] — 2026-06-10
 
 ### Changed (recall quality — major)

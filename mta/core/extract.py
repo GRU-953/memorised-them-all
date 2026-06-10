@@ -58,6 +58,32 @@ _ORG_HINTS = ("Authority", "Programme", "Program", "Foundation", "Association",
               "Agency", "Society", "Federation", "Union", "Group", "Limited")
 _PLACE_HINTS = ("District", "Division", "Upazila", "Union", "Village", "City",
                 "Town", "Region", "Zone", "Sub-district", "Thana", "Ward")
+# Static Bangladesh gazetteer (8 divisions + 64 districts, with common transliteration
+# variants) + a few corpus-salient orgs. Deterministic literal sets → byte-identical
+# output preserved. The corpus is organised BY district, so without this almost every
+# place name ("Dhaka", "Barishal", "Rangpur") is typed "other" (was 96.5% "other").
+_BD_PLACES = frozenset({
+    # divisions
+    "Dhaka", "Chattogram", "Chittagong", "Rajshahi", "Khulna", "Barishal", "Barisal",
+    "Sylhet", "Rangpur", "Mymensingh",
+    # districts (+ variants)
+    "Comilla", "Cumilla", "Feni", "Brahmanbaria", "Rangamati", "Noakhali", "Chandpur",
+    "Lakshmipur", "Laxmipur", "Coxsbazar", "Khagrachhari", "Bandarban", "Narsingdi",
+    "Gazipur", "Narayanganj", "Tangail", "Kishoreganj", "Kishoregonj", "Manikganj",
+    "Munshiganj", "Rajbari", "Madaripur", "Gopalganj", "Faridpur", "Shariatpur",
+    "Sirajganj", "Sirajgonj", "Pabna", "Bogura", "Bogra", "Natore", "Joypurhat",
+    "Chapainawabganj", "Naogaon", "Jashore", "Jessore", "Satkhira", "Meherpur",
+    "Narail", "Chuadanga", "Kushtia", "Magura", "Bagerhat", "Jhenaidah", "Jhenidah",
+    "Barguna", "Bhola", "Jhalokathi", "Jhalakathi", "Patuakhali", "Pirojpur",
+    "Sunamganj", "Sunamgonj", "Habiganj", "Habigonj", "Moulvibazar", "Maulvibazar",
+    "Panchagarh", "Dinajpur", "Lalmonirhat", "Nilphamari", "Gaibandha", "Thakurgaon",
+    "Kurigram", "Jamalpur", "Sherpur", "Netrokona", "Netrakona",
+})
+# Corpus-salient organisations that carry no _ORG_HINTS suffix (so only a name list can
+# type them). BRAC and its programme/research arms.
+_KNOWN_ORGS = frozenset({
+    "BRAC", "UPGP", "DIUPG", "BIGD", "VSSC", "CFPR", "BIDS",
+})
 # Spreadsheet/survey cell VALUES — high-frequency in beneficiary-data dumps but useless
 # as standalone entities. Without this, a corpus of survey .xlsx makes "Male"/"No"/
 # "Husband"/"Rural"/"NaN" the top entities, burying the real programme entities.
@@ -71,6 +97,9 @@ _VALUE_STOP = {
     "Name", "Age", "Sex", "Gender", "Address", "Phone", "Mobile", "Date", "Status",
     "Type", "Category", "Amount", "Number", "Count", "Code", "Id", "Sl", "Serial",
     "Nan", "NaN", "Na", "N/A", "Nil", "Tk", "Taka", "Pcs", "Kg", "Hh",
+    # "Unnamed" is pandas/openpyxl's placeholder for an empty spreadsheet-column header
+    # ("Unnamed: 0", "Unnamed: 3"); a corpus of survey .xlsx makes it a top entity.
+    "Unnamed",
 }
 # Case-insensitive membership: spreadsheet exports vary the casing ("NaN"/"NAN"/"nan",
 # "No"/"NO"). Compare lower-cased so a single styling variant can't slip through.
@@ -105,6 +134,12 @@ def _infer_type(name: str, text: str) -> str:
     if any("ঀ" <= ch <= "৿" for ch in name):
         return "other"                                  # Bengali: no cheap sub-typing
     words = name.split()
+    # Static gazetteer first — high-precision, deterministic. A district organised-by
+    # corpus would otherwise type its places as "other".
+    if name in _BD_PLACES:
+        return "place"
+    if name in _KNOWN_ORGS:
+        return "org"
     if re.search(r"\b(?:Dr|Mr|Mrs|Ms|Md|Mohd|Mohammad|Mohammed|Muhammad|Prof|Engr|Eng|"
                  r"Adv|Begum)\.?\s+" + re.escape(name), text):
         return "person"
@@ -116,6 +151,35 @@ def _infer_type(name: str, text: str) -> str:
 
 
 _BN_DIGITS = "০১২৩৪৫৬৭৮৯"
+
+# Long digit-runs = phone/NID/account numbers (Latin OR Bengali numerals). Used to keep
+# beneficiary PII out of facts/summaries and to redact any that slips through.
+_PII_DIGITS_RE = re.compile(r"\d{6,}|[" + _BN_DIGITS + r"]{6,}")
+# pandas/openpyxl empty-header placeholder, any styling ("Unnamed", "Unnamed: 3",
+# "Unnamed12"). A leading "Unnamed" is never a real proper-noun in this domain.
+_UNNAMED_RE = re.compile(r"(?i)^Unnamed")
+
+
+def _is_tabular_or_pii(s: str) -> bool:
+    """Deterministic guard: True for spreadsheet rows / beneficiary rosters that must not
+    become facts or theme summaries. Catches pipe-delimited rows and any string carrying a
+    long digit-run (phone/ID, Latin or Bengali numerals). Pure string/regex, no model."""
+    if s.count("|") >= 3:
+        return True
+    if _PII_DIGITS_RE.search(s):
+        return True
+    if s.count("|") >= 2:                       # short-cell row, e.g. "Male | No | Rural"
+        cells = [c.strip() for c in s.split("|")]
+        if sum(1 for c in cells if 0 < len(c.split()) <= 3) >= 3:
+            return True
+    return False
+
+
+def _redact_pii(s: str) -> str:
+    """Collapse long digit-runs (phone/ID numbers; Latin or Bengali numerals) to a
+    placeholder so a stray contact number can never persist verbatim in a fact/summary.
+    Applied ONLY to facts/summaries — never to entity-label matching."""
+    return _PII_DIGITS_RE.sub("[number]", s or "")
 
 
 def _bn_candidate(raw: str) -> str | None:
@@ -156,6 +220,10 @@ def _classical(chunk: Chunk) -> Extraction:
             if rest and (head in _LEADING_DET or head in _STOPWORDS):
                 name = rest
         if len(name) < 2 or not _valid_entity(name):
+            continue
+        # Drop the pandas/openpyxl "Unnamed[: N]" empty-column placeholder regardless of
+        # tokenisation ("Unnamed", "Unnamed3").
+        if _UNNAMED_RE.match(name):
             continue
         # Drop names made ENTIRELY of stop / survey-value words — single tokens
         # ("NaN"/"Male") and table-cell runs ("Name NaN NAN", "No Total Tk").
@@ -200,8 +268,12 @@ def _classical(chunk: Chunk) -> Extraction:
     facts: list[str] = []
     for grounded in (True, False):
         for s in sentences:
-            if 20 <= len(s) <= 240 and (not grounded or any(e in s for e in ents)):
-                f = _scrub(s)
+            # Never let a spreadsheet row / beneficiary roster (names+ages+phone numbers)
+            # become a fact — privacy + noise. Redact any stray long digit-run as a
+            # belt-and-suspenders before storing.
+            if (20 <= len(s) <= 240 and not _is_tabular_or_pii(s)
+                    and (not grounded or any(e in s for e in ents))):
+                f = _redact_pii(_scrub(s))
                 if f and f not in facts:
                     facts.append(f)
             if len(facts) >= 6:
@@ -241,11 +313,23 @@ def _defang_fence(s: str) -> str:
     return _FENCE_TOK.sub("[delim]", s or "")
 
 
+# Long hex / binary blobs (embedded colour profiles, XMP, base16 dumps from design files):
+# "FF3300FF3333…", "B8B7B6B5…". Never a real entity.
+_HEXBLOB_RE = re.compile(r"(?i)^[0-9A-F]{12,}$")
+
+
 def _valid_entity(name: str) -> bool:
     """Reject obvious non-entities a model or the regex can emit: sentence-length blobs,
-    URLs, pure numbers/punctuation, multi-line strings."""
+    URLs, pure numbers/punctuation, multi-line strings, and hex/binary dumps."""
     if not name or len(name) > 80 or len(name.split()) > 8 or "\n" in name or "://" in name:
         return False
+    if " " not in name:
+        # A long single token that is all hex, or has no vowel at all, is a binary/code
+        # dump (colour profile, base16, identifier soup), not a name.
+        if _HEXBLOB_RE.match(name):
+            return False
+        if len(name) > 24 and not re.search(r"[aeiouAEIOU]", name):
+            return False
     return re.search(r"[^\W\d_]", name) is not None  # must contain at least one letter
 
 
