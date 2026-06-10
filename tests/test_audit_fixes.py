@@ -180,6 +180,40 @@ def test_low_value_skips_hex_and_xmp_dumps():
     assert _low_value(xmp) is True
 
 
+# ---- (2d) vetted Bengali reorder repair (রম্ন→রু only) ---------------------
+def test_reorder_artifact_repair_fixes_only_safe_pattern():
+    from mta.core.bangla_legacy import normalize_reorder_artifacts as N
+    # the one panel-approved rule fixes common words
+    assert N("গ্রম্নপ") == "গ্রুপ"          # group
+    assert N("শুরম্ন") == "শুরু"            # start
+    assert N("পুরম্নষ") == "পুরুষ"          # man
+    assert N("করম্নন") == "করুন"            # do
+    assert N("গরম্নর") == "গরুর"            # cow's
+    assert N("দ্রম্নত") == "দ্রুত"          # fast
+    # genuine নিম্ন (lower) family is PRESERVED — the ম্ন there is not preceded by র
+    assert N("নিম্ন") == "নিম্ন"
+    assert N("সর্বনিম্ন") == "সর্বনিম্ন"
+    assert N("নিম্নলিখিত") == "নিম্নলিখিত"
+    # mixed word: genuine নিম্ন kept, রম্ন artifact fixed
+    assert N("নিম্নরম্নপ") == "নিম্নরূপ".replace("রূ", "রু")   # নিম্নরুপ (নিম্ন preserved)
+    # DELIBERATELY-EXCLUDED dangerous patterns are NOT touched
+    assert N("প্রত্যেক") == "প্রত্যেক"      # ে্য rule excluded
+    assert N("চরণরে") == "চরণরে"            # ণরে rule excluded
+    assert N("স্নান") == "স্নান" and N("স্নেহ") == "স্নেহ"   # স্ন untouched
+    # English unaffected
+    assert N("The group started") == "The group started"
+
+
+def test_reorder_repair_runs_in_extraction():
+    from mta.core.extract import extract_chunk
+    from mta.core.segment import Chunk
+    ex = extract_chunk(Chunk(id="c", doc="d.md", heading_path="", index=0,
+        text="গ্রম্নপ মিটিংয়ে শুরম্নতে পুরম্নষ সদস্যরা গুরম্নত্বপূর্ণ আলোচনা করম্নন।"))
+    joined = " ".join(ex.facts) + " " + " ".join(e["name"] for e in ex.entities)
+    assert "রম্ন" not in joined, joined      # artifact gone from graph-facing text
+    assert "গ্রুপ" in joined or "শুরু" in joined or "গুরুত্ব" in joined, joined
+
+
 # ---- (5) stopword-filtered off-topic recall guard --------------------------
 def test_recall_overlap_ignores_common_words():
     from mta.core.recall import _lexical_overlap
