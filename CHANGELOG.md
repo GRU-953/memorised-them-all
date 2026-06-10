@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-06-10
+
+### Added
+- **Legacy binary Office support** (`.doc` / `.ppt` / `.xls` / `.dot` / `.pps` / `.xlt`).
+  MarkItDown can't read the old OLE binary formats; when **LibreOffice** is installed
+  (optional, offline) they're converted to OOXML headlessly first and then digested by
+  the normal pipeline — so SutonnyMJ→Unicode delegacification applies to them too. Each
+  conversion uses a unique LibreOffice profile dir so parallel workers can't collide on
+  LO's lock; without LibreOffice these files degrade to `unsupported` (never crash).
+  Their per-file conversion timeout is size-scaled like the other Office formats.
+
 ## [2.0.0] — 2026-06-09
 
 A major, deliberate re-architecture: **Memorised them All is now fully deterministic and
