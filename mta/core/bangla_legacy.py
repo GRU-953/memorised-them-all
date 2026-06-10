@@ -232,6 +232,61 @@ def maybe_convert(text: str, *, ratio: float = 0.12) -> tuple[str, bool]:
     return convert_bijoy_to_unicode(text), True
 
 
+# Common English function words. Their presence marks a line as genuine English prose, so
+# it must NOT be run through the Bijoy map (which would turn it into Bengali gibberish).
+# Legacy-Bijoy mojibake never contains these as whole words.
+_EN_FUNCWORDS = frozenset({
+    "the", "and", "of", "to", "in", "for", "is", "are", "was", "were", "be", "on", "at",
+    "as", "by", "with", "from", "this", "that", "it", "or", "an", "a", "has", "have",
+    "will", "not", "but", "they", "we", "you", "he", "she", "his", "her", "their", "our",
+    "which", "when", "where", "who", "what", "than", "then", "into", "over", "under",
+})
+_EN_WORD_RE = re.compile(r"[A-Za-z]+")
+
+
+def _english_funcword_count(line: str) -> int:
+    return sum(1 for w in _EN_WORD_RE.findall(line.lower()) if w in _EN_FUNCWORDS)
+
+
+def recover_mixed(text: str, *, min_high: int = 4, ratio: float = 0.07) -> tuple[str, bool]:
+    """LINE-WISE Bijoy→Unicode recovery for MIXED documents (English + legacy-Bijoy
+    sections, e.g. a PDF text layer whose Bengali pages are SutonnyMJ-encoded). A
+    whole-document density test misses these — the English dilutes the Bijoy ratio — and
+    Bijoy encodes many Bengali letters as plain ASCII, so the high-byte ratio of a genuine
+    Bijoy line can sit ~0.10 (below the 0.12 whole-doc floor). We test each line.
+
+    A line is converted only when ALL hold, which is safe to run on any markitdown output
+    (including already-Unicode Office text, English, and non-Bijoy symbol noise):
+      (a) it has NO real Unicode Bengali yet;
+      (b) it carries ≥``min_high`` Bijoy-letterish high-byte chars at ≥``ratio`` density
+          (ordinary text has ~0; this catches ASCII-heavy Bijoy that 0.12 misses);
+      (c) it contains <2 English function words (genuine English prose is excluded even
+          when accent-dense — Bijoy mojibake never has "the/and/at/with");
+      (d) the conversion actually PRODUCES real Unicode Bengali (mis-detected junk that
+          would convert to gibberish, not Bengali, is rejected).
+    Returns ``(text, changed)``.
+    """
+    if not text or not any(_is_bijoy_letterish(ord(c)) for c in text):
+        return text, False
+    out: list[str] = []
+    changed = False
+    for line in text.split("\n"):
+        if has_unicode_bengali(line):
+            out.append(line)
+            continue
+        nz = sum(1 for c in line if not c.isspace())
+        hi = sum(1 for c in line if _is_bijoy_letterish(ord(c)))
+        if (nz >= 10 and hi >= min_high and hi / nz >= ratio
+                and _english_funcword_count(line) < 2):
+            conv = convert_bijoy_to_unicode(line)
+            if has_unicode_bengali(conv):           # only accept a genuine Bengali result
+                out.append(conv)
+                changed = True
+                continue
+        out.append(line)
+    return ("\n".join(out), changed) if changed else (text, False)
+
+
 # ====================================================================================
 # Font-aware Office delegacification (docx / pptx / xlsx)
 # ------------------------------------------------------------------------------------

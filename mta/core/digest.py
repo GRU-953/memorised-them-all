@@ -31,6 +31,8 @@ from .segment import segment_file
 import re as _re
 # A "numeric-ish" token: digits with currency/percent/separators/parens (table cells).
 _NUMERICISH = _re.compile(r"[-+(]?[\d][\d.,%/:()\-]*\)?")
+# A long hex token (colour profile / XMP / base16 dump from design files), not prose.
+_HEXISH = _re.compile(r"(?i)[0-9A-F]{12,}")
 
 
 # ---- input expansion --------------------------------------------------
@@ -315,14 +317,17 @@ def convert_to_markdown(cfg: Config, paths: list[str], out_dir: str | None = Non
 
 # ---- local summarisation (deterministic, model-free) -----------------
 def _community_summary(label_facts: list[str], names: list[str], cfg: Config) -> str:
-    from .extract import _defang_fence, _scrub
+    from .extract import _defang_fence, _is_tabular_or_pii, _redact_pii, _scrub
     # Sanitise document-derived text: scrub control tokens + neutralise the fence
     # delimiters so a fact can't forge <<<END>>> to escape a data region. This is now
     # only cheap hygiene on classical/converted text (no LLM), but it still defends
     # memory.md / recall against control tokens embedded in documents.
     def _san(x: str) -> str:
         return _defang_fence(_scrub(str(x)))
-    facts = [_san(f) for f in label_facts[:12]]
+    # Defence-in-depth: even though facts are already PII-filtered at extraction time, drop
+    # any tabular/roster fact here too and redact stray digit-runs, so beneficiary names +
+    # phone numbers can never reach a persisted theme summary / recall unit.
+    facts = [_redact_pii(_san(f)) for f in label_facts[:12] if not _is_tabular_or_pii(str(f))]
     names = [_san(n) for n in names]
     # Deterministic fact-join — the only summary path.
     head = ", ".join(names[:5])
@@ -537,6 +542,22 @@ def _low_value(text: str) -> bool:
         return False
     uniq = len(set(w.lower() for w in words))
     if uniq / len(words) < 0.12:                       # repetitive filler
+        return True
+    # Beneficiary roster: tabular structure (pipes) together with multiple long digit-runs
+    # (phone/NID numbers, Latin or Bengali numerals) — survey-export rows that carry no
+    # narrative knowledge but huge volume, and leak PII. Gate on BOTH so a legitimate
+    # prose-bearing markdown table (few numbers) survives.
+    from .extract import _PII_DIGITS_RE
+    digit_runs = len(_PII_DIGITS_RE.findall(text))
+    pipes = text.count("|")
+    if (pipes >= 4 and digit_runs >= 2) or digit_runs >= 5:
+        return True
+    # Binary / metadata dump: embedded colour profiles, XMP packets, base16 blobs from
+    # design files (.eps/.indd/.ai) leak as long hex tokens or XMP namespace tags — data,
+    # not prose.
+    if any(t in text for t in ("<xapG:", "<x:xmpmeta", "xmlns:rdf", "<rdf:")):
+        return True
+    if sum(1 for w in words if len(w) >= 12 and _HEXISH.fullmatch(w)) >= 2:
         return True
     # Data/table dump: a window that is mostly numbers/codes (e.g. a spreadsheet grid)
     # is data, not prose. >55% numeric-ish tokens → skip.
