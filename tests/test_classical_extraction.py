@@ -96,3 +96,28 @@ def test_bengali_entities_extracted():
     assert any(any("ঀ" <= ch <= "৿" for ch in n) for n in names), names   # Bengali surfaced
     # numerals trimmed from the edges
     assert not any("১২৪০" in n for n in names), names
+
+
+def test_survey_cell_values_not_entities():
+    from mta.core.extract import _classical
+    from mta.core.segment import Chunk
+    txt = ("Name Gender Relation Area Status. Karim Male Husband Rural Married. "
+           "Fatema Female Wife Rural Married. The BRAC office is in Bhola District.")
+    ex = _classical(Chunk(id="c", doc="d", heading_path="", text=txt, index=0))
+    names = {e["name"] for e in ex.entities}
+    assert not ({"Male", "Female", "Husband", "Wife", "Rural", "Married", "Name",
+                 "Gender", "Status", "Relation", "Area"} & names), names
+    assert "BRAC" in names                                  # real entity survives
+
+
+def test_low_value_skips_numeric_table_dump():
+    from mta.core.digest import _low_value
+    # a beneficiary/financial grid: mostly numbers + cell codes
+    grid = " ".join(["12,000", "35", "1", "2025", "98%", "0", "540", "24300000",
+                     "3", "1.5", "2024", "100", "7", "12", "8", "45000"] * 4)
+    assert _low_value(grid) is True
+    prose = ("The Ultra-Poor Graduation Programme enrolled participants in Bhola "
+             "district. The District Coordinator reported strong results across the "
+             "income generating activities and the community based facilitator network "
+             "supported many villages during the reporting period this year. ") * 2
+    assert _low_value(prose) is False                       # real prose kept
