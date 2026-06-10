@@ -254,3 +254,16 @@ def test_legacy_office_converts_when_soffice_present(tmp_path):
     res = convert_file(doc, tmp_path / "out", _cfg(tmp_path))
     assert res.status == "ok" and "soffice+" in res.method, (res.status, res.method)
     assert "Karim Rahman" in (tmp_path / "out").glob("*.md").__next__().read_text(encoding="utf-8")
+
+
+# ---- broken-Bengali (legacy-font PDF) detector → OCR recovery (v2.1.0) ----------------
+def test_broken_bengali_detector():
+    from mta.core.convert import _looks_like_broken_bengali
+    clean = ("প্রকল্প অরোরা রেইকজাভিকে পরিচালিত হয়। ব্র্যাক ভোলা জেলায় কাজ করে। "
+             "অনলাইনে ষাঁড় ক্রয় সংক্রান্ত নির্দেশিকা অনুযায়ী কার্যক্রম শুরু হয়েছে।")
+    assert _looks_like_broken_bengali(clean) is False, "clean Bengali misflagged as broken"
+    # orphaned vowel signs (signs after spaces / vowels) = the mojibake signature
+    broken = ("া ি ী ু ূ ে ৈ ো ৌ া ি ী ু ূ ে ৈ ো ৌ অনলাইন প্রকল্প ভোলা জেলা "
+              "বরিশাল রংপুর ঢাকা া ি ী ু ূ ে")
+    assert _looks_like_broken_bengali(broken) is True, "orphan-sign mojibake not detected"
+    assert _looks_like_broken_bengali("plain english text with no bengali at all") is False
