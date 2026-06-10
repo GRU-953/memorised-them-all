@@ -1,6 +1,6 @@
 ---
 name: memorise
-description: Digest a folder of documents into local, token-free knowledge-graph memory and recall from it. Use when the user wants to "memorise", "digest", "ingest", or "remember" files/attachments/a folder, build a knowledge graph or mind map from documents, or ask questions grounded in their own documents without paying tokens to read them. Triggers on "memorise these files", "digest my documents", "build memory from this folder", "remember this PDF", "what do my docs say about X".
+description: Digest a folder of documents into local, token-free knowledge-graph memory and recall from it. Use when the user wants to "memorise", "digest", "ingest", or "remember" files/attachments/a folder, build a knowledge graph from documents, or ask questions grounded in their own documents without paying tokens to read them. Triggers on "memorise these files", "digest my documents", "build memory from this folder", "remember this PDF", "what do my docs say about X".
 ---
 
 # Memorise them All
@@ -14,7 +14,7 @@ documents.
 ## When to use
 - The user wants to ingest/digest/memorise files, attachments, or a whole folder.
 - The user asks a question that should be answered from their own documents.
-- The user wants a knowledge graph or interactive mind map of their documents.
+- The user wants a knowledge graph of their documents.
 
 ## How it works (the pipeline)
 1. **Convert** — every attachment → Markdown locally (PDF/Office/HTML via MarkItDown,
@@ -25,7 +25,7 @@ documents.
    local LLM (with a classical fallback) extract entities, relations, and atomic facts.
 3. **Graph + themes** — a knowledge graph with community-detected themes.
 4. **Layered memory** — a global synopsis, per-theme summaries, per-document notes,
-   `graph.json`, and an offline `mindmap.html`.
+   and `graph.json`.
 
 ## Tools
 - `digest(paths, project?, reset?, fast?)` — build/refresh memory (`fast` skips the local LLM: deterministic + much faster). Returns metadata only.
@@ -34,9 +34,8 @@ documents.
 - `memory_overview(project?)` — synopsis + themes.
 - `export_memory(dest, project?)` — export portable Markdown files.
 - `list_digestible(directory)` — list convertible files (paths/sizes only).
-- `forget(project?)` — delete a project's memory (graph, markdown, vectors, mind map). Irreversible.
+- `forget(project?)` — delete a project's memory (graph, markdown, vectors). Irreversible.
 - `memory_status()` — local stack health.
-- `open_mindmap(project?)` — path to the offline mind map.
 
 ## Rules
 - **Never** read the converted documents back into the conversation — that defeats the

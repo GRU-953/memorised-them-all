@@ -53,7 +53,7 @@ def _tool_registry() -> dict:
     fns = (
         server.digest, server.convert, server.recall, server.memory_overview,
         server.export_memory, server.list_digestible, server.forget,
-        server.memory_status, server.open_mindmap,
+        server.memory_status,
     )
     return {fn.__name__: fn for fn in fns}
 

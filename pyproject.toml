@@ -12,7 +12,7 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [{ name = "Aninda Sundar Howlader", email = "225374119+GRU-953@users.noreply.github.com" }]
-keywords = ["mcp", "claude", "knowledge-graph", "memory", "markitdown", "ollama",
+keywords = ["mcp", "claude", "knowledge-graph", "memory", "markitdown", "deterministic",
             "local-llm", "token-free", "rag", "graphrag", "mind-map", "ocr"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -39,7 +39,6 @@ dependencies = [
   "pytesseract>=0.3.10",
   "pypdfium2>=4.27",
   "striprtf>=0.0.26",
-  "faster-whisper>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +47,6 @@ dependencies = [
 # NetworkX Louvain. Install the `graph` extra only if GPL is acceptable to you.
 graph = ["python-igraph>=0.11", "leidenalg>=0.10"]
 # GPU-accelerated Whisper on Apple silicon.
-mlx = ["mlx-whisper>=0.4 ; platform_machine=='arm64' and sys_platform=='darwin'"]
 dev = ["pytest>=8.0"]
 
 [project.urls]
@@ -69,10 +67,9 @@ path = "mta/__init__.py"
 packages = ["mta"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"templates" = "mta/templates"
 "assets" = "mta/assets"
 
 [tool.hatch.build.targets.sdist]
-include = ["mta", "templates", "assets", "README.md", "LICENSE", "CHANGELOG.md",
+include = ["mta", "assets", "README.md", "LICENSE", "CHANGELOG.md",
            "ACKNOWLEDGEMENTS.md", "requirements.txt",
            "launch.py", "launch.sh", "install.sh", "scripts"]

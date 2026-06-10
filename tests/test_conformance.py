@@ -17,7 +17,7 @@ from mta.interop import recipes, rest, schemas
 
 EXPECTED = {
     "digest", "convert", "recall", "memory_overview", "export_memory",
-    "list_digestible", "forget", "memory_status", "open_mindmap",
+    "list_digestible", "forget", "memory_status",
 }
 
 
@@ -40,7 +40,7 @@ def test_every_surface_exposes_the_same_eight_tools():
 
 def test_recipes_are_internally_consistent(tmp_path):
     data = recipes.build(Config(home=tmp_path), host="127.0.0.1", port=8765, token="TKN")
-    assert data["tools"] == 9
+    assert data["tools"] == 8
     s = data["surfaces"]
 
     assert s["http_mcp"]["url"] == "http://127.0.0.1:8765/mcp"
@@ -83,4 +83,4 @@ def test_cli_recipes_text_and_json(capsys):
     import json
     assert main(["recipes", "--format", "json"]) == 0
     data = json.loads(capsys.readouterr().out)
-    assert data["tools"] == 9 and set(data["surfaces"]) >= {"stdio", "http_mcp", "rest"}
+    assert data["tools"] == 8 and set(data["surfaces"]) >= {"stdio", "http_mcp", "rest"}

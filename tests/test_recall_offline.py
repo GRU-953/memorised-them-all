@@ -1,6 +1,6 @@
-"""WP-30 — offline recall reliability (DOC-01) + top_score consistency (RECALL-03).
+"""WP-30 — deterministic recall reliability (DOC-01) + top_score consistency (RECALL-03).
 
-Offline (hashing embeddings); runs on the standard CI matrix.
+Fully deterministic (model-free hashing embeddings); runs on the standard CI matrix.
 """
 from __future__ import annotations
 
@@ -31,6 +31,20 @@ def test_lexical_overlap_helper():
     assert _lexical_overlap("Project Aurora lead", "Aurora is led by Marsh") >= 1
     assert _lexical_overlap("zebra quantum", "Aurora Helios Reykjavik") == 0
     assert _lexical_overlap("", "anything") == 0
+
+
+def test_embedder_is_deterministic_hash(tmp_path):
+    """The Embedder is always the model-free deterministic hashing embedding:
+    mode=='hash', a fixed 256-d output (salvaged from the deleted test_backends.py)."""
+    from mta.core.config import Config
+    from mta.core.embed import Embedder
+    emb = Embedder(Config(home=tmp_path))
+    mat = emb.embed(["hello world"])
+    assert emb.mode == "hash"
+    assert mat.shape[1] == 256                      # deterministic hashing dimension
+    # Same text → byte-identical vector across instances (determinism).
+    again = Embedder(Config(home=tmp_path)).embed(["hello world"])
+    assert (mat == again).all()
 
 
 def test_offline_offtopic_is_low_confidence(tmp_path):

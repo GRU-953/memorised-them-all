@@ -43,27 +43,6 @@ def test_utf16_unknown_ext_not_misflagged_binary(tmp_path):
     assert res.status == "ok" and "bom" in (res.method or "")
 
 
-# ---- (3) truncated-JSON salvage -----------------------------------------------------
-def test_json_salvage_recovers_truncated_array():
-    from mta.core.extract import _loads_json_object
-    truncated = ('{"entities":[{"name":"Helios","type":"org"},'
-                 '{"name":"Borealis","type":"pro')        # cut off mid-element
-    obj = _loads_json_object(truncated)
-    assert isinstance(obj, dict)
-    names = [e.get("name") for e in obj.get("entities", [])]
-    assert "Helios" in names and "Borealis" not in names  # complete kept, partial dropped
-
-
-def test_json_salvage_returns_none_on_garbage():
-    from mta.core.extract import _loads_json_object
-    assert _loads_json_object("not json at all, no braces") is None
-
-
-def test_loads_json_object_still_parses_valid():
-    from mta.core.extract import _loads_json_object
-    assert _loads_json_object('{"entities":[{"name":"X"}]}')["entities"][0]["name"] == "X"
-
-
 # ---- (4) cgroup-aware memory_gb -----------------------------------------------------
 def test_memory_gb_capped_by_cgroup(monkeypatch):
     from mta.core import platform as plat

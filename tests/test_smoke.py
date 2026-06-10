@@ -27,7 +27,7 @@ def _fresh_cfg(tmp_path, project="t"):
 def test_imports():
     import mta
     from mta.core import (config, convert, digest, embed, extract, graph,
-                          lifecycle, platform, recall, render, resolve,
+                          platform, recall, render, resolve,
                           segment, store, updater)  # noqa: F401
     assert mta.__version__
 
@@ -49,13 +49,12 @@ def test_digest_end_to_end(tmp_path):
     assert stats["files"] >= 2
     assert stats["converted"] >= 2
     assert stats["entities"] >= 3, stats
-    assert stats["embed_mode"] == "hash"  # offline fallback
-    assert stats["mode"] == "classical"   # no LLM ran offline → honest label (PIPE-04)
+    assert stats["embed_mode"] == "hash"      # deterministic hash embedding (no model)
+    assert stats["mode"] == "deterministic"   # v2 is fully model-free
 
     # Artefacts exist.
     assert cfg.graph_path.exists()
     assert cfg.memory_md.exists()
-    assert cfg.mindmap_html.exists()
     assert list(cfg.memory_dir.glob("*.md"))
 
     # The tool result must NOT contain raw document text (token-free contract).
@@ -79,14 +78,6 @@ def test_recall_returns_small_slice(tmp_path):
     assert len(out["hits"]) <= 5
     # A slice, not whole documents.
     assert all(len(h["text"]) < 1000 for h in out["hits"])
-
-
-def test_mindmap_is_offline(tmp_path):
-    cfg = _fresh_cfg(tmp_path)
-    from mta.core.digest import digest
-    digest(cfg, [str(SAMPLE)])
-    html = cfg.mindmap_html.read_text(encoding="utf-8")
-    assert "cytoscape" in html.lower()
 
 
 def test_accumulation_and_reset(tmp_path):
@@ -122,6 +113,7 @@ def test_ocr_stdin_pipe(tmp_path):
     p = tmp_path / "note.png"
     img.save(p)
     cfg = _fresh_cfg(tmp_path, "ocr")
+    cfg.skip_media = False        # OCR is opt-in in v2 (media is skipped by default)
     from mta.core.convert import convert_file
     r = convert_file(p, tmp_path / "out", cfg)
     assert r.status == "ok" and r.method == "tesseract", (r.status, r.method)
@@ -184,8 +176,8 @@ def test_entity_resolution_no_overmerge():
     assert cid_for("Dr. Lena Marsh", a2c) == cid_for("Lena Marsh", a2c)
 
 
-def test_fast_mode_is_deterministic(tmp_path):
-    """Fast mode (no LLM) yields a byte-stable graph across runs (same content)."""
+def test_digest_is_deterministic(tmp_path):
+    """The (sole) model-free path yields a byte-stable graph across runs (same content)."""
     import json
 
     def sig(cfg):
@@ -196,11 +188,11 @@ def test_fast_mode_is_deterministic(tmp_path):
 
     from mta.core.digest import digest
     c1 = _fresh_cfg(tmp_path / "a", "f")
-    digest(c1, [str(SAMPLE)], fast=True)
+    digest(c1, [str(SAMPLE)])
     c2 = _fresh_cfg(tmp_path / "b", "f")
-    digest(c2, [str(SAMPLE)], fast=True)
+    digest(c2, [str(SAMPLE)])
     assert sig(c1) == sig(c2)
-    assert json.loads(c1.graph_path.read_text(encoding="utf-8"))["stats"]["mode"] == "fast"
+    assert json.loads(c1.graph_path.read_text(encoding="utf-8"))["stats"]["mode"] == "deterministic"
 
 
 def test_fact_attribution_word_boundary_and_no_dup():
@@ -247,15 +239,20 @@ def test_acronym_links_to_expansion():
 
 
 def test_zip_bomb_is_skipped(tmp_path):
-    """A high-ratio archive is skipped before MarkItDown extracts it."""
+    """A high-ratio archive is refused by the v2 expander (ratio guard) and the
+    archive file itself reports an honest 'skipped' — nothing is half-ingested."""
     import zipfile
     z = tmp_path / "bomb.zip"
     with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("big.txt", "a" * (8 * 1024 * 1024))  # compresses to ~KB
+        zf.writestr("big.txt", "a" * (8 * 1024 * 1024))  # compresses to ~KB (ratio ≫ 200)
     cfg = _fresh_cfg(tmp_path, "zip")
+    from mta.core.digest import _expand
+    files = _expand([str(z)], cfg=cfg)
+    assert [f.name for f in files] == ["bomb.zip"]      # expansion refused → archive kept
+    assert not any(cfg.unpack_dir.rglob("*")) if cfg.unpack_dir.exists() else True
     from mta.core.convert import convert_file
     r = convert_file(z, tmp_path / "out", cfg)
-    assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
+    assert r.status == "skipped" and r.method == "archive", (r.status, r.method)
 
 
 def test_convert_worker_accepts_payload(tmp_path):
@@ -272,20 +269,24 @@ def test_convert_worker_accepts_payload(tmp_path):
     assert r["output"].endswith("x.txt.md")
 
 
-def test_nested_archive_rejected(tmp_path):
-    """An archive containing a nested archive is rejected (recursive-bomb vector)."""
+def test_nested_archive_expands_through_digest(tmp_path):
+    """v2: nested archives EXPAND (depth-capped) instead of being rejected — the whole
+    digest pipeline picks up the inner document and its content lands in the memory."""
     import io
     import zipfile
     inner = io.BytesIO()
     with zipfile.ZipFile(inner, "w") as iz:
-        iz.writestr("inner.txt", "hello")
-    outer = tmp_path / "outer.zip"
+        iz.writestr("inner.txt", "Project Aurora hydropower budget was approved in Reykjavik.")
+    src = tmp_path / "in"; src.mkdir()
+    outer = src / "outer.zip"
     with zipfile.ZipFile(outer, "w") as oz:
         oz.writestr("nested.zip", inner.getvalue())
     cfg = _fresh_cfg(tmp_path, "nz")
-    from mta.core.convert import convert_file
-    r = convert_file(outer, tmp_path / "out", cfg)
-    assert r.status == "skipped" and r.method == "zip-too-large", (r.status, r.method)
+    from mta.core.digest import digest
+    d = digest(cfg, [str(src)])
+    assert d["status"] == "ok" and d["stats"]["converted"] >= 1, d
+    assert not cfg.unpack_dir.exists()                  # scratch tree cleaned after the batch
+    assert "Aurora" in cfg.memory_md.read_text(encoding="utf-8")
 
 
 def test_oversize_file_is_skipped(tmp_path):
@@ -418,16 +419,6 @@ def test_long_project_name_capped(tmp_path):
     cfg = load().with_project("x" * 500)
     cfg.ensure_dirs()                                   # must not raise OSError
     assert len(cfg.project) <= 120
-
-
-def test_idle_shutdown_only_stops_ours(tmp_path):
-    # With Ollama disabled, ensure_running is False and nothing is started/stopped.
-    os.environ["MTA_HOME"] = str(tmp_path)
-    from mta.core.config import load
-    from mta.core.lifecycle import OllamaManager
-    m = OllamaManager(load())
-    assert m.ensure_running(wait=1) is False
-    m.stop()  # no-op, must not raise
 
 
 def test_server_tool_input_validation():

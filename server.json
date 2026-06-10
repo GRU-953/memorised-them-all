@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
   "name": "io.github.gru-953/memorised-them-all",
-  "description": "Local, token-free file → knowledge-graph memory for Claude. Convert any attachment to Markdown and digest it into a graph + exportable memory, entirely on-device. Reliability-hardened (per-file timeouts, crash-safe writes, honest offline-mode reporting); works fully offline.",
-  "version": "1.12.1",
+  "description": "Local, token-free file → knowledge-graph memory for Claude. Converts any attachment to Markdown and digests it into a graph + exportable memory, entirely on-device — deterministic and model-free (no LLM/Ollama/GPU), so it always works and always completes. Archives unpacked safely; legacy Bengali auto-converted.",
+  "version": "2.0.0",
   "repository": {
     "url": "https://github.com/GRU-953/memorised-them-all",
     "source": "github"
@@ -12,17 +12,12 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "memorised-them-all",
-      "version": "1.12.1",
+      "version": "2.0.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {
           "name": "MTA_HOME",
           "description": "Where memory is stored (default: ~/.memorised-them-all).",
-          "isRequired": false
-        },
-        {
-          "name": "MTA_NO_OLLAMA",
-          "description": "Set to 1 to run fully offline (classical extraction + hashing embeddings; no model server).",
           "isRequired": false
         }
       ]

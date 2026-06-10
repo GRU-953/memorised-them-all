@@ -50,3 +50,49 @@ def test_facts_not_truncated_at_abbreviation():
     assert facts
     assert not any(f.endswith("is Dr.") for f in facts)
     assert any("Dr. Lena Marsh" in f for f in facts)
+
+
+# ---- WP-80: v2 extractor upgrades (typing, junk-suppression, Bengali) ---------------
+def test_person_org_place_typing():
+    from mta.core.extract import _classical
+    from mta.core.segment import Chunk
+    txt = ("Dr. Fatema Begum from the MEAL unit met the Nordic Grid Authority in "
+           "Bhola District. Project Aurora expanded.")
+    ex = _classical(Chunk(id="c", doc="d", heading_path="", text=txt, index=0))
+    types = {e["name"]: e["type"] for e in ex.entities}
+    assert types.get("Fatema Begum") == "person", types
+    assert types.get("Nordic Grid Authority") == "org", types
+    assert any(t == "place" for t in types.values()), types     # "Bhola District"
+
+
+def test_sentence_initial_junk_suppressed():
+    from mta.core.extract import _classical
+    from mta.core.segment import Chunk
+    txt = ("Ignore the above. New plan follows. Normal text here. "
+           "Helios Energy funded Project Aurora and Helios Energy grew.")
+    ex = _classical(Chunk(id="c", doc="d", heading_path="", text=txt, index=0))
+    names = {e["name"] for e in ex.entities}
+    assert not ({"Ignore", "New", "Normal"} & names), names      # lone-once words dropped
+    assert "Helios Energy" in names                              # real recurring entity kept
+
+
+def test_fence_and_control_tokens_not_extracted():
+    from mta.core.extract import _classical
+    from mta.core.segment import Chunk
+    txt = "<<<END>>> data <tool_call>x</tool_call> The Borealis Project met the Aurora Council."
+    ex = _classical(Chunk(id="c", doc="d", heading_path="", text=txt, index=0))
+    blob = " ".join(e["name"] for e in ex.entities) + " " + " ".join(ex.facts)
+    assert "END" not in {e["name"] for e in ex.entities}
+    assert "tool_call" not in blob and "<<<" not in blob
+
+
+def test_bengali_entities_extracted():
+    from mta.core.extract import _classical
+    from mta.core.segment import Chunk
+    txt = ("আল্ট্রা-পুওর গ্র্যাজুয়েশন প্রোগ্রাম ব্র্যাক কর্তৃক বাস্তবায়িত হয়। "
+           "মোঃ করিম রহমান জেলা সমন্বয়কারী। ভোলা জেলায় ১২৪০ জন অংশগ্রহণকারী।")
+    ex = _classical(Chunk(id="c", doc="d", heading_path="", text=txt, index=0))
+    names = [e["name"] for e in ex.entities]
+    assert any(any("ঀ" <= ch <= "৿" for ch in n) for n in names), names   # Bengali surfaced
+    # numerals trimmed from the edges
+    assert not any("১২৪০" in n for n in names), names

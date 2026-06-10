@@ -18,7 +18,7 @@ from .config import Config
 from .platform import bootstrap_path
 
 _PKG = "memorised-them-all"
-_SYSTEM_BINS = ("ollama", "tesseract", "ffmpeg")
+_SYSTEM_BINS = ("tesseract", "ffmpeg")
 
 
 def _vtuple(s) -> tuple:
