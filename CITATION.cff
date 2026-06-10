@@ -15,7 +15,7 @@ authors:
 repository-code: "https://github.com/GRU-953/memorised-them-all"
 url: "https://github.com/GRU-953/memorised-them-all"
 license: MIT
-version: "2.1.0"
+version: "2.2.0"
 keywords:
   - MCP
   - Model Context Protocol

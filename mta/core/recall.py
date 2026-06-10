@@ -9,13 +9,12 @@ keeps recall near-zero-token.
 """
 from __future__ import annotations
 
+import math
 import re
-
-import numpy as np
+import unicodedata
 
 from . import locks
 from .config import Config
-from .embed import Embedder, cosine
 from .store import load_graph, load_vectors
 
 # Hard per-hit caps so a verbose (or prompt-injected) local-model summary can
@@ -37,12 +36,59 @@ def _hit(u: dict, score) -> dict:
     return out
 
 
+# Token = a run of Latin/digit word-chars OR Bengali-block chars. The explicit Bengali
+# range (U+0980–U+09FF) is REQUIRED: bare \w SPLITS Bengali words at the halant (্,
+# U+09CD) — e.g. "উত্তর"→["উত","তর"], "ব্র্যাক"→dropped fragments — which silently breaks
+# Bengali recall. Keeping the whole block together tokenises Bengali words intact.
+_TOK = re.compile(r"[\wঀ-৿]+", re.UNICODE)
+
+
+def _tokens(s: str) -> list[str]:
+    # NFC-normalise first so a Bengali word written with differently-composed/ordered
+    # combining marks (query vs OCR/converted text) tokenises identically. len>1 keeps
+    # Bengali words + multi-char English; drops single noise chars.
+    s = unicodedata.normalize("NFC", s or "").lower()
+    return [w for w in _TOK.findall(s) if len(w) > 1]
+
+
 def _lexical_overlap(query: str, text: str) -> int:
-    """# of distinct content words (len>2) shared by the query and a hit's text — a
-    model-free relevance signal for the offline/hashing recall path (DOC-01)."""
-    q = {w for w in re.findall(r"\w+", (query or "").lower()) if len(w) > 2}
-    t = set(re.findall(r"\w+", (text or "").lower()))
-    return len(q & t)
+    """# of distinct content words (len>1) shared by the query and a hit's text."""
+    return len(set(_tokens(query)) & set(_tokens(text)))
+
+
+def _bm25_rank(query: str, meta: list[dict], k: int) -> list[tuple[float, int]]:
+    """Rank recall units by BM25 over (label + text). Model-free and script-agnostic
+    (Unicode tokenisation → Bengali words match too), and far better than the
+    deterministic hash-embedding cosine, which has no semantic OR lexical signal. Units
+    that carry facts (longer text) naturally outrank bare-label entities. k1/b standard."""
+    q_terms = set(_tokens(query))
+    if not q_terms:
+        return []
+    k1, b = 1.5, 0.75
+    docs = [_tokens((u.get("label", "") + " ") * 2 + (u.get("text") or "")) for u in meta]
+    n = len(docs) or 1
+    avgdl = (sum(len(d) for d in docs) / n) or 1.0
+    df = dict.fromkeys(q_terms, 0)
+    for d in docs:
+        for t in q_terms.intersection(d):
+            df[t] += 1
+    idf = {t: math.log(1 + (n - df[t] + 0.5) / (df[t] + 0.5)) for t in q_terms}
+    scored: list[tuple[float, int]] = []
+    for i, d in enumerate(docs):
+        dl = len(d)
+        if not dl:
+            continue
+        tf: dict[str, int] = {}
+        for w in d:
+            if w in q_terms:
+                tf[w] = tf.get(w, 0) + 1
+        if not tf:
+            continue
+        s = sum(idf[t] * (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / avgdl))
+                for t, f in tf.items())
+        scored.append((s, i))
+    scored.sort(key=lambda x: (-x[0], x[1]))   # deterministic tiebreak by index
+    return scored[:k]
 
 
 def recall(cfg: Config, query: str, k: int | None = None) -> dict:
@@ -64,39 +110,25 @@ def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
     if loaded is None:
         return {"status": "no_memory", "project": cfg.project,
                 "message": "Nothing digested for this project yet."}
-    matrix, meta = loaded
-    embedder = Embedder(cfg)
-    qv = embedder.embed([query], kind="query")
-    if qv.shape[1] != matrix.shape[1]:
-        # Embedding backend changed since digest; degrade to lexical overlap.
-        return _lexical(query, meta, k, cfg)
+    _matrix, meta = loaded     # vectors retained for compat; ranking is now BM25 lexical
 
-    scores = cosine(qv, matrix)[0]
-    order = np.argsort(-scores)[:k]
-    hits = [_hit(meta[int(i)], round(float(scores[int(i)]), 3))
-            for i in order if int(i) < len(meta)]  # never index past meta (torn-store safety)
-    raw_top = hits[0]["score"] if hits else 0.0  # best score BEFORE the floor
-    # Apply the absolute score floor on BOTH paths. This was previously gated to
-    # real embeddings, so it was silently ignored on the offline/hashing path
-    # (DOC-01). 0 = off.
+    # BM25 lexical ranking over the recall units (entity cards + theme summaries).
+    # Model-free, script-agnostic (matches Bengali too), and ranks by genuine relevance
+    # — unlike the hash-embedding cosine, which had neither semantic nor lexical signal.
+    ranked = _bm25_rank(query, meta, k)
+    hits = [_hit(meta[i], round(float(s), 3)) for s, i in ranked if i < len(meta)]
+    raw_top = hits[0]["score"] if hits else 0.0   # best score BEFORE the floor
+    # Optional absolute score floor (MTA_RECALL_MIN_SCORE; 0 = off, the default). Now on
+    # the BM25 scale (unbounded positive) rather than the old 0–1 cosine scale.
     if cfg.recall_min_score > 0:
         hits = [h for h in hits if h["score"] >= cfg.recall_min_score]
-    # Relevance signal so an off-topic query doesn't feed Claude confident-looking
-    # junk. The deterministic hashing embedding's cosine isn't calibrated, so we use
-    # lexical overlap between the query and the best hit (no shared content words ⇒
-    # low confidence) — this is what makes low_confidence work with no model at all
-    # (DOC-01).
-    if not hits:
-        low_conf = True
-    else:
-        low_conf = _lexical_overlap(query, hits[0].get("text", "")) == 0
-    # top_score reflects what is actually RETURNED (RECALL-03); raw_top_score keeps
-    # the pre-floor best for transparency.
+    # Off-topic guard: no BM25 overlap at all ⇒ low confidence (Claude can decline).
+    low_conf = (not hits) or _lexical_overlap(query, hits[0].get("label", "") + " "
+                                              + hits[0].get("text", "")) == 0
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
             "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
-            # The mode this memory was last BUILT in (always "deterministic" in v2) —
-            # surfaced so a client can see how the memory was constructed.
+            # The mode this memory was last BUILT in (always "deterministic" in v2).
             "memory_mode": (doc or {}).get("stats", {}).get("mode"),
             "top_score": (hits[0]["score"] if hits else 0.0),
             "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}

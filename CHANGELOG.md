@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-06-10
+
+### Changed (recall quality — major)
+- **Recall is now a BM25 lexical ranker** over the entity/theme units, replacing the
+  deterministic hash-embedding cosine, which had neither semantic nor reliable lexical
+  signal (it ranked junk above correct entities and scored Bengali queries 0.0). On a
+  real survey-heavy corpus this lifted the recall hit-rate from ~5/12 to ~11/12.
+  Fact-bearing entities now outrank bare-label ones; the `MTA_RECALL_MIN_SCORE` floor and
+  `low_confidence` off-topic guard are retained (on the BM25 scale).
+- **Bengali tokenisation fixed.** The query/text tokeniser used `\w`, which SPLITS Bengali
+  words at the halant (্, U+09CD) — "উত্তর"→["উত","তর"], "ব্র্যাক"→dropped — silently
+  breaking Bengali recall (every Bengali query scored 0.0). The tokeniser now keeps the
+  whole Bengali block (U+0980–U+09FF) together and NFC-normalises, so Bengali words match
+  intact. (No re-digest needed — recall reads the existing memory.)
+
 ## [2.1.0] — 2026-06-10
 
 ### Added
