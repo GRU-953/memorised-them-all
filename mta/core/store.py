@@ -198,7 +198,7 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
 
 
 def delete_project(cfg: Config) -> dict:
-    """Delete a project's entire memory (graph, markdown, vectors, mind map).
+    """Delete a project's entire memory (graph, converted Markdown, summaries, notes).
 
     Takes the project's exclusive write lock so a `forget` can't race a digest
     (the lock file lives under state/locks/, not the project dir, so it survives

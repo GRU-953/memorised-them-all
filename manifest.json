@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "memorised-them-all",
   "display_name": "Memorised them All (local, token-free)",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Convert any attachment to Markdown and digest it into a token-free knowledge-graph memory — locally, deterministically, no AI models needed.",
-  "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment (PDF, Word, Excel, PowerPoint, HTML, EPub, CSV, and more) to Markdown locally using Microsoft's MarkItDown plus optional Tesseract OCR, recursively unpacks archives (zip/tar/gz, and rar/7z when an extractor is installed) with bomb- and path-traversal guards, and skips media/font/junk files cleanly. It then runs a fully **deterministic, model-free** pipeline — rule-based extraction of entities/relations/facts, fuzzy entity resolution, community detection, and layered summaries — to build a knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes, and an exportable memory bundle. No Ollama, no LLM, no embedding model, no GPU, no network: the same corpus always produces the same memory, and a digest always completes on any machine (per-file timeouts, crash-safe atomic writes). Every tool returns only compact metadata or a tiny relevant slice, never document contents, so digesting and recalling whole folders costs ~0 Claude context tokens.\n\nIt also converts legacy Bengali (Bijoy/SutonnyMJ ANSI fonts) to standard Unicode automatically (font-aware, so mixed English+Bengali documents convert cleanly).\n\nTools: digest, convert, recall, memory_overview, export_memory, list_digestible, forget, memory_status.",
+  "long_description": "Memorised them All turns a folder of documents into durable, **token-free** memory for Claude, entirely on your machine. It converts every attachment — PDF, Word/Excel/PowerPoint (including legacy binary .doc/.ppt/.xls via optional LibreOffice), HTML, RTF, EPUB, CSV and more — to Markdown locally using Microsoft's MarkItDown plus optional Tesseract OCR. It recursively unpacks archives (zip/tar/gz/bz2/xz natively; rar/7z when an extractor is installed) behind Zip-Slip, decompression-bomb, depth and symlink guards with content-hash dedup, and skips media/font/junk files cleanly. It then runs a fully **deterministic, model-free** pipeline — rule-based extraction of entities, relations and facts, fuzzy entity resolution, community/theme detection and layered summaries — to build a layered knowledge graph: a global synopsis, per-theme summaries, per-document Markdown notes and an exportable memory bundle. No Ollama, no LLM, no embedding model, no GPU and no network: the same corpus always produces byte-identical memory, and a digest always completes (per-file timeouts, crash-safe atomic writes). Recall uses model-free **BM25 lexical** ranking (script-agnostic, Bengali-aware) with a low-confidence guard that declines off-topic queries, and beneficiary PII (phone numbers, roster rows) is suppressed from summaries and recall. Every tool returns only compact metadata or a tiny cited slice — never document contents — so digesting and recalling whole folders costs ~0 Claude context tokens.\n\nIt also converts legacy Bengali (Bijoy/SutonnyMJ ANSI fonts) to standard Unicode automatically: a font-aware OOXML delegacifier (mixed English+Bengali stays clean), line-wise PDF-text recovery, a vetted reorder-artifact repair (রম্ন→রু), and auto re-OCR (Tesseract eng+ben) of broken-font Bengali PDFs.\n\nTools: digest, convert, recall, memory_overview, export_memory, list_digestible, forget, memory_status.",
   "author": {
     "name": "Aninda Sundar Howlader",
     "url": "https://github.com/GRU-953"
@@ -15,7 +15,7 @@
   "license": "MIT",
   "icon": "assets/icon.png",
   "keywords": ["memory", "knowledge-graph", "markitdown", "ocr", "deterministic",
-               "offline", "token-free", "graphrag", "mcp"],
+               "offline", "token-free", "graphrag", "bm25", "bengali", "mcp", "claude"],
   "server": {
     "type": "binary",
     "entry_point": "launch.sh",
@@ -38,7 +38,7 @@
     {"name": "memory_overview", "description": "Synopsis, stats and theme list for a project's memory."},
     {"name": "export_memory", "description": "Export memory.md, per-document notes and graph.json to a folder."},
     {"name": "list_digestible", "description": "List convertible files under a directory (paths/sizes only)."},
-    {"name": "forget", "description": "Delete a project's memory (graph, converted Markdown, vectors). Irreversible."},
+    {"name": "forget", "description": "Delete a project's memory (knowledge graph, converted Markdown, summaries and notes). Irreversible."},
     {"name": "memory_status", "description": "Local setup health: deterministic engine, Tesseract, MarkItDown version, projects."}
   ],
   "user_config": {
@@ -66,7 +66,7 @@
     }
   },
   "compatibility": {
-    "platforms": ["darwin", "linux"],
+    "platforms": ["darwin", "linux", "win32"],
     "runtimes": {"python": ">=3.10"}
   }
 }

@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.4.1] — 2026-06-10
+
+### Docs & metadata (no behaviour change)
+- **README completely redeveloped** for v2.4: a "why it's different" pillar strip, an
+  install matrix (Claude Desktop / Claude Code / pip / Homebrew / Docker / MCP registry),
+  a dedicated **English & Bengali** section, BM25-recall + PII-suppression explainers, and
+  every pinpoint staleness fixed (the empty "explore visually" step, `memory_status`
+  "models", "embeddings"/"vectors" wording, "Apple-silicon" framing).
+- **Purged stale v1 claims from every published surface.** `CITATION.cff` (was still
+  advertising audio, an "offline interactive mind map", and "local models"), the PyPI
+  summary ("Tuned for Apple silicon"), and the `.mcpb`/registry/plugin/marketplace/Glama
+  descriptions now consistently describe the deterministic, model-free v2 (no
+  LLM/Ollama/GPU/embeddings/mind-map/audio) with BM25 recall, PII suppression, safe
+  archives, and the full Bengali story. `glama.json` gained a description + keywords;
+  `manifest.json` added `win32` and fixed the `forget` tool's stale "vectors" wording.
+- **De-staled living files:** removed the dead `faster-whisper` dependency from
+  `requirements.txt`; refreshed the `/memorise` & `/memory-status` commands, the
+  `memorise` skill, `install.sh`/`launch.sh` headers, `ACKNOWLEDGEMENTS.md` (dropped
+  Ollama/Whisper/MLX/Cytoscape; added Mukti + LibreOffice), and stray Ollama/mind-map
+  code comments.
+
 ## [2.4.0] — 2026-06-10
 
 ### Changed (Bengali recall quality — vetted artifact repair)
