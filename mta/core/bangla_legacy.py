@@ -248,6 +248,34 @@ def _english_funcword_count(line: str) -> int:
     return sum(1 for w in _EN_WORD_RE.findall(line.lower()) if w in _EN_FUNCWORDS)
 
 
+# Deterministic repairs for Unicode-Bengali reorder artifacts left by some PDF fonts
+# (the text is already Unicode, but a vowel sign was mis-encoded). EACH rule's left-hand
+# sequence must be ORTHOGRAPHICALLY IMPOSSIBLE in valid Bengali so a blanket replace can
+# never corrupt a correct word. Vetted by a 3-lens Bengali-expert panel against all 96.8k
+# corpus word-forms (WP-87b):
+#   «রম্ন» → «রু»  — র never abuts the ম্ন conjunct in valid Bengali (নিম্ন has নি before
+#                    ম্ন, never র), so this is artifact-only; fixes গ্রম্নপ→গ্রুপ, শুরম্ন→শুরু,
+#                    পুরম্নষ→পুরুষ, করম্নন→করুন, গরম্ন→গরু, দ্রম্নত→দ্রুত, জরম্নরি→জরুরি (5.7k tokens).
+# DELIBERATELY EXCLUDED (panel found correct-Bengali counterexamples — need a dictionary /
+# join-token splitting / reposition logic, not a blanket replace): «ম্ন»→«ু» (নিম্ন),
+# «েস্ন»→«্লে» (করে স্নান→করেস্নান), «ে্য»→«্য» (প্রত্যেক), «ণরে»→«ণের» (চরণরে -রে particle).
+_REORDER_RULES: tuple[tuple[str, str], ...] = (
+    ("রম্ন", "রু"),
+)
+
+
+def normalize_reorder_artifacts(text: str) -> str:
+    """Apply the vetted, artifact-only Unicode-Bengali reorder repairs. Safe to run on any
+    text: each left-hand sequence cannot occur in correct Bengali (or English), so a global
+    replace only ever fixes mojibake. Deterministic, dependency-free."""
+    if not text:
+        return text
+    for lhs, rhs in _REORDER_RULES:
+        if lhs in text:
+            text = text.replace(lhs, rhs)
+    return text
+
+
 def recover_mixed(text: str, *, min_high: int = 4, ratio: float = 0.07) -> tuple[str, bool]:
     """LINE-WISE Bijoy→Unicode recovery for MIXED documents (English + legacy-Bijoy
     sections, e.g. a PDF text layer whose Bengali pages are SutonnyMJ-encoded). A

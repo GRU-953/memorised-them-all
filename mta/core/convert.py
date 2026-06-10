@@ -513,7 +513,7 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
 
     # Legacy-Bengali (Bijoy/SutonnyMJ) safety nets.
     if cfg.bangla_legacy:
-        from .bangla_legacy import maybe_convert, recover_mixed
+        from .bangla_legacy import maybe_convert, normalize_reorder_artifacts, recover_mixed
         if "markitdown" not in method:
             # Plain-text path: density-gated maybe_convert (OCR/vision already emit Unicode,
             # so this is a no-op there).
@@ -530,6 +530,13 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
             text, _bn = recover_mixed(text)
             if _bn:
                 method = res.method = method + "+bn-bijoy-recover"
+        # Artifact-only Unicode-Bengali reorder repair (vetted; e.g. গ্রম্নপ→গ্রুপ). Applies to
+        # any path — the left-hand sequences can't occur in correct Bengali/English.
+        fixed = normalize_reorder_artifacts(text)
+        if fixed != text:
+            text = fixed
+            if "+bn-reorder" not in method:
+                method = res.method = method + "+bn-reorder"
 
     out = (out_dir / out_name) if out_name else _safe_out_name(path, out_dir)
     header = f"<!-- source: {path.name} · method: {method} -->\n\n"
