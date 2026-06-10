@@ -161,6 +161,26 @@ def _try_legacy_office(path: Path, cfg: Config) -> tuple[str | None, str]:
         _sh.rmtree(tmp, ignore_errors=True)
 
 
+# Bengali dependent vowel signs (kar) and the consonants/halant they must follow.
+_BN_SIGNS = set("ািীুূৃেৈোৌৗ")
+_BN_CONS = set("কখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহড়ঢ়য়ৎংঃঁ")
+
+
+def _looks_like_broken_bengali(text: str, thresh: float = 0.15) -> bool:
+    """True when Bengali text is legacy-font MOJIBAKE — a high fraction of dependent
+    vowel signs are ORPHANED (not attached to a consonant/halant), the signature of a
+    PDF whose Bijoy/SutonnyMJ font has a broken ToUnicode CMap. Calibrated: broken
+    text-layer ≈ 22% orphan signs, clean Unicode ≈ 0–8%. Needs enough Bengali to judge."""
+    bn = sum(1 for c in text if "ঀ" <= c <= "৿")
+    if bn < 60:
+        return False
+    signs = [i for i, c in enumerate(text) if c in _BN_SIGNS]
+    if len(signs) < 10:
+        return False
+    orphan = sum(1 for i in signs if i == 0 or (text[i - 1] not in _BN_CONS and text[i - 1] != "্"))
+    return orphan / len(signs) > thresh
+
+
 def _try_markitdown(path: Path, cfg: Config) -> tuple[str | None, str]:
     try:
         from markitdown import MarkItDown
@@ -443,6 +463,14 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
             text, method = _try_markitdown(path, cfg)
         if not text and ext == ".pdf" and cfg.ocr_mode != "off":  # scanned PDF → OCR
             text, method = _ocr_pdf(path, cfg)
+        elif (text and ext == ".pdf" and cfg.ocr_mode != "off"
+              and _looks_like_broken_bengali(text)):
+            # A Bengali PDF whose legacy/Bijoy font has a BROKEN ToUnicode map: the
+            # text layer extracts as mojibake (orphaned vowel signs), but the page
+            # RENDERS correct Bengali — so OCR of the rendered page recovers it.
+            ocr_text, ocr_method = _ocr_pdf(path, cfg)
+            if ocr_text and not _looks_like_broken_bengali(ocr_text):
+                text, method = ocr_text, ocr_method + "+bn-ocr-recover"
     elif ext in _IMAGE_EXTS:
         if cfg.ocr_mode != "off":
             text, method = _try_ocr(path, cfg)
