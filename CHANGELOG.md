@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.0.2] — 2026-06-10
+
+### Fixed (memory quality on data-heavy corpora)
+- **Spreadsheet/survey cell values no longer dominate the graph.** Beneficiary-data
+  workbooks made `Male` / `No` / `Husband` / `Rural` / `NaN`-class cell values the top
+  entities, burying real subject entities. A `_VALUE_STOP` list now drops those
+  demographic/column-value tokens from entity extraction (real names/orgs/places survive).
+- **Numeric/table data dumps are skipped as low-value chunks.** A chunk that is >55%
+  numeric-ish tokens (spreadsheet grids) is treated as data, not prose — so it doesn't
+  consume the chunk budget at the expense of narrative content.
+
 ## [2.0.1] — 2026-06-10
 
 ### Added

@@ -58,6 +58,19 @@ _ORG_HINTS = ("Authority", "Programme", "Program", "Foundation", "Association",
               "Agency", "Society", "Federation", "Union", "Group", "Limited")
 _PLACE_HINTS = ("District", "Division", "Upazila", "Union", "Village", "City",
                 "Town", "Region", "Zone", "Sub-district", "Thana", "Ward")
+# Spreadsheet/survey cell VALUES — high-frequency in beneficiary-data dumps but useless
+# as standalone entities. Without this, a corpus of survey .xlsx makes "Male"/"No"/
+# "Husband"/"Rural"/"NaN" the top entities, burying the real programme entities.
+_VALUE_STOP = {
+    "Male", "Female", "Yes", "No", "Na", "Nan", "None", "Null", "Other", "Others",
+    "Husband", "Wife", "Son", "Daughter", "Father", "Mother", "Brother", "Sister",
+    "Self", "Head", "Spouse", "Child", "Children", "Family", "Member",
+    "Rural", "Urban", "Married", "Unmarried", "Single", "Widow", "Widowed", "Divorced",
+    "Primary", "Secondary", "Illiterate", "Literate", "Muslim", "Hindu", "Christian",
+    "True", "False", "High", "Low", "Medium", "Good", "Poor", "Average", "Total",
+    "Name", "Age", "Sex", "Gender", "Address", "Phone", "Mobile", "Date", "Status",
+    "Type", "Category", "Amount", "Number", "Count", "Code", "Id", "Sl", "Serial",
+}
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|(?<=[।。！？])\s*")
 
 # Strip a leading determiner so "The Nordic Grid Authority" resolves to the same node
@@ -138,7 +151,7 @@ def _classical(chunk: Chunk) -> Extraction:
             head, _, rest = name.partition(" ")
             if rest and (head in _LEADING_DET or head in _STOPWORDS):
                 name = rest
-        if name in _STOPWORDS or len(name) < 2 or not _valid_entity(name):
+        if name in _STOPWORDS or name in _VALUE_STOP or len(name) < 2 or not _valid_entity(name):
             continue
         if " " not in name and not name.isupper():
             provisional.add(name)        # lone mixed-case word (often sentence-initial junk)
