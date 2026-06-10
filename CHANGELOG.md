@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.0.3] — 2026-06-10
+
+### Fixed
+- **Case-insensitive value-stop** so spreadsheet null/casing variants (`NaN`/`NAN`/`nan`,
+  `NO`/`No`) no longer become entities — `NaN` had become the #1 entity on the survey-heavy
+  corpus — and names composed ENTIRELY of stop/value words (table-cell runs like
+  "Name NaN NAN") are dropped. Added `NaN`/`N/A`/`Nil`/`Tk`/`Kg`/`HH`-class tokens.
+
 ## [2.0.2] — 2026-06-10
 
 ### Fixed (memory quality on data-heavy corpora)
