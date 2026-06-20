@@ -62,16 +62,24 @@ def _script(s: str) -> str:
 
 
 def _block_keys(norm: str, script: str) -> set[str]:
-    """Overlapping blocking keys: one per distinct token, ``(script, first-2-chars)``.
-    A fuzzy/embedding merge requires a shared near-identical token (that's what drives
-    token_set_ratio up), and near-identical tokens share their first 2 chars — so
-    restricting comparisons to co-bucketed pairs drops no merge the full O(n²) scan would
-    make, while collapsing the pairwise cost to ~O(n·b). Cross-script pairs (ratio≈0) are
-    never compared today, so skipping them changes nothing."""
+    """Overlapping blocking keys: per distinct token, BOTH its first-2 and last-2 chars
+    (script-tagged). A fuzzy/embedding merge needs a shared near-identical token; a single
+    edit can change a token's leading OR trailing chars but not both (for the realistic
+    OCR/transliteration typos this ingests), so a near-identical token pair shares at least
+    one of {prefix-2, suffix-2}. Emitting both keys means co-bucketed pairs cover every
+    merge the full O(n²) scan makes (verified by a true-full-scan parity test), while the
+    candidate set stays ~O(n·b). Extra keys are always safe — they only add comparisons;
+    the merge predicate (unchanged) still rejects non-matches, so blocking can never
+    introduce an over-merge. Cross-script pairs (ratio≈0) are never merged today, so
+    skipping them changes nothing."""
     toks = norm.split()
     if not toks:
         return {f"{script}:"}
-    return {f"{script}:{t[:2]}" for t in toks}
+    keys: set[str] = set()
+    for t in toks:
+        keys.add(f"{script}:p{t[:2]}")   # prefix block
+        keys.add(f"{script}:s{t[-2:]}")  # suffix block — catches leading-char edits
+    return keys
 
 
 def _resolve_cap_from_env() -> int:
@@ -83,10 +91,14 @@ def _resolve_cap_from_env() -> int:
         return 5000
 
 
-def _candidate_pairs(norms: list[str]) -> list[tuple[int, int]]:
+def _candidate_pairs(norms: list[str], block: bool = True) -> list[tuple[int, int]]:
     """All (i<j) pairs that share at least one blocking key — the only pairs that can
-    pass the fuzzy/embedding thresholds. Deterministic (sorted keys + sorted output)."""
+    pass the fuzzy/embedding thresholds. Deterministic (sorted keys + sorted output).
+    ``block=False`` returns the full O(n²) pair set (the unblocked reference used to
+    prove parity, and a safety escape hatch)."""
     n = len(norms)
+    if not block:
+        return [(i, j) for i in range(n) for j in range(i + 1, n)]
     scripts = [_script(nm) for nm in norms]
     buckets: dict[str, list[int]] = defaultdict(list)
     for i in range(n):
@@ -136,7 +148,8 @@ class _UnionFind:
 def resolve_entities(mentions: list[dict], embedder: Embedder,
                      fuzz_threshold: int = 88,
                      cos_threshold: float = 0.92,
-                     resolve_cap: int | None = None) -> dict:
+                     resolve_cap: int | None = None,
+                     _block: bool = True) -> dict:
     """Group mention dicts ({name,type}) into canonical entities.
 
     Returns {"canonical": {cid: {label,type,aliases,count}},
@@ -176,7 +189,7 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
     # are skipped (a documented, configurable degradation, not a silent 1500 cliff).
     cap = resolve_cap if resolve_cap is not None else _resolve_cap_from_env()
     do_pairwise = _HAVE_FUZZ and n >= 2 and (cap <= 0 or n <= cap)
-    candidate_pairs = _candidate_pairs(norms) if do_pairwise else []
+    candidate_pairs = _candidate_pairs(norms, block=_block) if do_pairwise else []
 
     # Fuzzy string match over candidate pairs only (per-pair guards unchanged).
     if do_pairwise:

@@ -163,7 +163,8 @@ def _bm25_rank_cached(query: str, meta: list[dict], cache: dict | None,
     if isinstance(cache, dict):
         c_docs = cache.get("docs")
         if (isinstance(c_docs, list) and len(c_docs) == len(meta)
-                and all(isinstance(d, list) for d in c_docs)):
+                and all(isinstance(d, list) and all(isinstance(t, str) for t in d)
+                        for d in c_docs)):
             docs = c_docs
     if docs is None:
         docs = [_unit_doc_tokens(u) for u in meta]

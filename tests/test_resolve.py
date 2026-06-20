@@ -81,34 +81,41 @@ def _partition(res):
 
 
 def _brute_partition(names, emb):
-    """Reference clustering with NO blocking (forces the full candidate set via cap=0,
-    which still uses _candidate_pairs but over all shared-key pairs) — used only to
-    confirm blocking finds the same merges. We compare against a cap=0 run, which is the
-    unbounded path."""
-    res = resolve_entities([{"name": n, "type": "other"} for n in names], emb, resolve_cap=0)
+    """Reference clustering with the TRUE full O(n²) pair scan (``_block=False``) — the
+    genuine unblocked baseline that blocking must reproduce."""
+    res = resolve_entities([{"name": n, "type": "other"} for n in names], emb,
+                           resolve_cap=0, _block=False)
     return _partition(res)
 
 
 def test_block_keys_and_script():
-    assert "la:le" in _block_keys("dr. lena marsh", "la")   # co-buckets despite "d" first char
-    assert "la:le" in _block_keys("lena marsh", "la")
+    # "dr lena marsh" and "lena marsh" share the prefix key for "lena" → co-bucket
+    assert _block_keys("dr lena marsh", "la") & _block_keys("lena marsh", "la")
+    assert "la:ple" in _block_keys("lena marsh", "la")        # prefix block
+    # leading-character edits co-bucket via the SUFFIX key (the High-finding regression)
+    assert _block_keys("macdonald", "la") & _block_keys("mcdonald", "la")
+    assert "la:sld" in _block_keys("macdonald", "la") and "la:sld" in _block_keys("mcdonald", "la")
     assert _script("ভোলা") == "bn"
     assert _script(_rnorm("José")) == "la"
     assert _script("Москва").startswith("u")
 
 
-def test_blocking_matches_unbounded_on_mixed_corpus(tmp_path):
+def test_blocking_matches_full_scan_on_mixed_corpus(tmp_path):
     os.environ["MTA_HOME"] = str(tmp_path)
     emb = Embedder(Config(home=tmp_path))
     corpus = ["Helios Energy", "Helios", "Project Aurora", "project aurora", "Project  Aurora ",
               "Dr. Lena Marsh", "Lena Marsh", "Nordic Grid Authority", "NGA",
               "ভোলা", "ভালো", "ঢাকা", "ঢাকি", "নিম্ন", "নিম্নলিখিত", "রহিম", "করিম",
-              "Reykjavik-1", "Reykjavik-2", "José", "Jose", "Москва"]
+              "Reykjavik-1", "Reykjavik-2", "José", "Jose", "Москва",
+              # leading-character edits: must still merge under blocking (regression guard)
+              "MacDonald", "McDonald", "Theresa", "Teresa", "Elisabeth", "Lisabeth"]
     mentions = [{"name": n, "type": "other"} for n in corpus]
-    # default-capped (blocked) run vs unbounded run → identical clustering
-    blocked = _partition(resolve_entities(mentions, emb))
-    unbounded = _partition(resolve_entities(mentions, emb, resolve_cap=0))
-    assert blocked == unbounded
+    # blocked run vs the TRUE full O(n²) scan → identical clustering (no dropped merges)
+    blocked = _partition(resolve_entities(mentions, emb, resolve_cap=0))
+    full = _brute_partition(corpus, emb)
+    assert blocked == full
+    a2c = resolve_entities(mentions, emb, resolve_cap=0)["alias_to_cid"]
+    assert cid_for("MacDonald", a2c) == cid_for("McDonald", a2c)   # leading-edit merge kept
     # and the key correctness facts hold within it
     a2c = resolve_entities(mentions, emb)["alias_to_cid"]
     assert cid_for("ভোলা", a2c) != cid_for("ভালো", a2c)         # WP-90 preserved
