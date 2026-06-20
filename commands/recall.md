@@ -9,8 +9,9 @@ Question: `$ARGUMENTS`
 
 Steps:
 1. Call `recall` with the question (and `project` if the user named one).
-2. It embeds the query locally and returns a **small** relevant slice — theme summaries
-   and entity cards with their source documents. It never returns whole documents.
+2. It runs a local, model-free **BM25 keyword search** and returns a **small** relevant
+   slice — theme summaries and entity cards with their source documents. It never returns
+   whole documents.
 3. Answer the user's question grounded in those hits, citing the source document names
    where provided. If `status` is `no_memory`, suggest running `/memorise` first.
 4. If the result has `low_confidence: true` (or no hits clear the relevance floor),

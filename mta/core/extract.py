@@ -286,10 +286,11 @@ def _classical(chunk: Chunk) -> Extraction:
     return Extraction(entities=entities, relations=relations, facts=facts)
 
 
-# Chat/tool control tokens a chat-tuned model can emit mid-output (qwen3 <tool_call>,
-# ChatML <|im_start|>, gemma <start_of_turn>, DeepSeek fullwidth <｜…｜>, …) must never
-# reach an entity/fact/summary (it pollutes memory.md + recall, and is a mild injection
-# vector to Claude). Case-insensitive; the pipe arm allows the fullwidth ｜ (U+FF5C).
+# Chat/tool control tokens (qwen3 <tool_call>, ChatML <|im_start|>, gemma <start_of_turn>,
+# DeepSeek fullwidth <｜…｜>, …) can appear verbatim in SOURCE documents (pasted transcripts,
+# logs) — v2 is model-free, so the threat is document-borne, not a local model's output. They
+# must never reach an entity/fact/summary (it pollutes memory.md + recall, and is a mild
+# injection vector to Claude). Case-insensitive; the pipe arm allows the fullwidth ｜ (U+FF5C).
 _SPECIAL_TOK = re.compile(
     r"<[\|｜][^>]{0,80}?[\|｜]>"
     r"|</?\s*(?:tool_call|tool_response|think|thinking|im_start|im_end|"
