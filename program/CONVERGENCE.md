@@ -1,3 +1,36 @@
+# Convergence note — v2.5.0 cross-AI multi-client auto-config (S23)
+
+**Status: CONVERGED. No open Critical/High.** New feature (`mta setup` + `mta/core/clients.py`):
+one command auto-registers the local stdio server into every detected MCP client (Claude
+Desktop/Code, Gemini CLI, Cursor, VS Code, Windsurf, OpenAI Codex; Grok via Claude/.mcp.json
+auto-discovery). ChatGPT app + xAI API are remote-MCP-only → documented HTTP path, not auto-config.
+
+Convergence criteria — ALL met:
+- **(a) Two consecutive clean review rounds.** Up-front: 3 expert agents (2 web-research verifying
+  every vendor's MCP config format against current docs + 1 senior design/review). Round 1 = an
+  adversarial review of the new module → **1 High** (`_merge_into` clobbered a valid-JSON-but-non-object
+  config) + 1 Med (parser-less TOML single-quoted-key idempotency) + 1 Low (`--only` empty widened) →
+  **all fixed with regression tests**. Round 2 = an **independent fresh-eyes** reviewer (no part in
+  authoring/round-1) re-ran the suite + all gates → **VERDICT: NO Critical/High — converged**; only a
+  narrow **Low** (parser-less TOML duplicate-detection of non-canonical headers, backup-protected),
+  which was then **also fixed** (regex tolerates whitespace/comments/all key quotings). Monotonic
+  (1H+Med+Low → 0); no reopened findings.
+- **(b) Numeric gates / no regression.** 234 baseline → **250 pass / 3 skip** (+16 net new tests in
+  `tests/test_clients.py`); `check_versions` OK @2.5.0 across all 7 surfaces; `python -m build` +
+  `twine check` PASSED (sdist+wheel); `clients.py` ships in the wheel; `.mcpb` still bundles
+  `launch.py` (+win32 override). Live `mta setup --dry-run`/`recipes` + end-to-end digest/recall smoke-OK.
+- **(c) No open Critical/High.** Invariants independently re-verified intact: token-free, **no network on
+  the setup path** (the `setup`/`setup-claude` CLI branches return before any engine/updater wiring),
+  atomic crash-safe writes, dependency-free (TOML works on the 3.10 floor with no `tomllib`), never
+  clobbers an existing config (JSONC + non-object-JSON both left untouched), idempotent, cross-platform.
+  Published docs (README/CHANGELOG/recipes) verified to match the code (no over/under-claim). Residual =
+  the Med/Low perf deferrals R-13…R-19 (unchanged, not looped on).
+
+**Disposition:** MINOR **v2.5.0** (additive feature; no tool/schema change). Awaiting publish HUMAN GATE
+(owner-gated tag push → release train). _Prior v2.4.2 note below._
+
+---
+
 # Convergence note — v2.4.2 review-driven hardening (S22)
 
 **Status: CONVERGED. No open Critical/High.** A maximal 9-agent re-audit of shipped v2.4.1

@@ -6,6 +6,44 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-06-20
+
+Cross-AI reach: the same local, token-free memory now installs into **every MCP-capable
+client on your machine with one command**, not just Claude. No new runtime dependency; the
+deterministic, model-free, 100%-local invariants are untouched (auto-config is filesystem-only —
+no network, no token, nothing through the model).
+
+### Added
+- **`mta setup` — multi-client auto-configuration.** Detects and registers the local stdio
+  server in every installed MCP client: **Claude** Desktop & Code, **Gemini CLI**
+  (`~/.gemini/settings.json`), **Cursor** (`~/.cursor/mcp.json`), **VS Code** (user `mcp.json`,
+  using its `servers` key + `type: "stdio"`), **Windsurf**
+  (`~/.codeium/windsurf/mcp_config.json`), and **OpenAI Codex** — ChatGPT's coding agent —
+  (`~/.codex/config.toml`, TOML). **Grok Build** auto-discovers the Claude / `.mcp.json` config,
+  so it's covered too. Each file is written idempotently through the same crash-safe atomic
+  writer, with a per-file timestamped backup, and unrelated keys/servers are preserved.
+  `--dry-run`, `--only`, `--exclude`, `--env` and `--json` are supported.
+- **Install-time wiring.** `install.sh` (macOS/Linux) and `launch.py` (Windows first run) now
+  call `mta setup` so a fresh install auto-configures every detected client. The old
+  `MTA_SKIP_CLAUDE_SETUP` env still works; `MTA_SKIP_SETUP` is the new alias.
+- **`auto` connection recipe.** `mta recipes` documents the one-command setup and the
+  remote-only path for the ChatGPT app / xAI API (`mta serve --http`).
+
+### Changed
+- `mta setup-claude` is retained unchanged (Claude-only) for back-compat; `mta setup` is the
+  superset that also reaches the other clients.
+
+### Fixed
+- **Auto-config never clobbers a JSONC config.** A non-empty client config that doesn't parse
+  as strict JSON (e.g. a Cursor/VS Code file with comments) is now **left untouched** with an
+  error result, instead of being reset — the backup *plus* skip is strictly safer.
+- **`updater._touch` throttle stamp.** Replaced a fixed `.tmp` name (itself a race when Claude
+  Desktop and Code launch together — the very collision the stamp guards) with a unique
+  `mkstemp` + `fsync` + `os.replace`.
+- **Codex TOML duplicate-table detection.** On the parser-less Python-3.10 path, the existing-table
+  scan now tolerates all legal spellings (double/single/bare keys, intra-bracket whitespace, a
+  trailing comment), so a hand-written table is detected and never duplicated into invalid TOML.
+
 ## [2.4.2] — 2026-06-20
 
 A maximal 9-agent re-audit of v2.4.1 found a token-free **Critical** and four **High**
