@@ -39,6 +39,16 @@ def build(cfg: Config | None = None, *, host: str | None = None, port: int | Non
     return {
         "tools": len(tool_catalogue()),  # derive from the single source → never drifts
         "surfaces": {
+            "auto": {
+                "description": "One command auto-configures every detected stdio MCP client "
+                               "(Claude Desktop/Code, Gemini CLI, Cursor, VS Code, Windsurf, "
+                               "OpenAI Codex). Idempotent, with a per-file backup.",
+                "command": "mta setup",
+                "dry_run": "mta setup --dry-run",
+                "note": "Grok Build auto-discovers the Claude/.mcp.json config, so it's covered too. "
+                        "The ChatGPT app and the xAI API accept only REMOTE MCP — use the http_mcp/rest "
+                        "surfaces below and paste the URL into their UI.",
+            },
             "stdio": {
                 "description": "Default. Claude Desktop / Claude Code launch the server over stdio (no token needed).",
                 "claude_code": "claude mcp add memorised-them-all -- mta serve",

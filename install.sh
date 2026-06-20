@@ -86,11 +86,13 @@ else
   log "No usable package manager (or sudo unavailable) — install Tesseract/ffmpeg/unar manually for OCR + rar support."
 fi
 
-# --- 4. Register the MCP server in Claude's config (the "Claude Setup file") -------
-if [ "${MTA_SKIP_CLAUDE_SETUP:-0}" != "1" ]; then
-  log "Registering the MCP server in Claude's config…"
-  PATH="$VENV/bin:$PATH" "$PYBIN" -m mta.cli setup-claude 2>&1 | sed 's/^/  /' \
-    || log "  (auto-register skipped — run 'mta setup-claude' to do it manually)"
+# --- 4. Auto-configure every detected AI client (Claude, Gemini, Cursor, VS Code, …) -------
+# Registers the local stdio server in each MCP-capable client found on this machine,
+# idempotently and with a per-file backup. Honours the old MTA_SKIP_CLAUDE_SETUP name.
+if [ "${MTA_SKIP_SETUP:-${MTA_SKIP_CLAUDE_SETUP:-0}}" != "1" ]; then
+  log "Auto-configuring detected AI clients…"
+  PATH="$VENV/bin:$PATH" "$PYBIN" -m mta.cli setup 2>&1 | sed 's/^/  /' \
+    || log "  (auto-config skipped — run 'mta setup' to do it manually)"
 fi
 
 touch "$STATE/installed"

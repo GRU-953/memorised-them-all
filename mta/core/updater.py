@@ -44,13 +44,26 @@ def _due(cfg: Config) -> bool:
 
 
 def _touch(cfg: Config) -> None:
-    """Stamp the throttle file atomically (temp + os.replace) so two concurrent
-    launches can't both pass the throttle and race a pip install into one venv."""
+    """Stamp the throttle file atomically so two concurrent launches can't both pass the
+    throttle and race a pip install into one venv. Uses a UNIQUE temp (``mkstemp``) +
+    ``fsync`` + ``os.replace`` — a *fixed* ``.tmp`` name would itself race when Desktop
+    and Code launch together, the very collision this guard exists to prevent."""
+    import tempfile
     cfg.state_dir.mkdir(parents=True, exist_ok=True)
     p = _stamp(cfg)
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(str(time.time()))
-    os.replace(tmp, p)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=p.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(str(time.time()))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _pip(*args: str, timeout: int = 900) -> bool:

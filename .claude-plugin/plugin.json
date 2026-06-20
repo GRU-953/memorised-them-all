@@ -1,6 +1,6 @@
 {
   "name": "memorised-them-all",
-  "version": "2.4.2",
+  "version": "2.5.0",
   "description": "Point Claude at any local files or folders: Memorised them All converts them to Markdown and digests them into a token-free, searchable knowledge-graph memory (entities, relations, themes) it can recall from — with a global synopsis, per-theme summaries, and exportable Markdown notes. 100% local & private: deterministic and model-free (no LLM, Ollama, GPU, or embedding model), no network or API keys, free & open-source. Recall uses model-free BM25 ranking (script-agnostic, incl. Bengali) with a low-confidence guard; beneficiary PII is suppressed. A digest always finishes (per-file timeouts), memory writes are crash-safe, archives unpack safely (Zip-Slip/bomb guards), and legacy Bengali (SutonnyMJ/Bijoy) is auto-converted to Unicode with PDF-text recovery and re-OCR.",
   "author": {
     "name": "Aninda Sundar Howlader",
