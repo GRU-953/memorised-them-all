@@ -110,7 +110,11 @@ def test_blocking_matches_full_scan_on_mixed_corpus(tmp_path):
               # leading-character edits: must still merge under blocking (regression guard)
               "MacDonald", "McDonald", "Theresa", "Teresa", "Elisabeth", "Lisabeth"]
     mentions = [{"name": n, "type": "other"} for n in corpus]
-    # blocked run vs the TRUE full O(n²) scan → identical clustering (no dropped merges)
+    # Blocked run vs the TRUE full O(n²) scan → identical clustering on this realistic
+    # corpus. (Blocking is always a SAFE REFINEMENT of the full scan: it can only ever
+    # *over-split*, never over-merge. The one legitimate divergence is the embedding pass
+    # skipping a SPURIOUS hash-collision merge between unrelated single-token names — not
+    # present here, since these names don't 256-dim-collide; see _block_keys docstring.)
     blocked = _partition(resolve_entities(mentions, emb, resolve_cap=0))
     full = _brute_partition(corpus, emb)
     assert blocked == full

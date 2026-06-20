@@ -63,15 +63,21 @@ def _script(s: str) -> str:
 
 def _block_keys(norm: str, script: str) -> set[str]:
     """Overlapping blocking keys: per distinct token, BOTH its first-2 and last-2 chars
-    (script-tagged). A fuzzy/embedding merge needs a shared near-identical token; a single
-    edit can change a token's leading OR trailing chars but not both (for the realistic
-    OCR/transliteration typos this ingests), so a near-identical token pair shares at least
-    one of {prefix-2, suffix-2}. Emitting both keys means co-bucketed pairs cover every
-    merge the full O(n²) scan makes (verified by a true-full-scan parity test), while the
-    candidate set stays ~O(n·b). Extra keys are always safe — they only add comparisons;
-    the merge predicate (unchanged) still rejects non-matches, so blocking can never
-    introduce an over-merge. Cross-script pairs (ratio≈0) are never merged today, so
-    skipping them changes nothing."""
+    (script-tagged). A *fuzzy-string* merge (token_set_ratio ≥ threshold) needs a shared
+    near-identical token; a single edit changes a token's leading OR trailing chars but not
+    both (for the realistic OCR/transliteration typos this ingests), so a near-identical
+    token pair shares at least one of {prefix-2, suffix-2} and co-buckets — blocking
+    reproduces the full-scan fuzzy merges (parity-tested on a realistic corpus incl.
+    leading-edit pairs).
+
+    Blocking is always a SAFE REFINEMENT of the full O(n²) scan: it only ever drops
+    comparisons, and the merge predicate is unchanged, so it can never introduce an
+    over-merge. The one case where it legitimately diverges is the *embedding* pass — the
+    hash embedder can give cosine 1.0 to two unrelated single-token names that collide in
+    256 dims; the full scan would then merge them if token_set_ratio ≥ 60, whereas blocking
+    skips the (spurious, hash-collision) merge. That divergence is over-SPLIT (the safe
+    direction) and avoids a bad merge, so it is accepted. Cross-script pairs (ratio≈0) are
+    never merged today, so skipping them changes nothing."""
     toks = norm.split()
     if not toks:
         return {f"{script}:"}
