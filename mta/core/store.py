@@ -28,12 +28,14 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
     Guarantees a reader never sees a half-written file, and an interrupt
     (crash/power loss) leaves the *previous* valid file intact rather than a
-    truncated one. utf-8 explicit (Windows defaults to cp1252).
+    truncated one. utf-8 explicit (Windows defaults to cp1252); ``newline=""`` disables
+    the platform newline translation so graph.json/memory.md/notes are byte-identical
+    across OSes (the determinism invariant holds cross-machine, not just same-OS).
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())

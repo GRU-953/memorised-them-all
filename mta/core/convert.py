@@ -23,6 +23,9 @@ from .config import Config
 _TEXT_EXTS = {".txt", ".md", ".markdown", ".text", ".log", ".rst"}
 _DATA_EXTS = {".csv", ".tsv", ".json", ".xml", ".yaml", ".yml", ".ndjson"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+# Audio is UNSUPPORTED in v2 (model-free; Whisper removed). Kept only to recognise +
+# cleanly skip these as media — NOT part of SUPPORTED_EXTS, so list_digestible never
+# advertises a file that digest will only skip.
 _AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac"}
 _MARKITDOWN_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm",
                     ".epub", ".msg", ".rtf", ".doc", ".ppt"}
@@ -30,7 +33,7 @@ _MARKITDOWN_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm",
 # (mta/core/archive.py) rather than converted as single documents.
 from .archive import ARCHIVE_EXTS as _ARCHIVE_EXTS  # noqa: E402 (after stdlib imports)
 from .archive import kind as _archive_kind  # noqa: E402
-SUPPORTED_EXTS = (_TEXT_EXTS | _DATA_EXTS | _IMAGE_EXTS | _AUDIO_EXTS
+SUPPORTED_EXTS = (_TEXT_EXTS | _DATA_EXTS | _IMAGE_EXTS
                   | _MARKITDOWN_EXTS | _ARCHIVE_EXTS)
 
 # Config-driven skip categories (v2): matched by NAME ONLY — the file is never read.
@@ -540,7 +543,9 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
 
     out = (out_dir / out_name) if out_name else _safe_out_name(path, out_dir)
     header = f"<!-- source: {path.name} · method: {method} -->\n\n"
-    out.write_text(header + text, encoding="utf-8")
+    # newline="" → LF on every OS, so the converted .md (which feeds the digest) is
+    # byte-identical cross-machine and downstream graph output stays deterministic.
+    out.write_text(header + text, encoding="utf-8", newline="")
     res.output = str(out)
     res.chars = len(text)
     res.status = "ok"

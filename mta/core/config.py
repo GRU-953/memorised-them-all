@@ -100,9 +100,9 @@ class Config:
     community_algo: str = field(default_factory=lambda: _env("MTA_COMMUNITY_ALGO", "auto"))  # auto|leiden|louvain|greedy
     chunk_chars: int = field(default_factory=lambda: _env_int("MTA_CHUNK_CHARS", 1200))
     recall_k: int = field(default_factory=lambda: _env_int("MTA_RECALL_K", 8))
-    # Absolute cosine floor for recall hits. 0 = off (return all top-k). Default 0 —
-    # the deterministic hash embedding's cosine isn't a calibrated semantic score, so
-    # relevance is gated by lexical overlap (DOC-01), not a fixed cosine threshold.
+    # Absolute BM25-score floor for recall hits (unbounded ≥0, NOT a 0–1 cosine). 0 = off
+    # (return all top-k), the default — relevance is gated by lexical overlap (DOC-01).
+    # Set MTA_RECALL_MIN_SCORE on the BM25 scale (scores routinely exceed 1).
     recall_min_score: float = field(default_factory=lambda: _env_float("MTA_RECALL_MIN_SCORE", 0.0))
     max_chunks: int = field(default_factory=lambda: _env_int("MTA_MAX_CHUNKS", 1500))
     # Skip individual files larger than this (MB) before reading them into memory,
@@ -223,7 +223,7 @@ def persist_config(cfg: "Config") -> Path:
     path = cfg.state_dir / "config.json"
     fd, tmp = tempfile.mkstemp(dir=str(cfg.state_dir), suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         os.replace(tmp, path)
     except BaseException:
