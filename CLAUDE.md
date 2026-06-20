@@ -17,10 +17,12 @@ truth, **not** model memory. Any fresh session resumes from it with zero prior c
    ▶ RESUME HERE) and append a `SESSION_LOG.md` entry ending with the single exact next step.
 
 ## Status
-**v1.4.0 SHIPPED** — PyPI + GitHub Release + `.mcpb` + Homebrew tap (OIDC, SBOM, cosign).
-`main` = `develop` = v1.4.0; no Critical/High open (`program/CONVERGENCE.md`).
-**Next = v1.x+ backlog** (optional): Phase-3 cross-AI interop (WP-20–24), extra publishing
-channels, and the deferred Low/Med items in `program/REVIEW.md`.
+**v2.4.2 SHIPPED** — PyPI + GitHub Release + `.mcpb` + Homebrew tap (OIDC, SBOM, cosign).
+**v2.5.0 IN-FLIGHT** on `claude/plugin-review-improve-rqktks`: cross-AI multi-client
+auto-config (`mta setup` → Claude/Gemini/Cursor/VS Code/Windsurf/Codex; Grok via auto-discover),
+green (245 pass/3 skip), awaiting review + publish gate.
+**Next = v2.x+ backlog** (optional): remote-MCP recipe polish, extra publishing channels, and
+the deferred Low/Med items in `program/RISKS.md` (R-13…R-19).
 
 ## Invariants (must never regress)
 Token-free (tiny tool results; document contents never returned to the model) · 100%

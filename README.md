@@ -17,7 +17,7 @@
 [![Model-free](https://img.shields.io/badge/AI%20models-none%20needed-10b981)](#-why-no-ai-model)
 [![Claude tokens](https://img.shields.io/badge/Claude%20tokens-~0-10b981)](#-why-is-it-token-free)
 
-<sub><b>v2.4</b> · 100% local · deterministic · model-free · token-free · English + Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
+<sub><b>v2.5</b> · works with Claude · Gemini · Cursor · VS Code · Codex · 100% local · deterministic · model-free · token-free · <a href="CHANGELOG.md">what's new →</a></sub>
 
 <p>
 <a href="#-what-is-this"><b>What is this?</b></a> ·
@@ -86,7 +86,7 @@ You need **Python 3.10 or newer** (most Macs and Linux PCs already have it; Wind
 | --- | --- | --- |
 | **Claude Desktop** (no terminal) | Download **`memorised-them-all.mcpb`** from the [latest release](https://github.com/GRU-953/memorised-them-all/releases/latest) and **double-click** → **Install**. | The easiest path. |
 | **Claude Code** | `/plugin marketplace add GRU-953/memorised-them-all` then `/plugin install memorised-them-all` | Coding in the terminal. |
-| **pip** (any setup) | `pip install memorised-them-all` then `mta setup-claude` | Registers it into Claude Desktop **and** Claude Code config for you. |
+| **pip** (any setup) | `pip install memorised-them-all` then `mta setup` | Auto-configures **every AI client** found on your machine (Claude, Gemini, Cursor, VS Code, Windsurf, Codex). |
 | **Homebrew** | `brew install GRU-953/memorised-them-all/mta` | macOS / Linux CLI users. |
 | **Docker / GHCR** | `docker run … ghcr.io/gru-953/memorised-them-all:latest` ([details](#run-it-in-docker)) | Servers & containers. |
 | **MCP registry** | published as `io.github.gru-953/memorised-them-all` ([`server.json`](server.json)) | MCP-aware clients. |
@@ -102,6 +102,28 @@ All paths give you the same thing. To add it to Claude by hand, it just runs `mt
 ```
 
 > **Do I need to install AI models?** **No.** The engine is deterministic (plain rules + maths), so it works the moment it's installed — the same on every computer, fully offline. To check your setup, run `mta doctor`.
+
+### 🤝 Works with more than Claude
+
+It's an [MCP](https://modelcontextprotocol.io) server, so the same local, token-free memory plugs into any AI client that speaks MCP. One command finds and configures **every client installed on your machine** — idempotently, with a backup of each file it touches:
+
+```bash
+mta setup            # auto-configure all detected clients
+mta setup --dry-run  # just show what would change
+```
+
+| AI client | How it connects | Auto-configured by `mta setup`? |
+| --- | --- | --- |
+| **Claude** Desktop & Code | local (stdio) | ✅ |
+| **Gemini** CLI | local (stdio) → `~/.gemini/settings.json` | ✅ |
+| **Cursor** | local (stdio) → `~/.cursor/mcp.json` | ✅ |
+| **VS Code** (Copilot agent) | local (stdio) → user `mcp.json` | ✅ |
+| **Windsurf** | local (stdio) → `~/.codeium/windsurf/mcp_config.json` | ✅ |
+| **OpenAI Codex** (ChatGPT's coding agent) | local (stdio) → `~/.codex/config.toml` | ✅ |
+| **Grok** (Build CLI) | auto-discovers the Claude / `.mcp.json` config | ✅ (via Claude) |
+| **ChatGPT** app · **xAI** API | remote MCP only (HTTPS) | run `mta serve --http`; see `mta recipes` |
+
+The **ChatGPT app** and the **xAI API** accept only *remote* MCP endpoints, so they can't point at a local process — start the built-in secure HTTP server (`mta serve --http`) and paste the URL into their UI. `mta recipes` prints ready-to-use setup for every surface (stdio, HTTP-MCP, REST, OpenAI/Gemini function schemas).
 
 ---
 
@@ -292,23 +314,25 @@ mta overview                            # synopsis + themes
 mta convert ~/docs --out ~/md_out       # just convert to Markdown (incl. legacy Bengali)
 mta export ./notes                      # export portable Markdown
 mta status                              # local stack health   ·   mta doctor  (fix deps)
-mta setup-claude                        # register the server in Claude Desktop + Code
+mta setup                               # auto-configure every detected AI client (--dry-run to preview)
+mta setup-claude                        # Claude-only variant (Desktop + Code)
 ```
 </details>
 
 <details>
-<summary><b>Use it from other AI apps (OpenAI, Gemini, plain HTTP)</b></summary>
+<summary><b>Use it from other AI apps (Gemini, Cursor, VS Code, Codex, OpenAI, plain HTTP)</b></summary>
 
-The same eight tools can be served beyond Claude:
+`mta setup` auto-registers the local server into every MCP client it finds (Claude, Gemini CLI, Cursor, VS Code, Windsurf, OpenAI Codex). For clients that take only *remote* MCP (the ChatGPT app, the xAI API) — or any other integration — the same eight tools are served beyond stdio:
 
 ```bash
+mta setup            # auto-configure every detected stdio MCP client (--dry-run to preview)
 mta serve --http     # MCP over HTTP (loopback + an auto-generated bearer token)
 mta serve --rest     # plain JSON:  POST http://127.0.0.1:8765/tools/<name>
 mta export-schema    # tool schemas as OpenAI / Gemini / OpenAPI 3.1 (no drift)
 mta recipes          # copy-paste connection snippets for every client
 ```
 
-Both HTTP modes are loopback-only by default and require a bearer token (with a DNS-rebinding guard). See `mta recipes` for ready-to-paste setup.
+Both HTTP modes are loopback-only by default and require a bearer token (with a DNS-rebinding guard). For the ChatGPT app or xAI API, start `mta serve --http` and paste the URL into their connector UI. See `mta recipes` for ready-to-paste setup for every surface.
 </details>
 
 <details>
