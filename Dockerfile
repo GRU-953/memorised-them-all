@@ -2,9 +2,9 @@
 # Memorised them All — local, token-free file → knowledge-graph memory (MCP server).
 #
 # Multi-stage: build into a venv (build tools available), then copy that venv into a
-# slim runtime carrying only the OCR/audio system tools. Ollama is NOT bundled — point
-# MTA at a host/remote model server (MTA_BACKEND* / MTA_BACKEND_URL) or rely on the
-# dependency-free offline classical fallback (a digest still succeeds with no models).
+# slim runtime carrying only the Tesseract OCR system tool. The engine is fully
+# model-free and offline — no LLM, no Ollama, no embedding model, no network: a digest
+# always succeeds deterministically with nothing to download.
 
 FROM python:3.12-slim-bookworm AS build
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -27,7 +27,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     MTA_HTTP_HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1
 RUN apt-get update \
- && apt-get install -y --no-install-recommends tesseract-ocr ffmpeg \
+ && apt-get install -y --no-install-recommends tesseract-ocr \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 mta \
  && mkdir -p /data && chown mta:mta /data

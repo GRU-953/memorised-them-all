@@ -342,9 +342,12 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | `MTA_CONVERT_TIMEOUT` | `120` | per-file conversion timeout (seconds); a file that hangs the parser is skipped, never stalls the batch. `0` disables |
 | `MTA_MAX_FILE_MB` | `200` | per-file size cap (also drives the archive budgets) |
 | `MTA_MAX_CHUNKS` | `1500` | cap on passages kept per memory (raise for very large corpora) |
+| `MTA_OCR` | `auto` | OCR mode for PDFs/images: `auto`, `off`, `force`, `hybrid` |
+| `MTA_RECALL_K` | `8` | default number of recall hits returned |
+| `MTA_RECALL_MIN_SCORE` | `0` (off) | absolute BM25-score floor for recall hits (unbounded ≥0, **not** a 0–1 cosine) |
 | `MTA_MEMORY_GB` | auto | override detected RAM (for containers/VMs that misreport it) |
-| `MTA_WORKERS` | auto | conversion workers (RAM/CPU-sized; 1 on small machines) |
-| `MTA_AUTO_UPDATE` | `on` | daily MarkItDown update check (`off` to disable) |
+| `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | auto | conversion / extraction workers (RAM/CPU-sized; 1 on small machines) |
+| `MTA_AUTO_UPDATE` | `on` | daily MarkItDown update check (`off` to disable; `upstream` to track the latest upstream MarkItDown commit) |
 | `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
 </details>

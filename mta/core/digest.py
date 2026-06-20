@@ -396,7 +396,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     workers = max(1, min(_auto_extract_workers(cfg), len(unique_chunks))) if unique_chunks else 1
 
     def _safe_extract(c):
-        # A mid-run model failure must not abort the whole digest after we have
+        # A mid-run extraction failure must not abort the whole digest after we have
         # already written the converted markdown — degrade that chunk to empty.
         try:
             return (c, extract_chunk(c))
@@ -570,7 +570,8 @@ def _auto_extract_workers(cfg: Config) -> int:
         return cfg.extract_workers
     from .platform import memory_gb
     gb = memory_gb()
-    # Conservative on unified-memory Macs running a 7B extractor.
+    # Classical regex extraction is cheap (no model); this mainly bounds peak RAM from
+    # holding many chunks in flight. Override with MTA_EXTRACT_WORKERS.
     return 1 if gb < 16 else (2 if gb < 48 else 3)
 
 
