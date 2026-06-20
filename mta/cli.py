@@ -11,6 +11,7 @@ Subcommands:
   mta serve [--http | --rest] [--host H] [--port N]  run the server (stdio; --http=MCP HTTP; --rest=JSON gateway)
   mta export-schema [--format F] [--out DIR]     export tool schemas (OpenAI/Gemini/OpenAPI 3.1)
   mta recipes [--format text|json]               per-client connection recipes (every surface)
+  mta setup [--dry-run] [--only IDS] [--exclude IDS] [--env K=V]  auto-configure every detected AI client
   mta setup-claude [--env KEY=VALUE]             register this server in Claude's config (Desktop + Code)
 """
 from __future__ import annotations
@@ -91,12 +92,40 @@ def main(argv: list[str] | None = None) -> int:
     rc.add_argument("--format", choices=["text", "json"], default="text",
                     help="output format (default: text)")
 
+    st = sub.add_parser("setup",
+                        help="auto-configure every detected AI client (Claude/Gemini/Cursor/VS Code/Windsurf/Codex)")
+    st.add_argument("--dry-run", action="store_true",
+                    help="detect clients and show what would change, without writing")
+    st.add_argument("--only", default=None, metavar="IDS",
+                    help="comma-separated client ids to configure (default: all detected)")
+    st.add_argument("--exclude", default=None, metavar="IDS",
+                    help="comma-separated client ids to skip")
+    st.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                    help="extra MTA_* env to bake into each server entry (repeatable)")
+    st.add_argument("--json", action="store_true", help="emit the result as JSON")
+
     scl = sub.add_parser("setup-claude",
                          help="register this MCP server in Claude's config (Desktop + Code)")
     scl.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                      help="extra MTA_* env to bake into the server entry (repeatable)")
 
     args = p.parse_args(argv)
+
+    if args.cmd == "setup":
+        from .core.clients import setup_all, render_summary
+        env = {}
+        for kv in args.env:
+            k, _, v = kv.partition("=")
+            if k.strip():
+                env[k.strip()] = v
+        result = setup_all(env=env or None, write=not args.dry_run,
+                           only=args.only.split(",") if args.only else None,
+                           exclude=args.exclude.split(",") if args.exclude else None)
+        if args.json:
+            _print(result)
+        else:
+            print(render_summary(result))
+        return 0
 
     # setup-claude only writes the host's Claude config — no engine wiring needed.
     if args.cmd == "setup-claude":

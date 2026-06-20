@@ -42,6 +42,19 @@ def _ensure_venv() -> Path:
         if req.exists():
             subprocess.run([str(py), "-m", "pip", "install", "-q", "-r", str(req)],
                            check=False)
+        # Install the package (for the `mta` entry point) and auto-configure every
+        # detected AI client on this machine — the Windows equivalent of install.sh
+        # step 4. Best-effort: a setup hiccup must never block the server from starting.
+        subprocess.run([str(py), "-m", "pip", "install", "-q", "-e", str(ROOT)], check=False)
+        if os.environ.get("MTA_SKIP_SETUP", os.environ.get("MTA_SKIP_CLAUDE_SETUP", "0")) != "1":
+            env = dict(os.environ)
+            env["PYTHONPATH"] = str(ROOT) + (
+                os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+            try:
+                subprocess.run([str(py), "-m", "mta.cli", "setup"], env=env,
+                               timeout=300, check=False)
+            except Exception:  # noqa: BLE001 - setup is best-effort; never block startup
+                pass
     return py
 
 

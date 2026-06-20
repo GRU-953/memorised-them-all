@@ -42,52 +42,75 @@ def _mta_command() -> list[str]:
     return [sys.executable, "-m", "mta.server"]
 
 
-def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME) -> dict:
-    """Merge ``mcpServers[name] = entry`` into the JSON at ``path``, preserving every
-    other key. Backs up an existing file first. Returns a small result dict."""
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Crash-safe write: stage to a UNIQUE temp file (``mkstemp`` — so two concurrent
+    runs, e.g. ``install.sh`` + a manual run, can't clobber a shared temp), ``fsync``,
+    then ``os.replace`` (the single commit point) — a watcher (a running Claude Desktop,
+    Cursor, …) never sees a half-written file. The temp lands in the target's own
+    directory so the rename is same-filesystem (never a cross-device ``OSError``)."""
+    import tempfile
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".mta-tmp")
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME,
+                container_key: str = "mcpServers") -> dict:
+    """Merge ``<container_key>[name] = entry`` into the JSON at ``path``, preserving every
+    other key. Backs up an existing file **only when the content will change**. Returns a
+    small result dict.
+
+    Safety: a non-empty file that does not parse as JSON (e.g. JSONC with comments, which
+    several MCP clients allow) is **left untouched** with ``status="error"`` rather than
+    silently reset to ``{}`` — clobbering a user's whole config is worse than skipping.
+    """
+    try:
         cfg: dict = {}
-        backed_up = None
-        if path.exists():
-            backed_up = path.with_name(path.name + f".mta-backup-{int(time.time())}")
-            shutil.copy2(path, backed_up)
-            try:
-                cfg = json.loads(path.read_text(encoding="utf-8") or "{}")
-            except (json.JSONDecodeError, ValueError):
-                cfg = {}
+        existed = path.exists()
+        if existed:
+            raw = path.read_text(encoding="utf-8")
+            if raw.strip():
+                try:
+                    cfg = json.loads(raw)
+                except (json.JSONDecodeError, ValueError):
+                    return {"path": str(path), "status": "error", "changed": False,
+                            "error": "existing config is not valid JSON (comments?); left untouched"}
+        # A valid JSON document whose top level is not an object (e.g. ``[1,2,3]``) is
+        # left untouched too — overwriting it would discard the user's data. (A fresh /
+        # empty file keeps the ``{}`` default and is created normally.)
         if not isinstance(cfg, dict):
-            cfg = {}
-        # Coerce a non-dict ``mcpServers`` (e.g. a stray ``[]`` left by another tool)
-        # to a dict, so the merge can neither silently no-op nor raise on ``.get``.
-        servers = cfg.get("mcpServers")
+            return {"path": str(path), "status": "error", "changed": False,
+                    "error": "existing config top-level is not a JSON object; left untouched"}
+        # Coerce a non-dict container (e.g. a stray ``[]`` left by another tool) to a dict,
+        # so the merge can neither silently no-op nor raise on ``.get``.
+        servers = cfg.get(container_key)
         if not isinstance(servers, dict):
             servers = {}
-            cfg["mcpServers"] = servers
-        already = servers.get(name) == entry
+            cfg[container_key] = servers
+        already = existed and servers.get(name) == entry
+        if already:
+            return {"path": str(path), "status": "ok", "changed": False, "backup": None}
         servers[name] = entry
-        # Atomic write: stage to a UNIQUE temp file (mkstemp — so two concurrent
-        # setup-claude runs, e.g. install.sh + a manual run, can't clobber a shared temp),
-        # fsync, then ``os.replace`` (the single commit point) — a watcher like a running
-        # Claude Desktop never sees a half-written file.
-        import tempfile
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".mta-tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-                f.write(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, path)
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        backed_up = None
+        if existed:
+            backed_up = path.with_name(path.name + f".mta-backup-{int(time.time())}")
+            shutil.copy2(path, backed_up)
+        _atomic_write_text(path, json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
         return {"path": str(path), "status": "ok",
-                "changed": not already, "backup": str(backed_up) if backed_up else None}
+                "changed": True, "backup": str(backed_up) if backed_up else None}
     except OSError as exc:
-        return {"path": str(path), "status": "error", "error": str(exc)}
+        return {"path": str(path), "status": "error", "changed": False, "error": str(exc)}
 
 
 def setup_claude(*, name: str = SERVER_NAME, env: dict | None = None,

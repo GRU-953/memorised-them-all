@@ -665,3 +665,23 @@ User: "Cleanup and update the GitHub repository and completely redevelop the rea
 - **Channel verification:** PyPI artifact LIVE — wheel installs in a clean venv + `mta status` ok + **EN recall (Project Aurora 3.22) & Bengali recall (গ্রুপ মিটিং 3.18) pass**; GitHub Release **published** with wheel+sdist+.mcpb+SBOM, **all 4 cosign-verified** (keyless, release.yml@refs/tags/v2.4.2 + GH OIDC); Homebrew tap formula **v2.4.2**; `.mcpb` manifest valid (darwin/linux/win32 + win32 override). **Transient:** PyPI PEP691 JSON simple-index Fastly edge still lacked 2.4.2 at ship (HTML index + metadata API + files all live; wheel installs by direct URL) → benign CDN cache-key split, self-resolving. **GHCR anon pull 404** (package private — owner sets public). 235 tests pass.
 
 **EXACT NEXT STEP:** Confirm `pip install -U memorised-them-all==2.4.2` resolves once PyPI's JSON simple-index edge clears (artifact already live + installable by URL; a background poll is checking). Then OWNER-ONLY (not automatable): refresh MCP-registry `server.json` via `mcp-publisher`, update the Claude Code marketplace + Glama listings, and set the GHCR package public for anonymous `docker pull`. No code work remains — `main`=`develop`=**v2.4.2**, converged, no open Critical/High.
+## Session 23 — 2026-06-20 — v2.5.0: cross-AI multi-client auto-config (WP-25)
+
+**Session id:** S23  **Branch:** `claude/plugin-review-improve-rqktks`  **Mode:** implement (feature MINOR)
+
+**Goal:** Close the headline user-requirement gap — make the plugin *support and auto-configure* Claude, Gemini, Grok and ChatGPT (and the OSes) — not just ship manual cross-AI recipes. Resume baseline was green (234 pass/3 skip; v2.4.2 converged, awaiting publish gate).
+
+**Method:** 3 expert agents in parallel — two web-research agents verified the EXACT current MCP config formats/paths for every client against vendor docs (Gemini CLI, OpenAI Codex, ChatGPT app, Cursor, VS Code, Windsurf, Grok/xAI), one senior-review agent assessed `setup.py`/`platform.py`/`updater.py`/`install.sh` and designed the reusable seam. Verified facts: most clients use JSON `mcpServers`+`{command,args,env}`; **VS Code** is the exception (`servers` key + `type:"stdio"`); **Codex** is **TOML** (`[mcp_servers."name"]`); **ChatGPT app + xAI API are remote-MCP-only** (no writable local stdio config) → documented HTTP path, not auto-config; **Grok Build** auto-discovers Claude/.mcp.json.
+
+**Built:**
+- `mta/core/clients.py` — client registry + side-effect-free `detect_clients()` + `setup_all()`. JSON merge reuses a refactored `setup._merge_into` (now parameterised by container key; **skips, never clobbers, an unparseable/JSONC file**; backs up only on change). TOML via dependency-free **append-or-create** (`tomllib`/`tomli` to detect, textual fallback on the 3.10 floor; never re-emits user tables). `_present()` excludes bare-`$HOME` parents so `~/.claude.json` doesn't false-positive.
+- `setup.py` refactor — extracted `_atomic_write_text`; generalised `_merge_into(container_key=…)`; `setup_claude` behaviour unchanged (back-compat).
+- CLI `mta setup [--dry-run|--only|--exclude|--env|--json]`; `setup-claude` retained.
+- `install.sh` step 4 → `mta setup` (all clients; `MTA_SKIP_SETUP` alias of `MTA_SKIP_CLAUDE_SETUP`); `launch.py` first-run (Windows) installs `-e .` + runs `mta setup` best-effort.
+- `mta recipes` gained an `auto` surface; `updater._touch` fixed (unique mkstemp+fsync, was a fixed `.tmp` race).
+- Docs/version: README install row + new "Works with more than Claude" table + v2.5 sub-line; CHANGELOG 2.5.0; all 7 version surfaces → **2.5.0**; CLAUDE.md status refreshed.
+- Tests: `tests/test_clients.py` (+11) — JSON merge/idempotency/sibling-preserve, VS Code variant, **JSONC-not-clobbered**, TOML create/append/idempotent/round-trip, detection-skips-absent, dry-run-writes-nothing, CLI `--json`, setup-claude-unchanged.
+
+**Verified:** **245 pass / 3 skip**; `check_versions` OK @2.5.0; `python -m build` + `twine check` **PASSED** (sdist+wheel); `clients.py` present in the wheel; `.mcpb` still ships `launch.py` (+win32 override) so Windows first-run auto-configs too; live `mta setup --dry-run` + `mta recipes` smoke-OK; end-to-end digest/overview/recall smoke-OK. No new runtime dependency; token-free / 100%-local / atomic-write invariants intact (auto-config is filesystem-only).
+
+**EXACT NEXT STEP:** Push `claude/plugin-review-improve-rqktks`, open a DRAFT PR, run a fresh-eyes review round on `clients.py`; then on user go-ahead publish v2.5.0 (FF `main`, sign+push tag `v2.5.0` → PyPI/GitHub Release+cosign/.mcpb/Homebrew/GHCR per PUBLISH_MANIFEST).
