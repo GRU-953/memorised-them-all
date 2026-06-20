@@ -1,3 +1,29 @@
+# Convergence note — v2.4.2 review-driven hardening (S22)
+
+**Status: CONVERGED. No open Critical/High.** A maximal 9-agent re-audit of shipped v2.4.1
+found **1 Critical + 4 High** (token-free `label` byte-leak; char-vs-byte caps; `resolve._norm`
+Bengali over-merge; rar/7z disk-fill; Windows `.mcpb` can't start). All fixed in WP-89…95
+(+ Med bundle WP-93/94), each with a regression test.
+
+Convergence criteria — ALL met:
+- **(a) Two consecutive clean review rounds.** Round 1 = initial audit (found 1C+4H → fixed).
+  Round 2 = 5-lens re-review of the diff → **0 new Critical/High**. Round 3 = an **independent
+  fresh verification agent** (no part in authoring/reviewing) re-ran the suite + all gates →
+  **VERDICT: SHIP, 0 Critical/High**. Monotonic progress (1C+4H → 0); no reopened findings.
+- **(b) Numeric gates met, no regression.** Token-free worst-case Bengali: recall **394 KB→86 KB**,
+  overview **157 KB→18 KB** (per-field byte caps enforced); determinism **byte-identical** across
+  hash-seed (SHA-256 reproduced); resolve keeps distinct Bengali distinct; rar/7z bomb bounded
+  (aborts+rolls back); export has zero absolute paths; `.mcpb` `mcpb validate` passes.
+- **(c) No open Critical/High.** Residuals are Med/Low, recorded as accepted/deferred in
+  `RISKS.md` R-13…R-19 (perf-index cache, resolve O(n²), non-Bengali Indic, cosign-bundle
+  migration, etc.) — not looped on.
+
+**Validation:** full suite **235 pass / 2 skip** (full-deps venv) incl. conversion-e2e; offline
+lane 232/2; `check_versions` OK at 2.4.2; wheel/sdist `twine check` PASSED. Released as PATCH
+**v2.4.2** (bug/security only, no tool/schema change). _Prior v1 note below._
+
+---
+
 # Convergence note — v1 hardening program (WP-90)
 
 **Status: CONVERGED for the build/code scope.** Against the program's convergence
