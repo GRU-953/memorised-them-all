@@ -36,6 +36,7 @@ import os
 import shutil
 import subprocess
 import tarfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -208,9 +209,55 @@ def _external_tool() -> list[str] | None:
     return None
 
 
+def _dir_size(path: Path) -> int:
+    """Bytes of regular files under ``path`` (symlinks excluded)."""
+    total = 0
+    for root, _dirs, files in os.walk(path, followlinks=False):
+        for name in files:
+            p = Path(root) / name
+            try:
+                if not p.is_symlink():
+                    total += p.stat().st_size
+            except OSError:
+                pass
+    return total
+
+
+def _run_extract_capped(argv: list[str], dest: Path, total_cap: int, timeout: int) -> int:
+    """Run an external extractor, ABORTING if the extracted tree exceeds ``total_cap`` —
+    the native zip/tar paths stream-cap *during* copy, but unar/7z write to disk before any
+    post-walk could see them, so a rar/7z decompression bomb could fill the disk with only
+    the wall-clock timeout as a bound. We poll ``dest`` size while it runs and kill + roll
+    back on breach. Returns the process return code; raises ``_BudgetExceeded`` on a byte
+    breach, ``OSError`` on timeout."""
+    proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                rc = proc.wait(timeout=0.4)
+            except subprocess.TimeoutExpired:
+                rc = None
+            if _dir_size(dest) > total_cap:
+                raise _BudgetExceeded()
+            if rc is not None:
+                return rc
+            if time.monotonic() > deadline:
+                raise OSError("extractor timeout")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except (OSError, subprocess.SubprocessError):
+                pass
+
+
 def _expand_external(path: Path, dest: Path, budget: _Budget) -> bool:
-    """rar/7z via unar or 7z. Output is post-sanitised against the same budget.
-    Returns False when no tool is available (caller reports a clean skip)."""
+    """rar/7z via unar or 7z. Bounded by ``total_cap`` DURING extraction (not just a post
+    walk), then post-sanitised against the same budget. Returns False when no tool is
+    available (caller reports a clean skip); raises ``_BudgetExceeded`` on a bomb so the
+    whole expansion rolls back all-or-nothing."""
     tool = _external_tool()
     if tool is None:
         return False
@@ -220,9 +267,12 @@ def _expand_external(path: Path, dest: Path, budget: _Budget) -> bool:
     else:
         argv = tool + ["x", "-y", f"-o{dest}", str(path)]
     try:
-        r = subprocess.run(argv, capture_output=True, timeout=_EXTERNAL_TIMEOUT)
-        if r.returncode != 0:
-            raise OSError(f"extractor rc={r.returncode}")
+        rc = _run_extract_capped(argv, dest, budget.total_cap, _EXTERNAL_TIMEOUT)
+        if rc != 0:
+            raise OSError(f"extractor rc={rc}")
+    except _BudgetExceeded:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise                                    # bomb → all-or-nothing rollback (caller)
     except (OSError, subprocess.SubprocessError):
         shutil.rmtree(dest, ignore_errors=True)
         return False
