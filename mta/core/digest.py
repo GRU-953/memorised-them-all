@@ -414,7 +414,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         mentions.extend(ex.entities)
 
     # Resolve entities → graph → communities.
-    resolved = resolve_entities(mentions, embedder)
+    resolved = resolve_entities(mentions, embedder, resolve_cap=cfg.resolve_max_names)
     G = graphmod.build_graph(extractions, resolved["alias_to_cid"],
                              resolved["canonical"])
     partition = graphmod.detect_communities(G, cfg.community_algo)
