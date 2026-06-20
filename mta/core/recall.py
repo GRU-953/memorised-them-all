@@ -22,7 +22,7 @@ import unicodedata
 
 from . import locks
 from .config import Config
-from .store import load_graph, load_vectors
+from .store import load_bm25_index, load_graph, load_meta
 
 # Hard per-field caps, in UTF-8 BYTES, so a verbose (or prompt-injected / document-borne)
 # field can never blow up Claude's context. These bound EVERY string recall/overview
@@ -104,16 +104,21 @@ def _lexical_overlap(query: str, text: str) -> int:
     return len(q & (tt - _OVERLAP_STOP))
 
 
-def _bm25_rank(query: str, meta: list[dict], k: int) -> list[tuple[float, int]]:
-    """Rank recall units by BM25 over (label + text). Model-free and script-agnostic
-    (Unicode tokenisation → Bengali words match too), and far better than the
-    deterministic hash-embedding cosine, which has no semantic OR lexical signal. Units
-    that carry facts (longer text) naturally outrank bare-label entities. k1/b standard."""
-    q_terms = set(_tokens(query))
+def _unit_doc_tokens(u: dict) -> list[str]:
+    """The BM25 'document' token list for one recall unit — label weighted ×2, then text.
+    The SINGLE source of truth for unit tokenisation: the digest-time cache builder and
+    the on-the-fly fallback both call this, so a cached index can never tokenise
+    differently from a live re-tokenisation (R-13 equivalence)."""
+    return _tokens((u.get("label", "") + " ") * 2 + (u.get("text") or ""))
+
+
+def _bm25_rank_tokenized(q_terms: set[str], docs: list[list[str]], k: int) -> list[tuple[float, int]]:
+    """BM25 core over PRE-TOKENISED docs (the exact loop formerly inline in `_bm25_rank`).
+    Identical math/output whether `docs` came from the persisted cache or live
+    tokenisation — `docs[i]` corresponds 1:1 to recall-unit `i`."""
     if not q_terms:
         return []
     k1, b = 1.5, 0.75
-    docs = [_tokens((u.get("label", "") + " ") * 2 + (u.get("text") or "")) for u in meta]
     n = len(docs) or 1
     avgdl = (sum(len(d) for d in docs) / n) or 1.0
     df = dict.fromkeys(q_terms, 0)
@@ -139,6 +144,32 @@ def _bm25_rank(query: str, meta: list[dict], k: int) -> list[tuple[float, int]]:
     return scored[:k]
 
 
+def _bm25_rank(query: str, meta: list[dict], k: int) -> list[tuple[float, int]]:
+    """Rank recall units by BM25 over (label + text), tokenising on the fly. Model-free
+    and script-agnostic (Bengali words match too). The on-the-fly fallback for when no
+    persisted index is present; kept as the reference path (and public signature)."""
+    return _bm25_rank_tokenized(set(_tokens(query)),
+                                [_unit_doc_tokens(u) for u in meta], k)
+
+
+def _bm25_rank_cached(query: str, meta: list[dict], cache: dict | None,
+                      k: int) -> list[tuple[float, int]]:
+    """Rank using the persisted pre-tokenised index when it is present AND structurally
+    valid (a list of token-lists, one per recall unit); otherwise tokenise on the fly.
+    The length-match gate mirrors the torn-store discipline — a stale/garbage cache can
+    never mis-rank, only fall back. Output is byte-identical to ``_bm25_rank`` because
+    the cached tokens were produced by the same ``_unit_doc_tokens`` at digest time."""
+    docs = None
+    if isinstance(cache, dict):
+        c_docs = cache.get("docs")
+        if (isinstance(c_docs, list) and len(c_docs) == len(meta)
+                and all(isinstance(d, list) for d in c_docs)):
+            docs = c_docs
+    if docs is None:
+        docs = [_unit_doc_tokens(u) for u in meta]
+    return _bm25_rank_tokenized(set(_tokens(query)), docs, k)
+
+
 def recall(cfg: Config, query: str, k: int | None = None) -> dict:
     # Shared (multi-reader) lock: never observe a half-updated graph<->vectors
     # pair while a digest is persisting (LIFE-01).
@@ -154,16 +185,15 @@ def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
     except (TypeError, ValueError, OverflowError):
         k = cfg.recall_k
     k = max(1, min(k, 50))
-    loaded = load_vectors(cfg)
-    if loaded is None:
+    meta = load_meta(cfg)      # R-15: meta only — BM25 never reads the embedding matrix
+    if meta is None:
         return {"status": "no_memory", "project": cfg.project,
                 "message": "Nothing digested for this project yet."}
-    _matrix, meta = loaded     # vectors retained for compat; ranking is now BM25 lexical
 
     # BM25 lexical ranking over the recall units (entity cards + theme summaries).
-    # Model-free, script-agnostic (matches Bengali too), and ranks by genuine relevance
-    # — unlike the hash-embedding cosine, which had neither semantic nor lexical signal.
-    ranked = _bm25_rank(query, meta, k)
+    # Model-free, script-agnostic (matches Bengali too), and ranks by genuine relevance.
+    # R-13: use the digest-time pre-tokenised index when present; fall back to on-the-fly.
+    ranked = _bm25_rank_cached(query, meta, load_bm25_index(cfg), k)
     hits = [_hit(meta[i], round(float(s), 3)) for s, i in ranked if i < len(meta)]
     raw_top = hits[0]["score"] if hits else 0.0   # best score BEFORE the floor
     # Optional absolute score floor (MTA_RECALL_MIN_SCORE; 0 = off, the default). Now on

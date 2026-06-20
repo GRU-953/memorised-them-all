@@ -110,7 +110,8 @@ def _backup_store(cfg: Config, reason: str) -> Path | None:
         dest = cfg.project_dir / "backups" / f"{time.strftime('%Y%m%d-%H%M%S')}-{reason}"
         dest.mkdir(parents=True, exist_ok=True)
         for src in (cfg.graph_path, cfg.vectors_path,
-                    cfg.vectors_path.with_suffix(".json"), cfg.memory_md):
+                    cfg.vectors_path.with_suffix(".json"), cfg.bm25_index_path,
+                    cfg.memory_md):
             if src.exists():
                 shutil.copy2(src, dest / src.name)
         print(f"[mta] backed up existing memory to {dest}", file=sys.stderr)
@@ -170,11 +171,68 @@ def clear_vectors(cfg: Config) -> None:
     Called when a digest yields no recall units, so stale vectors from a previous
     digest can't linger and make ``recall`` (which would mis-key off old refs) and
     ``memory_overview`` disagree. Best-effort and idempotent."""
-    for path in (cfg.vectors_path, cfg.vectors_path.with_suffix(".json")):
+    for path in (cfg.vectors_path, cfg.vectors_path.with_suffix(".json"),
+                 cfg.bm25_index_path):
         try:
             path.unlink()
         except OSError:
             pass
+
+
+def load_meta(cfg: Config) -> list[dict] | None:
+    """Load ONLY the recall-unit metadata (``vectors.json``) — never the ``vectors.npz``
+    matrix (R-15). BM25 recall ranks from text/labels in the meta, so materialising the
+    embedding matrix every query was pure waste.
+
+    Preserves ``load_vectors``'s "no_memory" semantics exactly: both ``vectors.npz`` and
+    ``vectors.json`` must exist (a bare sidecar = an incomplete/torn store → ``None``),
+    and the sidecar must parse to a list. The matrix body is never read or decompressed,
+    so a malicious/pickled ``.npz`` can't even be touched on the recall path. The
+    matrix↔meta row-count cross-check that ``load_vectors`` does is unnecessary here
+    because recall indexes ``meta`` only — never the matrix."""
+    meta_path = cfg.vectors_path.with_suffix(".json")
+    if not cfg.vectors_path.exists() or not meta_path.exists():
+        return None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    # A non-list, or an EMPTY list, is treated as no memory: a real digest never persists
+    # an empty sidecar (it calls clear_vectors when there are no units), so an empty/var
+    # meta only arises from a torn or hand-edited store — recall should decline, not "ok"
+    # with zero hits. This also preserves load_vectors's torn-pair → no_memory behaviour
+    # for the matrix-rows≠meta-len case where meta is empty.
+    return meta if isinstance(meta, list) and meta else None
+
+
+def save_bm25_index(cfg: Config, index_doc: dict) -> None:
+    """Persist the deterministic, pre-tokenised BM25 index (R-13) next to the vectors.
+    Written through the same crash-safe atomic writer (``newline=""`` → byte-identical
+    across OSes), so it joins the determinism contract like ``graph.json``."""
+    cfg.ensure_dirs()
+    _atomic_write_text(cfg.bm25_index_path,
+                       json.dumps(index_doc, ensure_ascii=False, indent=2))
+
+
+def load_bm25_index(cfg: Config) -> dict | None:
+    """Load the BM25 index cache, or ``None`` if absent/torn/garbage. Structural
+    validation of the per-unit token lists lives at the recall call site, so any
+    corrupt cache degrades to the on-the-fly tokeniser rather than crashing recall."""
+    if not cfg.bm25_index_path.exists():
+        return None
+    try:
+        doc = json.loads(cfg.bm25_index_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+def clear_bm25_index(cfg: Config) -> None:
+    """Remove the BM25 index cache (idempotent, best-effort)."""
+    try:
+        cfg.bm25_index_path.unlink()
+    except OSError:
+        pass
 
 
 def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:

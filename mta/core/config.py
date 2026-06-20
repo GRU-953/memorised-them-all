@@ -177,6 +177,12 @@ class Config:
         return self.project_dir / "vectors.npz"
 
     @property
+    def bm25_index_path(self) -> Path:
+        """Pre-tokenised BM25 index (a deterministic, additive recall-perf cache).
+        Optional: absence is always tolerated (recall tokenises on the fly)."""
+        return self.project_dir / "bm25_index.json"
+
+    @property
     def memory_md(self) -> Path:
         return self.project_dir / "memory.md"
 
