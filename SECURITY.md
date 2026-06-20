@@ -40,8 +40,8 @@ Attachments are untrusted input. Mitigations:
   **stream-capped during copy** against a cumulative byte/entry/depth budget, with
   all-or-nothing rollback. Optional **rar/7z** (via `unar`/`7z`) cannot be stream-capped, so
   extraction runs under a **live disk-usage monitor** that kills the extractor and rolls back
-  the moment the tree exceeds the same cumulative byte budget (not merely a wall-clock
-  timeout) — so a rar/7z bomb cannot fill the disk.
+  within a fraction of a second of the tree exceeding the same cumulative byte budget (not
+  merely a wall-clock timeout) — so a rar/7z bomb cannot run the disk away.
 - **Injection hardening** — the engine is fully model-free, but the small recall slice it
   returns is later read by Claude, so control tokens and prompt-fence sequences embedded in
   *source* documents are neutralised during entity/fact extraction **and** the theme/synopsis

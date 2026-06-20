@@ -46,6 +46,14 @@ def test_clip_bytes_never_splits_codepoint():
     assert R._clip_bytes(None, 100) == ""
 
 
+def test_clip_bytes_is_total_on_edge_inputs():
+    # never raises crossing the tool boundary (e.g. memory_overview on a corrupt store)
+    assert R._clip_bytes("hello", 0) == ""        # non-positive cap → empty (not end-slice)
+    assert R._clip_bytes("hello", -5) == ""
+    assert R._clip_bytes(12345, 100) == "12345"   # non-str field coerced, no AttributeError
+    assert R._clip_bytes(["x"], 100) == "['x']"
+
+
 def test_hit_clamps_label_text_and_docs_in_bytes():
     unit = {"kind": "entity", "label": BN * 80, "text": BN * 80,
             "docs": [(BN * 40) + ".pdf"] * 12}
