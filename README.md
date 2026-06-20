@@ -366,6 +366,7 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | `MTA_CONVERT_TIMEOUT` | `120` | per-file conversion timeout (seconds); a file that hangs the parser is skipped, never stalls the batch. `0` disables |
 | `MTA_MAX_FILE_MB` | `200` | per-file size cap (also drives the archive budgets) |
 | `MTA_MAX_CHUNKS` | `1500` | cap on passages kept per memory (raise for very large corpora) |
+| `MTA_RESOLVE_MAX_NAMES` | `5000` | cap on unique entity names entering the fuzzy/embedding resolution passes (`0` = unbounded). Above it, exact-name + acronym merges still run; only similarity merges are skipped |
 | `MTA_OCR` | `auto` | OCR mode for PDFs/images: `auto`, `off`, `force`, `hybrid` |
 | `MTA_RECALL_K` | `8` | default number of recall hits returned |
 | `MTA_RECALL_MIN_SCORE` | `0` (off) | absolute BM25-score floor for recall hits (unbounded ≥0, **not** a 0–1 cosine) |
