@@ -38,8 +38,13 @@ _MAX_SYNOPSIS = 1200   # deterministic fact-join synopsis recall/overview echo b
 def _clip_bytes(s, max_bytes: int) -> str:
     """Truncate ``s`` to at most ``max_bytes`` UTF-8 bytes without splitting a multi-byte
     codepoint. The byte cap (not a char slice) is what actually enforces token-free for
-    multi-byte scripts like Bengali."""
-    s = s or ""
+    multi-byte scripts like Bengali. Total by construction — coerces a non-str field (e.g.
+    a hand-corrupted graph.json) to str and treats a non-positive cap as empty, so a tool
+    handler (e.g. the un-wrapped memory_overview) can never raise crossing this boundary."""
+    if not isinstance(s, str):
+        s = "" if s is None else str(s)
+    if max_bytes <= 0:
+        return ""
     b = s.encode("utf-8")
     if len(b) <= max_bytes:
         return s
