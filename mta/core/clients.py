@@ -187,12 +187,17 @@ def _toml_block(name: str, command: list[str], env: dict | None) -> str:
 
 def _toml_has_table(text: str, name: str) -> bool:
     """Cheap textual check for an existing ``[mcp_servers.<name>]`` table (used as a
-    fallback when no TOML parser is importable on the 3.10 floor)."""
+    fallback when no TOML parser is importable on the 3.10 floor).
+
+    Tolerant of the legal non-canonical spellings — intra-bracket/dot whitespace and a
+    trailing ``#`` comment — and of all three key quotings (double / single / bare), so a
+    hand-written table with our server name is detected and we never append a duplicate
+    (which would make the file invalid TOML)."""
     import re
-    quoted = re.escape(f'[mcp_servers.{_toml_str(name)}]')          # double-quoted key (what we emit)
-    bare = re.escape(f"[mcp_servers.{name}]")                       # bare key
-    literal = re.escape(f"[mcp_servers.'{name}']")                  # single-quoted (literal) key
-    return bool(re.search(rf"(?m)^\s*(?:{quoted}|{bare}|{literal})\s*$", text))
+    n = re.escape(name)
+    key = rf"(?:\"{n}\"|'{n}'|{n})"                                 # double / single / bare key
+    pat = rf"(?m)^\s*\[\s*mcp_servers\s*\.\s*{key}\s*\]\s*(?:#.*)?$"
+    return bool(re.search(pat, text))
 
 
 def _merge_toml(spec: ClientSpec, command: list[str], env: dict | None, *,

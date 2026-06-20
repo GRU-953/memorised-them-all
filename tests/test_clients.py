@@ -95,6 +95,20 @@ def test_toml_detects_single_quoted_existing_table(tmp_path):
     assert r["changed"] is False                          # already present → no duplicate table
 
 
+def test_toml_has_table_tolerates_noncanonical_headers():
+    name = "memorised-them-all"
+    for header in (
+        '[mcp_servers."memorised-them-all"]',          # canonical (what we emit)
+        "[mcp_servers.memorised-them-all]",            # bare key
+        "[mcp_servers.'memorised-them-all']",          # single-quoted literal
+        '[mcp_servers . "memorised-them-all"]',        # intra-bracket whitespace
+        '[mcp_servers."memorised-them-all"]   # mine',  # trailing comment
+    ):
+        assert clients._toml_has_table(header + "\ncommand = \"x\"\n", name), header
+    # a *different* server name must NOT match
+    assert not clients._toml_has_table('[mcp_servers."other"]\n', name)
+
+
 def test_setup_all_empty_only_configures_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(clients, "_mta_command", lambda: ["mta", "serve"])
     res = clients.setup_all(only=["", "  "])

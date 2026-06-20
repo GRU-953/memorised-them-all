@@ -40,6 +40,9 @@ no network, no token, nothing through the model).
 - **`updater._touch` throttle stamp.** Replaced a fixed `.tmp` name (itself a race when Claude
   Desktop and Code launch together — the very collision the stamp guards) with a unique
   `mkstemp` + `fsync` + `os.replace`.
+- **Codex TOML duplicate-table detection.** On the parser-less Python-3.10 path, the existing-table
+  scan now tolerates all legal spellings (double/single/bare keys, intra-bracket whitespace, a
+  trailing comment), so a hand-written table is detected and never duplicated into invalid TOML.
 
 ## [2.4.2] — 2026-06-20
 
