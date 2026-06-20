@@ -685,3 +685,23 @@ User: "Cleanup and update the GitHub repository and completely redevelop the rea
 **Verified:** **245 pass / 3 skip**; `check_versions` OK @2.5.0; `python -m build` + `twine check` **PASSED** (sdist+wheel); `clients.py` present in the wheel; `.mcpb` still ships `launch.py` (+win32 override) so Windows first-run auto-configs too; live `mta setup --dry-run` + `mta recipes` smoke-OK; end-to-end digest/overview/recall smoke-OK. No new runtime dependency; token-free / 100%-local / atomic-write invariants intact (auto-config is filesystem-only).
 
 **EXACT NEXT STEP:** Push `claude/plugin-review-improve-rqktks`, open a DRAFT PR, run a fresh-eyes review round on `clients.py`; then on user go-ahead publish v2.5.0 (FF `main`, sign+push tag `v2.5.0` → PyPI/GitHub Release+cosign/.mcpb/Homebrew/GHCR per PUBLISH_MANIFEST).
+
+---
+
+## Session 24 — 2026-06-20 — v2.6.0: recall + resolve performance pass (WP-26)
+
+**Session id:** S24  **Branch:** `wp-26-perf-recall-resolve` → `develop`  **Mode:** implement (feature MINOR; perf)
+
+**Goal:** Continue the improvement program — close the deferred perf backlog (RISKS R-13/R-14/R-15) with no behaviour change. Resume baseline: develop=v2.5.0 (reconciled), 250 pass.
+
+**Method:** 3 expert agents up front (recall-perf architect, resolve-perf architect, adversarial cross-check of traps). Implemented in two increments, each test-first, then 2 review rounds.
+
+**Built:**
+- **R-13/R-15 (recall):** `store.load_meta` (vectors.json only — matrix never loaded); `store.save_bm25_index/load_bm25_index/clear_bm25_index` + `Config.bm25_index_path`; `recall._unit_doc_tokens` (single tokeniser), `_bm25_rank_tokenized` (core), `_bm25_rank` (on-the-fly wrapper), `_bm25_rank_cached` (uses index only when list-of-str-lists AND len==meta, else falls back); `digest._build_bm25_index` persists from the same units; clear/reset/export/backup + determinism test all extended. Additive, no SCHEMA bump. **8.8× faster @8k units, byte-identical ranking.**
+- **R-14 (resolve):** `_script` + `_block_keys` (per-token prefix-2 + suffix-2, script-tagged) + `_candidate_pairs(block=)`; passes 2 & 4 iterate candidate pairs (no dense n×n cosine — per-candidate `mat[i]@mat[j]`); `resolve_entities(resolve_cap=, _block=)`; `Config.resolve_max_names` (MTA_RESOLVE_MAX_NAMES, default 5000, 0=unbounded) + persisted; digest passes the cap. `_norm` untouched → WP-90 intact. **6.6% of O(n²) pairs @3k names.**
+
+**Reviews (converged):** Round 1 adversarial → **1 High** (prefix-only key dropped leading-char-edit merges e.g. MacDonald/McDonald; parity test compared blocking-vs-blocking) + 1 Low (cache gate didn't require str tokens) → fixed: added the **suffix** block key + a **true full-scan** parity path (`_block=False`) + strengthened the cache gate. Round 2 **independent fresh-verification** (own fuzz corpus, suite + gates first-hand) → **NO Critical/High**; one Low doc over-claim (embedding pass safely skips spurious hash-collision merges — over-split direction) → docstring/test comment tightened.
+
+**Verified:** **261 pass / 3 skip**; determinism byte-identical incl. `bm25_index.json`; recall cache-equivalence + corrupt-cache fallback; resolve blocked==full-scan (realistic corpus + fuzzer, only benign over-splits); `check_versions` OK @2.6.0; `python -m build` + `twine check` PASSED. All 7 version surfaces → 2.6.0; CHANGELOG + README env table + RISKS (R-13/14/15 Resolved) + CONVERGENCE updated. No new dependency; token-free / 100%-local / atomic-write invariants intact.
+
+**EXACT NEXT STEP:** Push `wp-26-perf-recall-resolve`, open a DRAFT PR → `develop`, trigger CI (workflow_dispatch) to confirm the full matrix; then on user go-ahead release v2.6.0 (FF `main`; owner tag-push `v2.6.0` — sandbox blocks tag pushes via HTTP-403 → release train fires from an authenticated clone).
