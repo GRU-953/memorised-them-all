@@ -17,9 +17,12 @@ import numpy as np
 
 from .embed import Embedder, cosine
 
-# Keep any Unicode word character (CJK, Bengali, Cyrillic, …), not just ASCII —
-# a Latin-only class collapsed every non-Latin name to "" and merged them.
-_NORM_RE = re.compile(r"[^\w]+", re.UNICODE)
+# Keep any Unicode word character (CJK, Cyrillic, …) AND the Bengali block — Bengali
+# vowel signs (matras), halant (্ U+09CD) and nukta (় U+09BC) are category Mc/Mn and are
+# NOT matched by \w, so a bare [^\w] squeeze DELETES every matra, collapsing distinct words
+# to consonant skeletons (ভোলা[Bhola] & ভালো[good] → "ভ ল"; ঢাকা[Dhaka] & ঢাকি[drum] → "ঢ ক")
+# and force-merging unrelated entities. Block range matches recall._TOK (U+0980–U+09FF).
+_NORM_RE = re.compile(r"[^\wঀ-৿]+", re.UNICODE)
 
 try:
     from rapidfuzz import fuzz
@@ -35,9 +38,12 @@ except Exception:  # noqa: BLE001 - a hard dependency; if it's missing, degrade 
 
 
 def _norm(name: str) -> str:
-    # Fold accents (José → jose) but preserve non-Latin scripts.
+    # Fold Latin accents (José → jose) + compatibility forms (ﬁ→fi, ＡＢＣ→abc) but PRESERVE
+    # Bengali combining marks (halant/nukta) — stripping them merged নিম্ন-class words. Matras
+    # are kept by _NORM_RE above; re-compose NFC so the canonical form matches stored labels.
     s = unicodedata.normalize("NFKD", name or "")
-    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = "".join(c for c in s if not (unicodedata.combining(c) and not ("ঀ" <= c <= "৿")))
+    s = unicodedata.normalize("NFC", s)
     return _NORM_RE.sub(" ", s).lower().strip()
 
 
