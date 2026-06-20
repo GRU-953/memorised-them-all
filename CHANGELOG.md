@@ -6,6 +6,53 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.4.2] — 2026-06-20
+
+A maximal 9-agent re-audit of v2.4.1 found a token-free **Critical** and four **High**
+defects concentrated in the flagship Bengali path; all are fixed here (bug/security only,
+no API/schema change). Converged across two clean review rounds + an independent fresh
+verification (recall worst-case Bengali dropped from ~394 KB to ~86 KB).
+
+### Fixed
+- **Token-free invariant (Critical).** `recall`/`memory_overview` never length-clamped the
+  `label` field, and the `text`/`synopsis` "caps" were *character* slices — so a Bengali
+  corpus (~3 bytes/char), and especially an uncapped Bengali entity/theme label, could
+  return **hundreds of KB** into Claude's context (measured 394 KB recall, 157 KB overview).
+  Every returned string is now hard-capped in **UTF-8 bytes** (label ≤ 200 B, text ≤ 600 B,
+  doc-name ≤ 160 B, synopsis ≤ 1200 B) via a codepoint-safe clipper. Worst-case Bengali
+  recall is now ~86 KB / overview ~18 KB.
+- **Bengali entity over-merge (High).** `resolve._norm` stripped Bengali vowel-signs/halant
+  (NFKD + a `[^\w]` squeeze), collapsing distinct words to consonant skeletons and
+  **force-merging unrelated entities** (ভোলা[Bhola district] ≡ ভালো[good]; ঢাকা[Dhaka] ≡
+  ঢাকি[drum]). Normalisation now preserves the Bengali block and folds Latin diacritics only.
+- **rar/7z decompression-bomb (High).** External extraction (`unar`/`7z`) wrote to disk
+  before any size cap (only a 600 s timeout) → disk-fill DoS. Extraction now runs under a
+  live disk-usage monitor that kills the extractor and rolls back all-or-nothing on a byte
+  breach. SECURITY.md reconciled.
+- **Windows `.mcpb` (High).** The bundle declared `win32` but ran `bash launch.sh` and
+  excluded the cross-platform `launch.py` — so it could not start on Windows. The bundle now
+  ships `launch.py` and the manifest adds a `win32` override (`python launch.py`); the POSIX
+  `bash launch.sh` default is unchanged.
+- **Per-document notes (Med).** The note filename used the raw source basename, so two docs
+  with the same basename overwrote each other's note and an over-long name could abort a
+  committed digest; it now uses the collision-free, length-clamped output stem.
+- **Cross-OS determinism (Med).** Text writers (`graph.json`/`memory.md`/notes, converted
+  `.md`, config/state) now emit LF on every OS, so memory output is byte-identical across
+  machines, not just same-OS.
+
+### Changed
+- `list_digestible` no longer advertises audio files (audio is unsupported in v2; `digest`
+  always skipped them).
+- Recall's off-topic confidence guard no longer over-declines all-common-word queries.
+- `MTA_RECALL_MIN_SCORE` documented on the BM25 scale (it is **not** a 0–1 cosine).
+
+### Docs
+- README config table adds `MTA_OCR`, `MTA_RECALL_K`, `MTA_RECALL_MIN_SCORE`,
+  `MTA_EXTRACT_WORKERS` and the `MTA_AUTO_UPDATE=upstream` value.
+- De-staled remaining v1 references (LLM/Ollama/`MTA_BACKEND`/audio/ffmpeg) in the
+  Dockerfile, SECURITY.md, the `/recall` & `/export-memory` slash commands, dead CI env
+  vars, and code comments.
+
 ## [2.4.1] — 2026-06-10
 
 ### Docs & metadata (no behaviour change)

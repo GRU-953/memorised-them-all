@@ -19,10 +19,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.12"]
     env:
-      # Fully offline: classical extraction + hashing embeddings. No models, no network.
-      MTA_NO_OLLAMA: "1"
+      # Offline by construction — the engine is model-free (no LLM/Ollama/embedding model),
+      # so there is nothing to disable; just pin the daily update check off.
       MTA_AUTO_UPDATE: "off"
-      MTA_EXTRACT: "classical"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
@@ -59,9 +58,7 @@ jobs:
     # the full package + Tesseract and runs the conversion + OCR tests for real.
     runs-on: ubuntu-latest
     env:
-      MTA_NO_OLLAMA: "1"
       MTA_AUTO_UPDATE: "off"
-      MTA_EXTRACT: "classical"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5

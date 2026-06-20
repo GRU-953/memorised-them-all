@@ -7,6 +7,12 @@ low-confidence signal so off-topic queries stay declinable. Whole documents are 
 returned — Claude gets a compact, citable slice, which is what keeps recall
 near-zero-token. (A legacy hash-embedding store is still loaded for back-compat but is
 not used for ranking.)
+
+Every string field that recall/overview echo back is HARD-CAPPED in UTF-8 BYTES (not
+characters) via ``_clip_bytes`` — a char slice silently leaks 3× the budget for 3-byte
+Bengali, and the ``label`` field (which the Bengali entity path can grow without the
+80-char Latin gate) is the one that must never be uncapped. This is the token-free
+guarantee, enforced at the tool boundary regardless of what the store holds.
 """
 from __future__ import annotations
 
@@ -18,20 +24,39 @@ from . import locks
 from .config import Config
 from .store import load_graph, load_vectors
 
-# Hard per-hit caps so a verbose (or prompt-injected) local-model summary can
-# never blow up Claude's context — the token-free guarantee must hold on the
-# accurate path, not just the classical one.
-_MAX_HIT_TEXT = 600
+# Hard per-field caps, in UTF-8 BYTES, so a verbose (or prompt-injected / document-borne)
+# field can never blow up Claude's context. These bound EVERY string recall/overview
+# return — label, text, synopsis, theme summary, doc names — because the token-free
+# guarantee is a byte guarantee, and Bengali is ~3 bytes/char.
+_MAX_LABEL = 200       # entity/theme name — long values are junk; names fit easily
+_MAX_HIT_TEXT = 600    # citable fact slice
+_MAX_DOC_NAME = 160    # one provenance basename
 _MAX_HIT_DOCS = 5
-# The synopsis is an LLM-generated summary that recall/overview echo back, so bound
-# it too — the token-free guarantee must cap every field that can grow with input.
-_MAX_SYNOPSIS = 1200
+_MAX_SYNOPSIS = 1200   # deterministic fact-join synopsis recall/overview echo back
+
+
+def _clip_bytes(s, max_bytes: int) -> str:
+    """Truncate ``s`` to at most ``max_bytes`` UTF-8 bytes without splitting a multi-byte
+    codepoint. The byte cap (not a char slice) is what actually enforces token-free for
+    multi-byte scripts like Bengali. Total by construction — coerces a non-str field (e.g.
+    a hand-corrupted graph.json) to str and treats a non-positive cap as empty, so a tool
+    handler (e.g. the un-wrapped memory_overview) can never raise crossing this boundary."""
+    if not isinstance(s, str):
+        s = "" if s is None else str(s)
+    if max_bytes <= 0:
+        return ""
+    b = s.encode("utf-8")
+    if len(b) <= max_bytes:
+        return s
+    return b[:max_bytes].decode("utf-8", "ignore")
 
 
 def _hit(u: dict, score) -> dict:
     docs = u.get("docs", []) or []
-    out = {"score": score, "kind": u.get("kind"), "label": u.get("label"),
-           "text": (u.get("text") or "")[:_MAX_HIT_TEXT], "docs": docs[:_MAX_HIT_DOCS]}
+    out = {"score": score, "kind": u.get("kind"),
+           "label": _clip_bytes(u.get("label"), _MAX_LABEL),
+           "text": _clip_bytes(u.get("text"), _MAX_HIT_TEXT),
+           "docs": [_clip_bytes(d, _MAX_DOC_NAME) for d in docs[:_MAX_HIT_DOCS]]}
     if len(docs) > _MAX_HIT_DOCS:
         out["doc_count"] = len(docs)
     return out
@@ -68,10 +93,15 @@ _OVERLAP_STOP = frozenset(
 def _lexical_overlap(query: str, text: str) -> int:
     """# of distinct CONTENT words (len>1, non-stopword) shared by the query and a hit's
     text. Stopword-filtered so a lone common-word match (e.g. "best") doesn't read as
-    topical overlap and wrongly keep an off-topic hit confident."""
-    q = set(_tokens(query)) - _OVERLAP_STOP
-    t = set(_tokens(text)) - _OVERLAP_STOP
-    return len(q & t)
+    topical overlap and wrongly keep an off-topic hit confident. FALLBACK: if the query is
+    *entirely* common words (e.g. "data report information"), the filtered set is empty and
+    every hit would read low-confidence even on a strong BM25 match — so fall back to the
+    unfiltered token overlap, which still distinguishes a real topical hit from noise."""
+    qt, tt = set(_tokens(query)), set(_tokens(text))
+    q = qt - _OVERLAP_STOP
+    if not q:                       # all query words are common → don't over-decline
+        return len(qt & tt)
+    return len(q & (tt - _OVERLAP_STOP))
 
 
 def _bm25_rank(query: str, meta: list[dict], k: int) -> list[tuple[float, int]]:
@@ -145,7 +175,7 @@ def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
                                               + hits[0].get("text", "")) == 0
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query,
-            "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            "synopsis": _clip_bytes((doc or {}).get("synopsis", ""), _MAX_SYNOPSIS),
             # The mode this memory was last BUILT in (always "deterministic" in v2).
             "memory_mode": (doc or {}).get("stats", {}).get("mode"),
             "top_score": (hits[0]["score"] if hits else 0.0),
@@ -169,7 +199,7 @@ def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:
     top = hits[0]["score"] if hits else 0   # integer lexical-overlap scale (mode=lexical)
     doc = load_graph(cfg)
     return {"status": "ok", "project": cfg.project, "query": query, "mode": "lexical",
-            "synopsis": ((doc or {}).get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            "synopsis": _clip_bytes((doc or {}).get("synopsis", ""), _MAX_SYNOPSIS),
             "memory_mode": (doc or {}).get("stats", {}).get("mode"),
             "top_score": top, "raw_top_score": top,
             "low_confidence": not hits, "hits": hits}
@@ -181,8 +211,8 @@ def overview(cfg: Config) -> dict:
     if not doc:
         return {"status": "no_memory", "project": cfg.project}
     return {"status": "ok", "project": cfg.project,
-            "synopsis": (doc.get("synopsis", "") or "")[:_MAX_SYNOPSIS],
+            "synopsis": _clip_bytes(doc.get("synopsis", ""), _MAX_SYNOPSIS),
             "stats": doc.get("stats", {}),
-            "themes": [{"label": c["label"],
-                        "summary": (c.get("summary", "") or "")[:_MAX_HIT_TEXT]}
+            "themes": [{"label": _clip_bytes(c.get("label"), _MAX_LABEL),
+                        "summary": _clip_bytes(c.get("summary"), _MAX_HIT_TEXT)}
                        for c in doc.get("communities", [])][:20]}

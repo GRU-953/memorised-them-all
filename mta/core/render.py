@@ -21,7 +21,7 @@ def write_memory_md(cfg: Config, doc: dict) -> Path:
         f"> Generated locally by **Memorised them All**. "
         f"{s.get('files', 0)} files · {s.get('entities', 0)} entities · "
         f"{s.get('relations', 0)} relations · {s.get('communities', 0)} themes · "
-        f"embeddings: {s.get('embed_mode', 'n/a')}.", "",
+        f"recall: BM25 lexical.", "",
         "## Overview", "", doc.get("synopsis", "").strip() or "_(empty)_", "",
         "## Themes", "",
     ]
@@ -71,10 +71,10 @@ def write_doc_memories(cfg: Config, doc: dict, _g=None) -> int:
     for d in doc.get("documents", []):
         if d.get("status") != "ok":
             continue
-        name = Path(d["name"]).name
-        stem = name
-        ents = sorted(by_doc_entities.get(_doc_key(d), set()))
-        facts = by_doc_facts.get(_doc_key(d), [])
+        name = Path(d["name"]).name        # human-readable title for the note heading
+        key = _doc_key(d)                  # collision-free, length-clamped output stem
+        ents = sorted(by_doc_entities.get(key, set()))
+        facts = by_doc_facts.get(key, [])
         out = [f"# {name}", "",
                f"_Converted via {d.get('method', '?')} · {d.get('chars', 0)} chars._", ""]
         if ents:
@@ -89,7 +89,7 @@ def write_doc_memories(cfg: Config, doc: dict, _g=None) -> int:
                 seen.add(t)
                 out.append(f"- {t}")
             out.append("")
-        _atomic_write_text(cfg.memory_dir / (stem + ".md"), "\n".join(out))
+        _atomic_write_text(cfg.memory_dir / (key + ".md"), "\n".join(out))
         count += 1
     return count
 

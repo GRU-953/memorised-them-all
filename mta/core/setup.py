@@ -73,7 +73,7 @@ def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME) -> dict:
         import tempfile
         fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".mta-tmp")
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
                 f.write(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
