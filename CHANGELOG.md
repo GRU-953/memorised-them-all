@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.6.2] — 2026-06-21
+
+Docs/metadata refresh only — **no code, API, or schema change** (identical package code to
+2.6.0/2.6.1). Bumped purely so the published project pages re-render with the cross-AI framing.
+
+### Changed
+- **README + every plugin/package description reframed Claude-only → cross-AI.** The engine has
+  worked with any MCP client since v2.5.0 (`mta setup` configures Claude, Gemini, Cursor, VS Code,
+  Windsurf, ChatGPT's Codex; Grok auto-discovers), but the listings still read "for Claude." The
+  README now leads with "give your AI assistant a private memory of your files" and a "Works with
+  every major AI" section; `pyproject` (PyPI), `manifest.json` (`.mcpb`), `server.json` (MCP
+  registry), `glama.json`, `CITATION.cff`, and the Claude plugin marketplace/`plugin.json`
+  descriptions + keywords were updated to match. Releasing republishes the new text to PyPI, the
+  `.mcpb` bundle, and (on the next `mcp-publisher publish`) the MCP registry.
+
 ## [2.6.1] — 2026-06-21
 
 Release-pipeline fixes only — **identical package code to 2.6.0** (2.6.0 never published; its
