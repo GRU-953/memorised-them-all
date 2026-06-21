@@ -1,8 +1,9 @@
 # ROADMAP_V3.md — the road to v3.0.0
 
-**Status:** planning artifact (S26), **hardened through 3 rounds of a multi-lens adversarial review + a Round-4 edit
-pass** (R1: 10 lenses → ~5 Critical; R2: 7 lenses → 4 Critical; R3: 6 lenses → **0 Critical**, all-resolved per the
-convergence auditor). Source of truth for the v2.7 → v3.0.0 arc. Mints WPs into `PROGRESS.md`; nothing is built until a WP is taken on a `wp-<id>-<slug>` branch → PR into
+**Status:** planning artifact (S26), **ADVERSARIALLY CONVERGED** after 5 rounds of multi-lens review (R1: 10 lenses →
+~5 Critical; R2: 7 → 4 Critical; R3: 6 → **0 Critical**; R4: edit pass; **R5: 3 lenses → CONVERGED, no new
+Critical/High**). 26 expert-agent reviews total; every Critical/High folded in. Source of truth for the v2.7 → v3.0.0
+arc. Mints WPs into `PROGRESS.md`; nothing is built until a WP is taken on a `wp-<id>-<slug>` branch → PR into
 `develop`. Baseline: **v2.6.2 SHIPPED** on all channels (PyPI · GitHub Release · `.mcpb` · Homebrew · GHCR multi-arch),
 cross-AI `mta setup`, 8 MCP tools, 100% local / token-free / deterministic / model-free.
 
@@ -162,7 +163,7 @@ Cursor, VS Code, Windsurf, **Codex**.
 ### Theme G — Mobile: Android & iOS (staged, feasibility-first)
 | WP | Item | E/R | Feasibility / gates |
 |----|------|-----|---------------------|
-| WP-160 | **Remote-MCP from phones** to a self-hosted `mta serve --http` | L/Hi | **NEW server state required** (today `transport.py` ships **one shared `state/http_token`**): add a **per-device token store** (`state/http_devices.json`, 0600, bearer+label+issued-at) + `mta serve --revoke <device>`/`mta devices`; BearerAuth checks membership. QR carries a **≥128-bit (`token_urlsafe(32)`) short-lived (≤120 s) single-use pairing token** redeemed once at `/pair` (atomic compare-and-set under the store lock → no TOCTOU double-redeem) for a fresh per-device bearer — the QR holds **no reusable secret**; `/pair` is the only unauthenticated mutating endpoint, so it has a **per-window attempt cap / lockout**. **Revocation is live:** BearerAuth re-reads the on-disk device store **per request** so `--revoke` takes effect immediately (not restart-only). **TLS enforcement is explicit (the server can't detect a proxy):** a non-loopback bind is **refused** unless either native `--tls-cert/--tls-key` are provided **or** an explicit `--behind-tls-proxy` attestation flag is set (trust-on-assertion, documented); **refuse a remote QR for a cleartext `http://` endpoint**; **`--allow-remote` requires a real `y/N` tty confirm AND `--i-understand-remote-exposure`** (today `MTA_HTTP_ALLOW_REMOTE=on` enables it silently — close that, incl. the env path); **never bind `0.0.0.0` implicitly**; default novice recipe = loopback + SSH/Tailscale tunnel. HTTP tool responses byte-cap-identical to stdio (conformance test) [C3] |
+| WP-160 | **Remote-MCP from phones** to a self-hosted `mta serve --http` | L/Hi | **NEW server state required** (today `transport.py` ships **one shared `state/http_token`**): add a **per-device token store** (`state/http_devices.json`, 0600, bearer+label+issued-at) + `mta serve --revoke <device>`/`mta devices`; BearerAuth checks membership. QR carries a **≥128-bit (`token_urlsafe(32)`) short-lived (≤120 s) single-use pairing token** redeemed once at `/pair` (atomic compare-and-set under the store lock → no TOCTOU double-redeem) for a fresh per-device bearer — the QR holds **no reusable secret**; `/pair` is the only unauthenticated mutating endpoint, so it has a **per-IP + global per-window attempt cap / lockout**. **Revocation is live:** BearerAuth re-reads the on-disk device store **per request** so `--revoke` takes effect immediately (not restart-only). **TLS enforcement is explicit (the server can't detect a proxy):** a non-loopback bind is **refused** unless either native `--tls-cert/--tls-key` are provided **or** an explicit `--behind-tls-proxy` attestation flag is set (trust-on-assertion, documented); **refuse a remote QR for a cleartext `http://` endpoint**; **`--allow-remote` requires a real `y/N` tty confirm AND `--i-understand-remote-exposure`** (today `MTA_HTTP_ALLOW_REMOTE=on` enables it silently — close that, incl. the env path; **headless/no-tty operators** use a documented `MTA_HTTP_REMOTE_ACK=1` in place of the tty confirm — still requiring the explicit flag, so it stays fail-closed); **never bind `0.0.0.0` implicitly**; default novice recipe = loopback + SSH/Tailscale tunnel. HTTP tool responses byte-cap-identical to stdio (conformance test) [C3] |
 | WP-161 | **Android on-device via Termux** | M/Hi | **HARD PREREQ GATE (before WP starts):** WP-181a (numpy-free core, **byte-identical** per [C1]) + WP-183 land AND `pip install memorised-them-all` (core, no extras) succeeds on **stock Termux aarch64, zero compiler/`pkg` steps**, proven on real device/CI. One-liner = **pure-Python core only**; OCR/PDF/Office = `pkg install`+`pip install …[ocr]`, explicitly not in the one-liner |
 | WP-162 | **iOS = remote-MCP only** (WP-160) | S/Md | a-Shell on-device documented **experimental, text/CSV/MD-only, no OCR/PDF/Office/subprocess**, only after WP-181a; **excluded** from the time-to-first-memory gate |
 | WP-163 | *(research, post-3.0, NOT on any release line)* | — | **163a** thin Swift/Kotlin shell over the WP-160 HTTP API (no Python on device) — preferred; **163b** BeeWare/Briefcase on-device (high risk) |
@@ -217,7 +218,8 @@ per-term BM25 contributions in a **canonical (sorted) query-term order** so the 
 the linear scorer → top-k **set AND ordering are then exactly identical** (with the documented `(-score, unit index)`
 tie-break); WAND/block-max pruning keeps the safe-up-to-k property (a pruned doc cannot enter top-k). (Without the
 canonical-order summation, float re-association can flip a ≤1-ULP near-tie and reorder it — so the canonical sum is
-required, not optional.) The already-shipped pre-tokenised `bm25_index.json` cache is **not** this deliverable.
+required, not optional, **and is applied to the existing linear reference scorer too** so both paths sum in the same
+operand order.) The already-shipped pre-tokenised `bm25_index.json` cache is **not** this deliverable.
 **WP-202a** *(S/Md, v2.7)* = the [C6] eval-corpus + BN/conversion gates + baseline freeze (sequenced **first**).
 
 ### Theme Z — 🚀 v3.0.0 marquee: Graph schema v2
@@ -301,5 +303,13 @@ offsets non-negative & bounded, plus the existing edge→node referential-integr
   per-request revocation · WP-143 names the recall key source (`MTA_PASSPHRASE`/keychain; "never persisted" = never
   on disk) · WP-174 frozen entry = `[sys.executable, "serve"]` (not `-m`) short-circuiting `which("mta")` · `[C-token]`
   dangling citation fixed · WP-121/122 v3.0-row L-tag + pin labels · `psutil` allowlisted (soft import) in the dep gate.
-- **Round 4 (S26)** — the above edits. **Next: a confirmation round** (convergence + determinism/migration + security
-  lenses); declare **CONVERGED** when it yields no new Critical/High (the trend is 5 → 4 → 0 Criticals).
+- **Round 4 (S26)** — the above precision edits.
+- **Round 5 (S26) — confirmation: CONVERGED.** 3 fresh lenses (convergence + determinism/migration/feasibility +
+  security/internal-consistency) re-checked the Round-4 text against the code and **all returned CONVERGED — no new
+  Critical/High, no new contradiction.** The convergence auditor verified all 8 Round-3 Highs FULLY RESOLVED; the
+  consistency sweep confirmed every WP defined once, train↔target agreement, L-items ≤3/release (v3.0 exactly 3), all
+  [C1]–[C6] citations resolve (no dangling `[C-token]`). Three Low clarifications folded (WP-201 canonical sum applies
+  to the linear scorer too; `/pair` per-IP+global cap; `MTA_HTTP_REMOTE_ACK` headless path). **Trend across rounds:
+  Critical 5 → 4 → 0 → 0. The plan is adversarially converged.** Residual implementer-notes (non-blocking, in the WP
+  scopes/hedges): WP-181a's end-to-end numpy-free digest depends on making the matrix-embed step conditional (covered
+  by the "else numpy stays core" hedge); these are build-time decisions for the WP, not roadmap gaps.
