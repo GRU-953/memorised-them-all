@@ -2,8 +2,10 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it."
 title: "Memorised them All"
 abstract: >-
-  Local, token-free file-to-knowledge-graph memory MCP server and Claude plugin
-  (Desktop and Code). Point it at files or folders; it converts them to Markdown
+  Local, token-free file-to-knowledge-graph memory MCP server that works with any
+  AI assistant — Claude (Desktop and Code), Gemini CLI, Cursor, VS Code, Windsurf,
+  ChatGPT's Codex and Grok — configurable with one `mta setup`. Point it at files
+  or folders; it converts them to Markdown
   entirely on-device — PDF, Word/Excel/PowerPoint (including legacy binary
   .doc/.ppt/.xls via optional LibreOffice), CSV, HTML, RTF, EPUB, plain text, and
   safely-unpacked archives — then builds a layered knowledge graph (entities,
@@ -15,8 +17,8 @@ abstract: >-
   uploads, no API keys. Recall uses model-free, script-agnostic BM25 lexical
   ranking (Bengali-aware, with a low-confidence guard that declines off-topic
   queries) and returns a tiny cited slice; document contents are never returned
-  to the model, so building or recalling whole folders costs near-zero Claude
-  context tokens. Specialised handling includes legacy Bengali SutonnyMJ/Bijoy
+  to the model, so building or recalling whole folders costs near-zero context
+  tokens, in whichever assistant you use. Specialised handling includes legacy Bengali SutonnyMJ/Bijoy
   to-Unicode recovery (including the vetted reorder-artifact repair রম্ন→রু) and
   broken-font Bengali PDF re-OCR, optional image OCR (Tesseract), beneficiary-PII
   suppression, atomic crash-safe writes, and per-file conversion timeouts.
@@ -35,6 +37,12 @@ keywords:
   - Claude
   - Claude Desktop
   - Claude Code
+  - Gemini CLI
+  - Cursor
+  - VS Code
+  - Windsurf
+  - Codex
+  - Grok
   - knowledge graph
   - document memory
   - token-free

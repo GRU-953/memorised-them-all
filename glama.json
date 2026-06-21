@@ -3,7 +3,7 @@
   "maintainers": [
     "GRU-953"
   ],
-  "description": "Local, token-free MCP server that converts any attachment to Markdown and digests it into a deterministic, model-free knowledge-graph memory for Claude. No LLM, no Ollama, no embedding model, no GPU, no network — runs 100% on-device, byte-identical output, ~0 Claude tokens to build or recall. Safe archive unpacking, optional Tesseract OCR, legacy Bengali→Unicode (incl. vetted রম্ন→রু repair), BM25 recall, PII suppression. 8 MCP tools.",
+  "description": "Local, token-free MCP server that converts any attachment to Markdown and digests it into a deterministic, model-free knowledge-graph memory for any AI assistant — Claude, Gemini, Cursor, VS Code, Windsurf, ChatGPT's Codex and Grok. No LLM, no Ollama, no embedding model, no GPU, no network — runs 100% on-device, byte-identical output, ~0 context tokens to build or recall. Safe archive unpacking, optional Tesseract OCR, legacy Bengali→Unicode (incl. vetted রম্ন→রু repair), BM25 recall, PII suppression. 8 MCP tools.",
   "keywords": [
     "mcp",
     "memory",
@@ -16,6 +16,12 @@
     "graphrag",
     "bm25",
     "bengali",
-    "claude"
+    "claude",
+    "gemini",
+    "cursor",
+    "vscode",
+    "windsurf",
+    "codex",
+    "grok"
   ]
 }
