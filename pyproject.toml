@@ -7,12 +7,13 @@ build-backend = "hatchling.build"
 [project]
 name = "memorised-them-all"
 dynamic = ["version"]
-description = "Local, token-free file → knowledge-graph memory for Claude. Convert any attachment to Markdown and digest it into a searchable graph + exportable notes, entirely on-device — deterministic and model-free (no LLM/Ollama/GPU)."
+description = "Local, token-free file → knowledge-graph memory for any AI assistant (Claude, Gemini, Cursor, VS Code, Codex, Grok). Convert any attachment to Markdown and digest it into a searchable graph + exportable notes, entirely on-device — deterministic and model-free (no LLM/Ollama/GPU)."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [{ name = "Aninda Sundar Howlader", email = "225374119+GRU-953@users.noreply.github.com" }]
-keywords = ["mcp", "claude", "knowledge-graph", "memory", "markitdown", "deterministic",
+keywords = ["mcp", "claude", "gemini", "cursor", "vscode", "windsurf", "codex", "grok",
+            "knowledge-graph", "memory", "markitdown", "deterministic",
             "model-free", "token-free", "rag", "graphrag", "bm25", "bengali",
             "offline", "privacy", "ocr"]
 classifiers = [
