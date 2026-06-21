@@ -200,6 +200,31 @@ def test_cli_setup_dry_run_json(tmp_path, monkeypatch, capsys):
 
 # ---- setup_claude still behaves exactly as before ---------------------------
 
+def test_windows_appdata_fallback(tmp_path, monkeypatch):
+    # %APPDATA% unset on Windows must resolve to ~/AppData/Roaming, NOT bare ~ (which no
+    # client reads). Test the helper directly (monkeypatching os.name on POSIX breaks
+    # pathlib's WindowsPath construction, so we exercise the fallback logic itself).
+    from mta.core.setup import _roaming_appdata
+    monkeypatch.delenv("APPDATA", raising=False)
+    assert _roaming_appdata(tmp_path) == tmp_path / "AppData" / "Roaming"   # unset → Roaming, not ~
+    monkeypatch.setenv("APPDATA", str(tmp_path / "custom_roaming"))
+    assert _roaming_appdata(tmp_path) == tmp_path / "custom_roaming"        # honours the env when set
+
+
+def test_backup_is_chmod_0600(tmp_path):
+    import os as _os, stat as _stat
+    if _os.name == "nt":
+        import pytest
+        pytest.skip("POSIX permission semantics")
+    cfg = tmp_path / "settings.json"
+    cfg.write_text('{"mcpServers": {}}', encoding="utf-8")
+    cfg.chmod(0o644)
+    spec = clients.ClientSpec("gemini", "Gemini", lambda: cfg)
+    r = clients._configure_one(spec, ["mta", "serve"], None)
+    backup = r["backup"]
+    assert backup and (_stat.S_IMODE(_os.stat(backup).st_mode) == 0o600)   # secrets not world-readable
+
+
 def test_setup_claude_unchanged(tmp_path, monkeypatch):
     desktop = tmp_path / "claude_desktop_config.json"
     desktop.write_text(json.dumps({"preferences": {"x": 1}}), encoding="utf-8")

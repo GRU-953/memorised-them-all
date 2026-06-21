@@ -17,7 +17,7 @@
 [![Model-free](https://img.shields.io/badge/AI%20models-none%20needed-10b981)](#-why-no-ai-model)
 [![Claude tokens](https://img.shields.io/badge/Claude%20tokens-~0-10b981)](#-why-is-it-token-free)
 
-<sub><b>v2.5</b> · works with Claude · Gemini · Cursor · VS Code · Codex · 100% local · deterministic · model-free · token-free · <a href="CHANGELOG.md">what's new →</a></sub>
+<sub><b>v2.6</b> · works with Claude · Gemini · Cursor · VS Code · Windsurf · Codex · 100% local · deterministic · model-free · token-free · <a href="CHANGELOG.md">what's new →</a></sub>
 
 <p>
 <a href="#-what-is-this"><b>What is this?</b></a> ·
@@ -366,12 +366,14 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | `MTA_CONVERT_TIMEOUT` | `120` | per-file conversion timeout (seconds); a file that hangs the parser is skipped, never stalls the batch. `0` disables |
 | `MTA_MAX_FILE_MB` | `200` | per-file size cap (also drives the archive budgets) |
 | `MTA_MAX_CHUNKS` | `1500` | cap on passages kept per memory (raise for very large corpora) |
+| `MTA_RESOLVE_MAX_NAMES` | `5000` | cap on unique entity names entering the fuzzy/embedding resolution passes (`0` = unbounded). Above it, exact-name + acronym merges still run; only similarity merges are skipped |
 | `MTA_OCR` | `auto` | OCR mode for PDFs/images: `auto`, `off`, `force`, `hybrid` |
 | `MTA_RECALL_K` | `8` | default number of recall hits returned |
 | `MTA_RECALL_MIN_SCORE` | `0` (off) | absolute BM25-score floor for recall hits (unbounded ≥0, **not** a 0–1 cosine) |
 | `MTA_MEMORY_GB` | auto | override detected RAM (for containers/VMs that misreport it) |
 | `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | auto | conversion / extraction workers (RAM/CPU-sized; 1 on small machines) |
 | `MTA_AUTO_UPDATE` | `on` | daily MarkItDown update check (`off` to disable; `upstream` to track the latest upstream MarkItDown commit) |
+| `MTA_SKIP_SETUP` | off | skip the auto-configure step run by `install.sh` / first launch (alias: `MTA_SKIP_CLAUDE_SETUP`) |
 | `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
 </details>

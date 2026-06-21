@@ -21,7 +21,13 @@ from pathlib import Path
 from . import graph as graphmod
 from . import locks, render, store
 from .config import Config
-from .convert import SUPPORTED_EXTS, convert_file
+from .convert import _DATA_EXTS, _TEXT_EXTS, SUPPORTED_EXTS, convert_file
+
+# Extensions whose conversion is pure-Python (``_native_text`` + linear Bengali regex
+# substitutions, size-capped): they can never hang in an un-interruptible C parser, so they
+# do NOT need the killable per-file subprocess — converting them inline skips the ~100 ms
+# spawn each and is the dominant cost on large text/data corpora.
+_INLINE_CONVERT_EXTS = _TEXT_EXTS | _DATA_EXTS
 from .embed import Embedder
 from .extract import Extraction, extract_chunk
 from .platform import worker_count
@@ -184,8 +190,15 @@ def _convert_worker_pipe(payload, conn):
 def _convert_isolated(payload, cfg: Config) -> dict:
     """Convert ONE file in its own spawned subprocess with a hard timeout, hard-killing it
     if it hangs (a parser stuck in a C extension can't be interrupted otherwise) — so one
-    pathological file can never stall the whole batch. Cross-platform (spawn + terminate/kill)."""
+    pathological file can never stall the whole batch. Cross-platform (spawn + terminate/kill).
+
+    Fast path: a pure-Python text/data file (``_native_text`` + linear, size-capped Bengali
+    regex) cannot hang in a C parser, so it is converted INLINE — skipping the ~100 ms
+    subprocess spawn that otherwise dominates large text corpora. The subprocess+timeout is
+    still used for every format that can hang (PDF/Office/image/unknown-content-sniffed)."""
     src = payload[0]
+    if Path(src).suffix.lower() in _INLINE_CONVERT_EXTS:
+        return convert_file(Path(src), Path(payload[1]), cfg, out_name=payload[3]).as_dict()
     timeout = _convert_timeout(src, cfg)
     ctx = _mp.get_context("spawn")
     parent, child = ctx.Pipe(duplex=False)
@@ -414,7 +427,7 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         mentions.extend(ex.entities)
 
     # Resolve entities → graph → communities.
-    resolved = resolve_entities(mentions, embedder)
+    resolved = resolve_entities(mentions, embedder, resolve_cap=cfg.resolve_max_names)
     G = graphmod.build_graph(extractions, resolved["alias_to_cid"],
                              resolved["canonical"])
     partition = graphmod.detect_communities(G, cfg.community_algo)
@@ -481,6 +494,9 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     matrix = embedder.embed(texts) if texts else None
     if matrix is not None and len(units):
         store.save_vectors(cfg, matrix, units)
+        # R-13: persist the deterministic pre-tokenised BM25 index from the SAME units,
+        # so recall ranks without re-tokenising the whole corpus on every query.
+        store.save_bm25_index(cfg, _build_bm25_index(units))
     else:
         store.clear_vectors(cfg)
     store.save_graph(cfg, graph_doc)
@@ -513,6 +529,17 @@ def _synopsis(communities: list[dict]) -> str:
     # Deterministic synopsis (model-free): the theme labels joined into one line.
     return ("This memory covers " + str(len(communities)) + " themes: "
             + ", ".join(c["label"] for c in communities[:8]) + ".")
+
+
+def _build_bm25_index(units: list[dict]) -> dict:
+    """Deterministic pre-tokenised BM25 index (R-13): ``docs[i]`` is the token list for
+    recall-unit ``i``, produced by the SAME tokeniser recall uses on the fly, so the
+    cache can never rank differently. Pure function of the (deterministic) units → the
+    JSON is byte-identical across runs/OSes and joins the determinism contract."""
+    from .recall import _unit_doc_tokens
+    docs = [_unit_doc_tokens(u) for u in units]
+    return {"version": 1, "tokenizer": "nfc+bn+len>1+label*2",
+            "count": len(docs), "docs": docs}
 
 
 def _recall_units(graph_doc: dict) -> tuple[list[dict], list[str]]:
@@ -581,7 +608,7 @@ def _reset_project(cfg: Config) -> None:
     for path in (cfg.markdown_dir, cfg.memory_dir, cfg.unpack_dir):
         shutil.rmtree(path, ignore_errors=True)
     for f in (cfg.graph_path, cfg.vectors_path,
-              cfg.vectors_path.with_suffix(".json"), cfg.memory_md):
+              cfg.vectors_path.with_suffix(".json"), cfg.bm25_index_path, cfg.memory_md):
         try:
             f.unlink()
         except OSError:

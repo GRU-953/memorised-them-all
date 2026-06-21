@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import sys
 import time
 from pathlib import Path
@@ -19,13 +20,20 @@ from pathlib import Path
 SERVER_NAME = "memorised-them-all"
 
 
+def _roaming_appdata(home: Path) -> Path:
+    """Windows roaming AppData. ``%APPDATA%`` is normally set, but a stripped service /
+    minimal-env launch (the same scenario where GUI apps lack PATH) can leave it unset —
+    fall back to ``~/AppData/Roaming`` (the real location), NOT bare ``~`` (which would
+    silently write configs to a path no client reads)."""
+    return Path(os.environ.get("APPDATA") or (home / "AppData" / "Roaming"))
+
+
 def claude_desktop_config_path() -> Path:
     home = Path.home()
     if sys.platform == "darwin":
         return home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
     if os.name == "nt":
-        base = Path(os.environ.get("APPDATA", str(home)))
-        return base / "Claude" / "claude_desktop_config.json"
+        return _roaming_appdata(home) / "Claude" / "claude_desktop_config.json"
     return home / ".config" / "Claude" / "claude_desktop_config.json"
 
 
@@ -47,8 +55,14 @@ def _atomic_write_text(path: Path, text: str) -> None:
     runs, e.g. ``install.sh`` + a manual run, can't clobber a shared temp), ``fsync``,
     then ``os.replace`` (the single commit point) — a watcher (a running Claude Desktop,
     Cursor, …) never sees a half-written file. The temp lands in the target's own
-    directory so the rename is same-filesystem (never a cross-device ``OSError``)."""
+    directory so the rename is same-filesystem (never a cross-device ``OSError``).
+
+    On Windows ``os.replace`` raises ``PermissionError`` if another process holds the
+    destination open without share-delete (a running MCP client editing/holding its
+    config) — so the commit is retried a few times before giving up, since the lock is
+    usually momentary."""
     import tempfile
+    import time
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".mta-tmp")
     try:
@@ -56,13 +70,33 @@ def _atomic_write_text(path: Path, text: str) -> None:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        for attempt in range(4):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == 3:
+                    raise
+                time.sleep(0.15)
     except BaseException:
         try:
             os.unlink(tmp)
         except OSError:
             pass
         raise
+
+
+def _backup_config(path: Path) -> Path:
+    """Timestamped backup of an existing config before we rewrite it, tightened to 0600 —
+    a client config can hold secrets (API keys/tokens), so the copy must not be left
+    world-readable even if the original was 0644."""
+    backed_up = path.with_name(path.name + f".mta-backup-{int(time.time())}")
+    shutil.copy2(path, backed_up)
+    try:
+        os.chmod(backed_up, stat.S_IRUSR | stat.S_IWUSR)  # 0600 (best-effort; no-op-ish on Windows)
+    except OSError:
+        pass
+    return backed_up
 
 
 def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME,
@@ -102,10 +136,7 @@ def _merge_into(path: Path, entry: dict, *, name: str = SERVER_NAME,
         if already:
             return {"path": str(path), "status": "ok", "changed": False, "backup": None}
         servers[name] = entry
-        backed_up = None
-        if existed:
-            backed_up = path.with_name(path.name + f".mta-backup-{int(time.time())}")
-            shutil.copy2(path, backed_up)
+        backed_up = _backup_config(path) if existed else None
         _atomic_write_text(path, json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
         return {"path": str(path), "status": "ok",
                 "changed": True, "backup": str(backed_up) if backed_up else None}

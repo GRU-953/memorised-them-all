@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GRU-953/memorised-them-all/blob/main/docs/export-format/v1/graph.schema.json",
+  "title": "Memorised them All — knowledge-graph export (v1)",
+  "description": "The JSON knowledge-graph sidecar (graph.json) written by `mta export` / the export_memory tool. Nodes are entities with stable string IDs; edges reference node IDs; communities are themes whose members are node IDs. Pairs with the UTF-8 Markdown set (memory.md + per-document notes). Deterministic and byte-identical for identical input.",
+  "type": "object",
+  "required": ["version", "nodes", "edges", "communities"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {"type": "integer", "minimum": 1,
+                "description": "On-disk graph schema version; bumped only on an incompatible change (migrations provided)."},
+    "project": {"type": "string"},
+    "synopsis": {"type": "string", "description": "Global, model-free synopsis."},
+    "stats": {"type": "object"},
+    "documents": {"type": "array", "items": {"type": "object"}},
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "type"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^e[0-9]+$",
+                 "description": "Stable entity ID, referenced by edges and community members."},
+          "label": {"type": "string"},
+          "type": {"type": "string", "description": "Entity type (org/person/place/other/…)."},
+          "count": {"type": "integer", "minimum": 0},
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["text"],
+              "properties": {
+                "text": {"type": "string"},
+                "doc": {"type": "string", "description": "Provenance: source document name."},
+                "heading": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target"],
+        "properties": {
+          "source": {"type": "string", "pattern": "^e[0-9]+$"},
+          "target": {"type": "string", "pattern": "^e[0-9]+$"},
+          "weight": {"type": "number"},
+          "labels": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "communities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "members"],
+        "properties": {
+          "id": {"type": "integer", "minimum": 0},
+          "label": {"type": "string"},
+          "summary": {"type": "string"},
+          "members": {"type": "array", "items": {"type": "string", "pattern": "^e[0-9]+$"}},
+          "size": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}
