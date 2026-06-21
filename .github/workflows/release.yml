@@ -58,6 +58,13 @@ jobs:
           path: .
           format: cyclonedx-json
           output-file: dist/sbom.cyclonedx.json
+          # Do NOT let the action attach the SBOM to a GitHub Release here: this least-
+          # privilege build job only has contents:read, and if a Release already exists for
+          # the tag (e.g. created via the "Publish release" UI) the attach fails and aborts
+          # the whole build. The SBOM still ships — it's in dist/ (output-file above), uploaded
+          # as the `dist` artifact, and attached by the github_release job (which has
+          # contents:write). Keeps the build green regardless of how the tag was created.
+          upload-release-assets: false
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac  # v3
         with:
