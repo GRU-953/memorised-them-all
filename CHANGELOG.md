@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.6.1] — 2026-06-21
+
+Release-pipeline fixes only — **identical package code to 2.6.0** (2.6.0 never published; its
+release run failed before any artifact shipped). No runtime/API/schema change.
+
+### Fixed
+- **Release build no longer aborts on the SBOM step when a GitHub Release already exists**
+  for the tag (e.g. created via the "Publish release" UI): `anchore/sbom-action` had tried to
+  attach to that release, but the least-privilege `build` job is `contents: read` → 403. Set
+  `upload-release-assets: false`; the SBOM still ships via the `dist` artifact + the
+  `github_release` job (which has `contents: write`).
+- **cosign install no longer fails on a bad version pin.** Pinning `cosign-release: v3.0.1`
+  made the installer fetch a detached `cosign-linux-amd64.sig` that v3.0.1 doesn't publish
+  (curl 22/404). Dropped the pin (installer's verified default); `cosign sign-blob --bundle`
+  still emits a single-file Sigstore bundle — off the `.sig`/`.pem` two-file form removed in
+  cosign v4.
+
 ## [2.6.0] — 2026-06-20
 
 Performance pass on the recall and entity-resolution hot paths — no behaviour change to

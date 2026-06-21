@@ -58,10 +58,18 @@ jobs:
           path: .
           format: cyclonedx-json
           output-file: dist/sbom.cyclonedx.json
+          # Do NOT attach to a pre-existing Release here: this build job is contents:read,
+          # so attaching fails (and aborts the build) when a Release already exists for the
+          # tag (e.g. created via the "Publish release" UI). The SBOM still ships — it's in
+          # dist/ (output-file), uploaded as the `dist` artifact, and attached by the
+          # github_release job (contents:write). Keeps build green however the tag was made.
+          upload-release-assets: false
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac  # v3
-        with:
-          cosign-release: 'v3.0.1'   # v3 → the single-file *.sigstore.json bundle is the default
+        # No cosign-release pin: a pinned v3.0.1 made this installer try to fetch a detached
+        # cosign-linux-amd64.sig that v3.0.1 doesn't publish → install failed (curl 22/404).
+        # The installer's verified default is used instead; `sign-blob --bundle` (below) still
+        # writes a single-file bundle — i.e. off the `.sig`/`.pem` two-file form removed in v4.
       - name: Sign every artifact (keyless, Sigstore OIDC → single-file bundle)
         run: |
           shopt -s nullglob
