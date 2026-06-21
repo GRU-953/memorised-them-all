@@ -21,7 +21,13 @@ from pathlib import Path
 from . import graph as graphmod
 from . import locks, render, store
 from .config import Config
-from .convert import SUPPORTED_EXTS, convert_file
+from .convert import _DATA_EXTS, _TEXT_EXTS, SUPPORTED_EXTS, convert_file
+
+# Extensions whose conversion is pure-Python (``_native_text`` + linear Bengali regex
+# substitutions, size-capped): they can never hang in an un-interruptible C parser, so they
+# do NOT need the killable per-file subprocess — converting them inline skips the ~100 ms
+# spawn each and is the dominant cost on large text/data corpora.
+_INLINE_CONVERT_EXTS = _TEXT_EXTS | _DATA_EXTS
 from .embed import Embedder
 from .extract import Extraction, extract_chunk
 from .platform import worker_count
@@ -184,8 +190,15 @@ def _convert_worker_pipe(payload, conn):
 def _convert_isolated(payload, cfg: Config) -> dict:
     """Convert ONE file in its own spawned subprocess with a hard timeout, hard-killing it
     if it hangs (a parser stuck in a C extension can't be interrupted otherwise) — so one
-    pathological file can never stall the whole batch. Cross-platform (spawn + terminate/kill)."""
+    pathological file can never stall the whole batch. Cross-platform (spawn + terminate/kill).
+
+    Fast path: a pure-Python text/data file (``_native_text`` + linear, size-capped Bengali
+    regex) cannot hang in a C parser, so it is converted INLINE — skipping the ~100 ms
+    subprocess spawn that otherwise dominates large text corpora. The subprocess+timeout is
+    still used for every format that can hang (PDF/Office/image/unknown-content-sniffed)."""
     src = payload[0]
+    if Path(src).suffix.lower() in _INLINE_CONVERT_EXTS:
+        return convert_file(Path(src), Path(payload[1]), cfg, out_name=payload[3]).as_dict()
     timeout = _convert_timeout(src, cfg)
     ctx = _mp.get_context("spawn")
     parent, child = ctx.Pipe(duplex=False)
