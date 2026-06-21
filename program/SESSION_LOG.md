@@ -709,3 +709,23 @@ User: "Cleanup and update the GitHub repository and completely redevelop the rea
 **S24 addendum — R-18 (WP-27, supply-chain):** migrated release.yml cosign signing to the single-file `*.sigstore.json` bundle (`cosign sign-blob --bundle`, pin `cosign-release: v3.0.1`), uploads the bundle, drops the v4-removed `--output-signature`/`--output-certificate`. Exact CLI verified against current Sigstore/cosign docs (1 research agent). Docs updated: SECURITY.md, PUBLISH_MANIFEST (table + supply-chain note + post-publish `verify-blob --bundle` smoke with `--certificate-identity-regexp`/`--certificate-oidc-issuer`), CHANGELOG, RISKS R-18→Resolved. No Python change (261 pass); release.yml exercises only on a real tag (fail-safe, halt-on-partial; not CI-validatable here). Remaining backlog = R-16/R-17 (accepted, English+Bengali scope). PR #75 carries v2.6.0 = R-13/14/15 + R-18.
 
 **S24 addendum 2 — holistic v2.5/v2.6 audit (3 agents) → hardening.** Fresh maximal audit of the NEW session code (security / cross-platform / docs lenses). **No Critical/High in security or docs.** Cross-platform found 2 real Windows bugs in `mta setup`: (1) `os.replace` uncaught `PermissionError` when a client holds its config open → retry loop in the shared `_atomic_write_text`; (2) unset `%APPDATA%` resolved to bare `~` (no client reads there) → `_roaming_appdata` fallback to `~/AppData/Roaming` for Claude-desktop + VS Code paths. Security Med (all local-file, user-owned, but fixed anyway): size-gate `graph.json`/`vectors.json`/`bm25_index.json` recall reads by `MTA_MAX_FILE_MB` (hostile/huge store → refused, no OOM); `mta setup` backups chmod `0600` (secrets not world-readable). Info: cosign `verify-blob` guidance pins signer identity. Docs: server.py docstring de-Claude-only'd, README `MTA_SKIP_SETUP` row + v2.6 masthead. Verified SAFE by the audit (no Crit/High): TOML `--env` injection (json-escaped), untrusted bm25 cache (never echoed, byte-clipped, validity-gated, no np.load on recall path), config-write symlink/secret-preservation, no new network. **+4 tests; 265 pass / 3 skip; check_versions OK; release.yml YAML valid.** Accepted (not fixed, low value/by-design): backup pruning (chmod addresses exposure), `MTA_RESOLVE_MAX_NAMES` huge value (user's own env, bounded by extraction). All on PR #75 (v2.6.0).
+
+---
+
+## Session 25 — 2026-06-21 — docs: cross-AI README + platform-metadata reframe
+
+**Session id:** S25  **Branch:** `claude/plugin-review-improve-rqktks` → `main` (#80), reconciled to `develop` (#81)  **Mode:** docs (no code, no version bump)
+
+**Context:** v2.6.1 is SHIPPED on all channels (PyPI + GitHub Release + `.mcpb` + Homebrew tap + GHCR; OIDC/SBOM/cosign single-file bundle). Two release-pipeline bugs from the v2.6.0 run were fixed in v2.6.1: SBOM `upload-release-assets: false` (build job is contents:read) and dropped the cosign-release pin (v3.0.1 had no detached `.sig`). Homebrew job went green after the owner set a fresh `HOMEBREW_TAP_TOKEN`.
+
+**Goal (user):** "Completely redo the GitHub README and similarly update the plugin details on all relevant platforms automatically." The product had outgrown its Claude-only framing — `mta setup` now configures Claude/Gemini/Cursor/VS Code/Windsurf/Codex (+ Grok auto-discover).
+
+**Built:**
+- **README.md** rewritten around a cross-AI promise ("Give your AI assistant a private memory of your files — without paying for it in tokens"); new "🤝 Works with every major AI" client table; `Claude tokens` badge → `context tokens`; masthead lists every client. All prior anchors preserved (badge/nav deep-links intact).
+- **All 7 metadata surfaces** reframed + cross-AI keywords added: `manifest.json` (long_description), `.claude-plugin/plugin.json` + `marketplace.json`, `server.json`, `glama.json`, `pyproject.toml`, `CITATION.cff`. No tool-description or version changes.
+
+**Verified:** all JSON/TOML/CFF parse; `check_versions` OK @2.6.1 (no bump). Full CI matrix green on PR #80 (11/11) and reconcile PR #81 (10/10). (Local pytest unavailable here — no numpy in the minimal sandbox; CI covered it.)
+
+**Shipped/live:** PR #80 merged to `main` → GitHub README, Claude plugin marketplace, and Glama render from the default branch and now show the cross-AI framing. PR #81 merged `main` → `develop` (source of truth carries it forward).
+
+**EXACT NEXT STEP:** Nothing required. If the owner wants PyPI's project page / `.mcpb` manifest / MCP-registry entry to show the new description *now* (they refresh only on the next release), cut a docs-only **v2.6.2** patch: bump all 7 surfaces, CHANGELOG, FF `main`, owner tag-pushes `v2.6.2` (sandbox blocks tag pushes via HTTP-403 → train fires from an authenticated clone).
