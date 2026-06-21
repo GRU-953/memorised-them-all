@@ -17,7 +17,7 @@
 [![Model-free](https://img.shields.io/badge/AI%20models-none%20needed-10b981)](#-why-no-ai-model)
 [![Claude tokens](https://img.shields.io/badge/Claude%20tokens-~0-10b981)](#-why-is-it-token-free)
 
-<sub><b>v2.5</b> · works with Claude · Gemini · Cursor · VS Code · Codex · 100% local · deterministic · model-free · token-free · <a href="CHANGELOG.md">what's new →</a></sub>
+<sub><b>v2.6</b> · works with Claude · Gemini · Cursor · VS Code · Windsurf · Codex · 100% local · deterministic · model-free · token-free · <a href="CHANGELOG.md">what's new →</a></sub>
 
 <p>
 <a href="#-what-is-this"><b>What is this?</b></a> ·
@@ -373,6 +373,7 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | `MTA_MEMORY_GB` | auto | override detected RAM (for containers/VMs that misreport it) |
 | `MTA_WORKERS` / `MTA_EXTRACT_WORKERS` | auto | conversion / extraction workers (RAM/CPU-sized; 1 on small machines) |
 | `MTA_AUTO_UPDATE` | `on` | daily MarkItDown update check (`off` to disable; `upstream` to track the latest upstream MarkItDown commit) |
+| `MTA_SKIP_SETUP` | off | skip the auto-configure step run by `install.sh` / first launch (alias: `MTA_SKIP_CLAUDE_SETUP`) |
 | `MTA_HTTP_*` | off | options for the opt-in HTTP/REST servers |
 
 </details>

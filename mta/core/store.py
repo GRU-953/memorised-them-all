@@ -121,7 +121,7 @@ def _backup_store(cfg: Config, reason: str) -> Path | None:
 
 
 def load_graph(cfg: Config) -> dict | None:
-    if not cfg.graph_path.exists():
+    if not cfg.graph_path.exists() or _too_big(cfg.graph_path, cfg):
         return None
     try:
         doc = json.loads(cfg.graph_path.read_text(encoding="utf-8"))
@@ -179,6 +179,21 @@ def clear_vectors(cfg: Config) -> None:
             pass
 
 
+def _too_big(path: Path, cfg: Config) -> bool:
+    """True if a JSON store on the recall path exceeds the file-size cap (``MTA_MAX_FILE_MB``,
+    default 200 MB; 0 disables). These files are user-editable / copied between machines, so a
+    hostile or accidental multi-GB ``bm25_index.json``/``vectors.json``/``graph.json`` would
+    OOM the reader — refuse to load it (→ ``no_memory``) rather than ``json.loads`` it blindly.
+    Legitimate stores are far under the cap, so this never trips in normal use."""
+    cap = getattr(cfg, "max_file_mb", 0) or 0
+    if cap <= 0:
+        return False
+    try:
+        return path.stat().st_size > cap * 1024 * 1024
+    except OSError:
+        return False
+
+
 def load_meta(cfg: Config) -> list[dict] | None:
     """Load ONLY the recall-unit metadata (``vectors.json``) — never the ``vectors.npz``
     matrix (R-15). BM25 recall ranks from text/labels in the meta, so materialising the
@@ -192,6 +207,8 @@ def load_meta(cfg: Config) -> list[dict] | None:
     because recall indexes ``meta`` only — never the matrix."""
     meta_path = cfg.vectors_path.with_suffix(".json")
     if not cfg.vectors_path.exists() or not meta_path.exists():
+        return None
+    if _too_big(meta_path, cfg):
         return None
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -218,7 +235,7 @@ def load_bm25_index(cfg: Config) -> dict | None:
     """Load the BM25 index cache, or ``None`` if absent/torn/garbage. Structural
     validation of the per-unit token lists lives at the recall call site, so any
     corrupt cache degrades to the on-the-fly tokeniser rather than crashing recall."""
-    if not cfg.bm25_index_path.exists():
+    if not cfg.bm25_index_path.exists() or _too_big(cfg.bm25_index_path, cfg):
         return None
     try:
         doc = json.loads(cfg.bm25_index_path.read_text(encoding="utf-8"))

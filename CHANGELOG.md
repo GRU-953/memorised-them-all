@@ -37,6 +37,20 @@ crash-safe atomic writes) intact.
   `cosign verify-blob <file> --bundle <file>.sigstore.json --certificate-identity-regexp … --certificate-oidc-issuer …`
   (see `program/PUBLISH_MANIFEST.md`).
 
+### Fixed
+- **Windows `mta setup` reliability (audit).** `os.replace` now retries on `PermissionError`
+  (a running client briefly holding its config open), and an unset `%APPDATA%` falls back to
+  `~/AppData/Roaming` (the real location) instead of `~` — so auto-config writes to the path
+  the client actually reads.
+- **Recall-path hardening (audit).** `graph.json`/`vectors.json`/`bm25_index.json` reads are
+  now size-gated by `MTA_MAX_FILE_MB` (default 200 MB) — a hostile or accidental multi-GB
+  store (these files are user-editable / copied between machines) is refused rather than
+  loaded into memory. Config backups written by `mta setup` are chmod-`0600` so a config that
+  holds secrets is never copied world-readable.
+- **cosign verify guidance** now pins the signer identity
+  (`--certificate-identity-regexp` + `--certificate-oidc-issuer`) — a bare `verify-blob`
+  trusts any Fulcio cert.
+
 ## [2.5.0] — 2026-06-20
 
 Cross-AI reach: the same local, token-free memory now installs into **every MCP-capable

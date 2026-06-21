@@ -30,7 +30,6 @@ from __future__ import annotations
 import os
 import shutil
 import sys
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -38,8 +37,10 @@ from typing import Callable
 from .setup import (
     SERVER_NAME,
     _atomic_write_text,
+    _backup_config,
     _merge_into,
     _mta_command,
+    _roaming_appdata,
     claude_code_config_path,
     claude_desktop_config_path,
 )
@@ -76,8 +77,7 @@ def vscode_config_path() -> Path:
     if sys.platform == "darwin":
         return home / "Library" / "Application Support" / "Code" / "User" / "mcp.json"
     if os.name == "nt":
-        base = Path(os.environ.get("APPDATA", str(home)))
-        return base / "Code" / "User" / "mcp.json"
+        return _roaming_appdata(home) / "Code" / "User" / "mcp.json"
     return home / ".config" / "Code" / "User" / "mcp.json"
 
 
@@ -230,8 +230,7 @@ def _merge_toml(spec: ClientSpec, command: list[str], env: dict | None, *,
             if present:
                 return {"path": str(path), "status": "ok", "changed": False, "backup": None,
                         "note": "already registered (in-place update needs a manual edit)"}
-            backed_up = path.with_name(path.name + f".mta-backup-{int(time.time())}")
-            shutil.copy2(path, backed_up)
+            backed_up = _backup_config(path)
             sep = "" if raw.endswith("\n") or not raw else "\n"
             _atomic_write_text(path, raw + sep + "\n" + block)
             return {"path": str(path), "status": "ok", "changed": True, "backup": str(backed_up)}

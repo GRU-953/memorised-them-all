@@ -1,8 +1,10 @@
-"""Memorised them All — MCP server (stdio) for Claude Desktop & Claude Code.
+"""Memorised them All — MCP server (stdio) for Claude and every other MCP-capable client.
 
+Claude Desktop / Claude Code launch it directly; ``mta setup`` also registers it with
+Gemini CLI, Cursor, VS Code, Windsurf and OpenAI Codex (and Grok via config auto-discovery).
 Exposes eight token-free tools. Every tool returns only compact metadata or a
 small, relevant slice of memory — never document contents — so digesting and
-recalling whole folders costs ~0 Claude context tokens. All work runs locally and
+recalling whole folders costs ~0 context tokens. All work runs locally and
 is fully deterministic + model-free: no LLM, no embedding model, no GPU, no network.
 """
 from __future__ import annotations

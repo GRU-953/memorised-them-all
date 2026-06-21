@@ -107,6 +107,24 @@ def test_recall_never_loads_matrix(tmp_path, monkeypatch):
 
 # ---- clear/reset also drop the index ----------------------------------------
 
+def test_oversize_cache_is_refused_and_recall_falls_back(tmp_path):
+    cfg = _cfg(tmp_path); _seed(cfg)
+    cfg.max_file_mb = 1                                        # 1 MB cap
+    good = recall(cfg, "project aurora")["hits"]
+    # a >1 MB bm25_index.json (e.g. hostile/huge copied store) must be refused, not OOM-loaded
+    cfg.bm25_index_path.write_text('{"version":1,"count":1,"docs":[["x"]]}' + " " * (1_100_000),
+                                   encoding="utf-8")
+    assert store.load_bm25_index(cfg) is None                 # size-gated
+    assert recall(cfg, "project aurora")["hits"] == good      # falls back to on-the-fly, still ok
+
+
+def test_oversize_graph_reads_as_no_memory(tmp_path):
+    cfg = _cfg(tmp_path); _seed(cfg)
+    cfg.max_file_mb = 1
+    cfg.graph_path.write_text('{"version":1,"synopsis":"' + "x" * 1_100_000 + '"}', encoding="utf-8")
+    assert store.load_graph(cfg) is None                      # refused → overview/recall no_memory
+
+
 def test_clear_vectors_removes_bm25_index(tmp_path):
     cfg = _cfg(tmp_path); _seed(cfg)
     assert cfg.bm25_index_path.exists()
