@@ -1,11 +1,10 @@
 # ROADMAP_V3.md — the road to v3.0.0
 
-**Status:** planning artifact (S26), **hardened after Round 1 of a 10-lens adversarial review** (invariant-integrity ·
-feasibility · semver/sequencing · novice-UX · security/privacy · KPI/measurability · scope/overlap · Bengali/i18n ·
-directive-traceability · migration/back-compat). Source of truth for the v2.7 → v3.0.0 arc. Mints WPs into
-`PROGRESS.md`; nothing here is built until a WP is taken on a `wp-<id>-<slug>` branch → PR into `develop`.
-Baseline: **v2.6.2 SHIPPED** on all channels (PyPI · GitHub Release · `.mcpb` · Homebrew · GHCR multi-arch), cross-AI
-`mta setup`, 8 MCP tools, 100% local / token-free / deterministic / model-free.
+**Status:** planning artifact (S26), **hardened through 2 rounds of a multi-lens adversarial review** (Round 1: 10
+lenses; Round 2: 7 lenses incl. convergence + internal-consistency auditors). Source of truth for the v2.7 → v3.0.0
+arc. Mints WPs into `PROGRESS.md`; nothing is built until a WP is taken on a `wp-<id>-<slug>` branch → PR into
+`develop`. Baseline: **v2.6.2 SHIPPED** on all channels (PyPI · GitHub Release · `.mcpb` · Homebrew · GHCR multi-arch),
+cross-AI `mta setup`, 8 MCP tools, 100% local / token-free / deterministic / model-free.
 
 ---
 
@@ -14,67 +13,79 @@ Token-free (tiny **per-payload-capped** results; document contents never returne
 telemetry · deterministic byte-identical output · **model-free by default** · dependency-free classical/offline
 fallback · atomic crash-safe writes. **Anything that risks one is opt-in with a graceful fallback** — flagged ⚠️.
 
-## Cross-cutting engineering contracts (every WP must honor; referenced as [C1]…[C6])
-These were added because Round-1 review found WPs that *assumed* an invariant held without binding it.
+## Cross-cutting engineering contracts ([C1]…[C6]) — every WP must honor; cite the ones it touches
+Added/expanded because review found WPs that *assumed* an invariant without binding it.
 
-- **[C1] Determinism contract.** "Byte-identical" means: a **fresh** digest of a corpus yields identical
-  `graph.json`/`vectors.*`/`bm25_index.json`/`memory.md` across runs, OSes, and `PYTHONHASHSEED` (the existing
-  SHA-256 gate). **Known live gap to close:** community detection defaults to `community_algo="auto"`, which runs
-  Leiden *if `leidenalg`+`igraph` are installed* else NetworkX Louvain else greedy — i.e. **the default partition is
-  environment-dependent today** (different optional deps → different `graph.json`). WP-122 MUST pin a single default
-  algorithm (NetworkX Louvain, fixed seed, canonical node ordering) with Leiden strictly opt-in
-  (`MTA_COMMUNITY_ALGO=leiden`) and **excluded** from the determinism gate. A CI test digests a fixture **with and
-  without `leidenalg` installed** and asserts byte-identical `graph.json`. OCR (WP-112) and hybrid embeddings (WP-131)
-  are float/hardware-sensitive and are likewise **carved out** of the byte-identity gate (the deterministic BM25/graph
-  floor still applies); a store records its `mode` so deterministic vs augmented builds are distinguishable.
+- **[C1] Determinism contract.** "Byte-identical" = a **fresh** digest yields identical `graph.json`/`bm25_index.json`/
+  `memory.md` across runs, OSes, and `PYTHONHASHSEED`. The existing gate (`test_v2_invariants.py`) only proves
+  **same-machine run-to-run** stability — it does **not** cover environment axes. **Known live gaps that v3.0 closes
+  (interim accepted, RISKS R-20):** the partition depends on which *optional* packages are installed —
+  **(i) community algo** (`community_algo="auto"` → Leiden if `leidenalg`+`igraph` else NetworkX Louvain else greedy);
+  **(ii) numpy** (the `resolve.py` embedding-confirm pass fires merges at ratio≥60 that the fuzzy≥88 pass would not, so
+  numpy-absent changes the entity partition); **(iii) rapidfuzz** (absent → exact-match-only resolution). The CI
+  determinism assertion (in the WP-103 clean-image lane) digests a fixture across a **matrix** of
+  {leidenalg, igraph-only, numpy, rapidfuzz} presence × two `PYTHONHASHSEED` values × OS, asserting byte-identical
+  `graph.json`+`bm25_index.json`+`memory.md`. To make that pass: **WP-181a** reimplements the embedding-confirm dot
+  product in **pure Python** (it is md5-bucketed, trivially numpy-free) so numpy-present == numpy-absent **byte-for-byte**;
+  **WP-122/Theme Z** pins NetworkX Louvain (fixed seed **+ canonical node ordering**, and `_from_sets` numbers
+  communities by `min(sorted(member_ids))`) as the single deterministic default, with Leiden opt-in
+  (`MTA_COMMUNITY_ALGO=leiden`) and the **also-seeded/removed greedy fallback** both **excluded** from the gate;
+  **WP-183** must prove its pure-Python rapidfuzz fallback byte-identical to rapidfuzz on the gate corpus (else
+  rapidfuzz stays a hard dep). `vectors.*` is **carved out** of the byte-identity gate (it exists only in numpy builds).
+  OCR (WP-112a), PDF reading-order (WP-111b), and hybrid embeddings (WP-131) are float/heuristic and likewise carved
+  out; a store stamps `stats.mode` so augmented/limited builds are distinguishable.
 - **[C2] Atomic-write contract.** One shared crash-safe writer (`newline=""` + fsync + `os.replace`). WP-100 promotes
-  `_atomic_write_text` from `store.py` into a shared `mta/core/_io.py` so `convert.py` and `store.py` use **one**
-  writer (no copy-paste divergence). CI: a meta-test greps `mta/` for raw `open(..., "w")` outside the helper and
-  fails; crash-injection tests (kill between temp-write and rename) assert the prior content survives.
-- **[C3] No-egress contract.** Digest, recall, the WP-125 viewer, and every **default** install path make **zero**
+  `_atomic_write_text` from `store.py` into a shared `mta/core/_io.py` so `convert.py` (`convert.py:548` is a raw
+  `write_text` today — R-19) and `store.py` use **one** writer. CI: a meta-test greps `mta/` for raw `open(...,"w")`/
+  `write_text` outside the helper; crash-injection tests assert prior content survives.
+- **[C3] No-egress contract.** Digest, recall, the WP-126 viewer, and every **default** install path make **zero**
   outbound calls except the documented, disableable update check (`MTA_AUTO_UPDATE=off`). The only *new* permitted
-  egress is the WP-131 embedding-model download — one-time, consented, hash-verified, never on a digest/recall hot
-  path. A CI no-egress test (extending the model-free/no-network checks) enforces this.
-- **[C4] Supply-chain contract.** Every dependency **extra** (`[ocr]`/`[pdf]`/`[office]`/`[hybrid]`/`[graph]`/`[all]`)
-  and every install channel (winget/Scoop/Choco/…) is **hash-pinned to the signed release**, enumerated in the
-  CycloneDX SBOM, installed in the CI matrix to keep pins live, and reported by `mta doctor`. New OS package-manager
-  manifests are **auto-bumped from the canonical signed artifacts** (like the Homebrew tap, ADR-006), never
-  hand-edited, with a post-publish reinstall+cosign-verify smoke. Embedding models (WP-131) are **safetensors-only
-  (no pickle)**, pinned by content hash, fetched over TLS from a declared source recorded in the SBOM.
-- **[C5] Migration contract** (binds Theme Z). Schema-v2 migration is **atomic at the store level** (stage all of
-  `graph.json`+`vectors.*`+`bm25_index.json`, swap via rename behind a `.migrating` sentinel that `load_graph`
-  honors; a crash leaves the v1 store fully intact), performed **once, eagerly, on first v3 load**, with the
-  pre-migration store copied to `backups/<ts>-pre-migrate-v1/` **before any write** (a *failed* pre-migrate/downgrade
-  backup **aborts** the overwrite — not best-effort). `digest.py` must stamp `version = store.SCHEMA_VERSION` (not the
-  current hardcoded literal `1`); a lint fails CI on any literal `"version": N` in producers, and a CI check asserts
-  `_MIGRATIONS` forms a contiguous `1→2→…→SCHEMA_VERSION` chain. **Migrated ≠ fresh:** v1 stores lack the source
-  context v2 needs (typed relations, char-offsets, salience), so migration **up-casts existing fields only**
-  (confidence defaulted, offsets `null`, relations untyped) and is documented "**lossy-forward — re-digest to populate
-  v2-native fields**"; `memory_overview` surfaces a "migrated — re-digest for full v2 fidelity" flag. Every
-  `_MIGRATIONS` step ships a **frozen real v1→v2 fixture test** (load → migrate → assert: all v1 nodes/edges/facts
-  survive with stable IDs; validates against `docs/export-format/v2/graph.schema.json`; recall parity on a fixed query
-  set) plus an **idempotence** test (`migrate(migrate(x))==migrate(x)`). The existing `test_migration.py` monkeypatched
-  step is *not* sufficient.
+  egress is the WP-131 embedding-model download — one-time, consented, hash-verified, off the digest/recall hot path.
+  A CI no-egress test enforces this.
+- **[C4] Supply-chain contract.** Every dependency **extra** and install channel is **hash-pinned to the signed
+  release**, in the CycloneDX SBOM, installed in the CI matrix to keep pins live, and reported by `mta doctor`. New OS
+  package-manager manifests (winget/Scoop/Choco) are **auto-bumped from the canonical signed artifacts** (like the
+  Homebrew tap, ADR-006), never hand-edited, with a post-publish reinstall+cosign-verify smoke. Embedding models
+  (WP-131) are **safetensors-only (no pickle)**, content-hash-pinned, TLS-fetched from a declared SBOM-recorded source.
+- **[C5] Migration contract** (binds Theme Z). **This machinery does not exist yet — it is NEW code, not a wiring
+  tweak.** Today `load_graph` migrates **in memory only** (no disk write; disk is rewritten at the next digest),
+  `_MIGRATIONS={}`, `_backup_store` is **best-effort and its return is ignored**, and `digest.py` hardcodes
+  `"version": 1`. v3.0 must add: (a) **physical migration runs only under the exclusive write lock** — triggered by the
+  first mutating op (`digest`) or an explicit **`mta migrate`** command; **read paths (`recall`/`overview`, shared
+  lock) migrate in-memory only and never write** (closing the shared-lock race). (b) **Atomic multi-file commit**:
+  write a `.migrating` sentinel first; stage `graph.json`+`vectors.*`+`bm25_index.json`; swap; clear the sentinel last.
+  `load_graph` checks the sentinel — its own incomplete write → roll back to the pre-migrate backup; a **newer** build's
+  sentinel → decline-to-overwrite + back up (R6). (c) **Backup-before-write that ABORTS on failure** for the
+  pre-migrate/downgrade cases (`save_graph`/migrator must check `_backup_store`'s return and raise if `None`) —
+  best-effort is allowed only for the already-corrupt case. (d) **Schema-version single-source:** `digest.py` stamps
+  `version = store.SCHEMA_VERSION`; a lint fails CI on a literal graph-schema `"version": N` in producers (the
+  **independent bm25-index `version`** is carved out, and a schema bump **invalidates/rewrites** a stale bm25 index so
+  recall is never ranked off a mismatched cache); a CI check asserts `_MIGRATIONS` is a contiguous `1→2→…→
+  SCHEMA_VERSION` chain. (e) **Lossy-forward & not-fresh-equal:** v1 stores lack v2 source context (typed relations,
+  char-offsets, salience) → migration up-casts existing fields only (confidence defaulted, offsets `null`, relations
+  untyped) and is documented "**re-digest to populate v2-native fields**"; `memory_overview` shows a "migrated" flag and
+  the store stamps `mode=migrated-v1`. **Migrated ≠ fresh:** a migrated store is **excluded** from any fresh-digest
+  byte-identity comparison; the migration **recall-parity** gate compares the migrated store to the **pre-migration v1
+  store's own recall** (same hit identities/order up to v1-derivable fields), **never** to a fresh v2 digest. Each
+  `_MIGRATIONS` step ships a **frozen real v1→v2 fixture test** + an **idempotence** test; the monkeypatched
+  `test_migration.py` step is insufficient. Crash-injection tests (kill after sentinel / mid-swap) assert v1 survives.
 - **[C6] Measurement contract.** A KPI is either a **CI gate** (machine-independent, stable, fail-closed) or a
-  **benchmark** (reported on named hardware, non-blocking) — never a wall-clock CI gate (GitHub runners vary 2–10×).
-  **Prerequisite (WP-202a, lands first in v2.7):** wire `eval/run_eval.py` into `ci.yml` (it is **not** today), commit
-  the real **EN+BN eval corpus** (today's `eval/corpus` is 4 English files / 0 Bengali — incl. Unicode + Bijoy-legacy
-  Bengali tied to WP-194) and a **conversion-fidelity fixture set** (PDF/DOCX/XLSX/HTML/image + golden Markdown), and
-  freeze v2.6.2 reference numbers into `eval/baseline.json`. Until that lands, the roadmap says "test-enforced where a
-  test exists; eval/bench are pinned **manual** harnesses" — it must not claim "CI-enforced."
+  **benchmark** (named hardware, non-blocking) — never a wall-clock CI gate. **Correction (Round 2):** the EN recall@k
+  floor (0.75) **is already CI-gated today** via `tests/test_eval.py` (run by `pytest tests/`). So **WP-202a's real job
+  is narrower:** commit the missing **Bengali corpus** (`eval/corpus` is 4 English files / 0 Bengali — incl. Unicode +
+  Bijoy-legacy tied to WP-194), the **conversion-fidelity fixture set** (PDF/DOCX/XLSX/HTML/image + golden Markdown),
+  and `eval/baseline.json` with frozen v2.6.2 numbers, then split the **BN-accuracy and conversion-fidelity** assertions
+  into their own fail-closed gates. Only those two are "not yet CI-enforced"; do not over-claim the rest.
 
-## What makes 3.0.0 a *major*
-Three things ride the major (each is a compatibility break that no minor should hide):
-1. **Graph schema v2** (typed/temporal/confident facts, salience, provenance offsets, sub-types) — auto-migrated per [C5].
-2. **Community-algorithm pinning** (closing [C1]) changes existing `graph.json` partitions → an output break; it
-   regenerates byte-identically on re-digest under the major.
-3. **Default-dependency slim-down** (WP-181b: OCR/PDF/Office/numpy leave the *default* install). Removing a
-   default-on capability (OCR is default-on today) is backward-incompatible (**ADR-010**). v2.7 only *adds* the extras
-   + `[all]` + a deprecation notice; the actual removal-from-core lands with the major.
+## What makes 3.0.0 a *major* (each is a break no minor may hide — ADR-010)
+1. **Graph schema v2** (typed/temporal/confident facts, salience, provenance offsets, sub-types) — auto-migrated [C5].
+2. **Community-algorithm pinning** ([C1]) — changes existing `graph.json` partitions; regenerates byte-identically on
+   re-digest under the major. (The *quality* label work, WP-122, is non-breaking and lands in v2.9; the **default-algo
+   pin itself** lands here.)
+3. **Default-dependency slim-down** (WP-181b: OCR/PDF/Office/numpy leave the *default* install — ADR-010). v2.7 only
+   *adds* extras + `[all]` + a deprecation notice (genuinely additive); removal-from-core is here.
 
-## Effort / Risk legend
-Each WP carries **Effort {S,M,L}** and **Risk {Lo,Md,Hi}** (Risk = invariant-jeopardy + uncertainty). Release budget
-rule of thumb: **≤ 3 L-items per minor.**
+## Effort / Risk legend  — **Effort {S,M,L}**, **Risk {Lo,Md,Hi}** (Risk = invariant-jeopardy + uncertainty). **≤ 3 L-items per minor.**
 
 ---
 
@@ -83,179 +94,195 @@ rule of thumb: **≤ 3 L-items per minor.**
 ### Theme A — Quality & hardening
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
-| WP-100 | Atomic `convert.py` `.md` write (close **R-19**) via shared `_io.py` [C2] | S/Lo | torn `.md` on crash today (`convert.py:548`) |
-| WP-101 | Per-script Brahmic normalization (close **R-16**) — see WP-121 (NOT a blanket rule) | S/Md | fix `_NORM_RE` whitelist **and** `_norm` combining-filter together, per-block |
-| WP-102 | Length-aware fuzzy threshold (mitigate **R-17**) | S/Lo | scale 88-ratio by token length (করিম/করিমা) |
-| WP-103 | CI/coverage truthing: publish coverage %, **add Py 3.13** (3.14 when wheels land, **R-06**), arm64 smoke, **Docker clean-image matrix** (**R-01**) that runs the [C1] cross-env determinism assertion | M/Lo | matrix changes **additive only** this train; any version *drop* → major |
-| WP-104 | Reproducible lockfile **with hashes** (close **CI-09**); extras hash-pinned [C4] | S/Lo | |
-| WP-105 | Test depth: community-detection determinism [C1], recall/low-confidence sensitivity, **property tests** for per-payload byte-cap & atomic writes [C2], large/degenerate-graph fuzzing | M/Md | |
+| WP-100 | Atomic `.md` write (close **R-19**) via shared `_io.py` [C2] | S/Lo | |
+| WP-101 | Per-script Brahmic normalization (close **R-16**) — folded into WP-121 (NOT a blanket rule) | S/Md | |
+| WP-102 | Length-aware fuzzy threshold (mitigate **R-17**) | S/Lo | |
+| WP-103 | CI/coverage truthing: coverage %, **Py 3.13** (3.14 when wheels land, R-06), arm64 smoke, **Docker clean-image matrix (R-01)** running the **[C1] cross-env determinism matrix** | M/Md | matrix changes **additive only**; version *drop* → major |
+| WP-104 | Reproducible lockfile **with hashes** (CI-09); extras hash-pinned [C4] | S/Lo | |
+| WP-105 | Test depth: [C1] determinism matrix, recall/low-confidence sensitivity, **property tests** for per-payload byte-cap [C-token] & atomic writes [C2], large/degenerate-graph fuzzing | **M/Md** | **→ v2.7.0** |
 
 ### Theme B — Conversion: files → Markdown (stability · accuracy · performance · efficiency)
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
-| WP-110 | **Stability**: per-file isolation hardening, adaptive timeouts, partial-result salvage, never-abort-batch, malformed/huge-file fuzzing | M/Lo | |
-| WP-111a | **Tractable fidelity**: clean Markdown tables from CSV/XLSX (owns the **table data model**), HTML/EPUB boilerplate strip, list/structure preservation, image alt/caption | M/Md | golden-diff tests on the conversion fixture set |
-| WP-111b | **Best-effort PDF** reading-order/column/heading recovery — explicitly best-effort, bounded to pdfplumber/pdfminer (wire the already-declared but unused `pdfplumber`) | L/Md | PDF-column cases tracked, **not** pass/fail gates |
-| WP-112a | **OCR engine quality**: DPI/deskew/preprocessing (deterministic); default `-l eng+ben` multi-lang (autodetect **advisory only**, never single-pass exclusive); **confidence floor** drops garbage | M/Md | OCR stays **opt-in**, carved out of determinism [C1]; moved to **v2.8** beside WP-111 |
-| WP-113 | **Performance/efficiency**: consume WP-140's manifest to skip unchanged conversions; streaming for large files; worker tuning; bounded RAM. **Cache key = content-hash ⊕ converter-fingerprint** (mta+MarkItDown+OCR/LibreOffice version + bangla-map revision + relevant cfg) so a hit is byte-identical to a fresh convert; miss/garbage → re-convert | M/Md | depends on WP-140 |
-| WP-114 | Format coverage + granular extras (OCR/PDF/Office → opt-in extras, see Theme I) | S/Lo | |
+| WP-110 | **Stability**: per-file isolation, adaptive timeouts, partial-result salvage, never-abort-batch, malformed/huge-file fuzzing | M/Lo | |
+| WP-111a | **Tractable fidelity**: CSV/XLSX → clean Markdown tables (**owns the table data model**), HTML/EPUB strip, list/structure, image alt/caption | M/Md | golden-diff on the conversion fixtures |
+| WP-111b | **Best-effort PDF** reading-order/column/heading (wire the declared-but-unused `pdfplumber`) | L/Md | pdfplumber/pdfminer **hash-pinned [C4]**, **fixed extractor precedence** MarkItDown→pdfplumber→OCR (byte-identical per pinned toolchain), output **carved out of [C1]** only if the version can vary; PDF-column cases **non-gating** |
+| WP-112a | **OCR engine quality**: DPI/deskew/preprocessing; default `-l eng+ben` multi-lang (**autodetect advisory only**, never single-pass exclusive); **confidence floor** drops garbage | M/Md | OCR **opt-in**, carved out of [C1]; **→ v2.8 beside WP-111a** |
+| WP-113 | **Performance/efficiency**: consume **WP-140's** manifest to skip unchanged conversions; streaming; bounded RAM. **Cache key = content-hash ⊕ converter-fingerprint** (mta+MarkItDown+OCR/LibreOffice version + bangla-map revision + cfg) → a hit is byte-identical to a fresh convert; miss/garbage → re-convert | M/Md | depends on WP-140 |
+| WP-114 | Format coverage — **merged into WP-180** (granular extras); tracked there | — | (was dangling; folded) |
 
 ### Theme C — Data mapping & graphing
+**Scope note (directive #10):** "data mapping" = the WP-111a **table model surfaced through recall** + WP-125
+**CSV/GraphML/GEXF exports** + **numeric-fact recall** (WP-130 type filter) + the new **WP-127 table/numeric recall
+view**. Spreadsheet **aggregation/charting is explicitly OUT of scope** — routed to the host model / exports (keeps
+model-free + token-free).
 | WP | Item | E/R | Target | Notes |
 |----|------|-----|--------|-------|
-| WP-120 | **Rule-based** verb-mediated **typed & directional** relations (model-free): English verb→relation lexicon + SVO over existing sentence splits; `DiGraph` + edge `type`; **falls back to undirected `co_occurs`** when no pattern matches | L/Hi | 3.0 | **English-only** in v3.0 (no Bengali verb analysis exists); **precision-gated** — a typed edge must not reduce community/recall quality vs the co-occurrence baseline |
-| WP-121 | **Entity resolution & typing**: sub-types; **per-script `_SCRIPT_BLOCKS` table** (Bengali/Devanagari/Tamil/Telugu/…) fixing both `_norm` steps; Tamil/Telugu **opt-in**; gazetteer expansion; embedding-collision hardening. **Never reuse `_rearrange` (Bijoy-specific) for other scripts.** | L/Hi | 2.9/3.0 | per-script **minimal-pair over-merge gate** (काली≠कुल, கடல்≠கடா); generalization may only **reduce** merges, never increase |
-| WP-122 | **Community quality + determinism pinning [C1]**: pin NetworkX Louvain (seed, canonical ordering) as the deterministic default, Leiden opt-in & gate-excluded; multi-entity + TF-IDF labels; optional hierarchical communities | M/Hi | 2.9 | partition byte-identical regardless of optional graph libs |
-| WP-123 | **Fact salience + confidence** (close **R-1**) — *produces* the values; **provenance char-offset spans** (codepoints over the digest-time `.md`, stored with the converter-fingerprint, stale-marked on mismatch) | L/Md | 3.0 | schema v2; pairs with WP-134 (consumer) |
+| WP-120 | **Rule-based** verb-mediated **typed relations**, model-free | L/Hi | 3.0 | **English-only** (no Bengali verb analysis); stored as **edge attributes (`type`,`direction`) on the existing UNDIRECTED backbone** — community detection still runs on the undirected projection (canonical ordering [C1]) so partitions/recall order are unchanged when only labels are added; **fallback `co_occurs`** when no pattern matches; **precision gate = CI comparison** (typed ON vs OFF: recall@k (WP-202a) + community count ≥ co-occurrence baseline) |
+| WP-121 | **Entity resolution & typing**: **per-script `_SCRIPT_BLOCKS` table** fixing **both** `_norm`'s combining-mark filter (today whitelists only U+0980–U+09FF → every other Brahmic matra is stripped → skeleton over-merge) **and** `_NORM_RE`; **never reuse `_rearrange` (Bijoy-specific)** | L/Hi | **resolution/normalization → 2.9; entity sub-types (schema) → 3.0** | per-script opt-in gated on **4 proofs**: (1) `_norm` preserves that script's marks, (2) **no-skeleton test** (distinct words don't normalize equal), (3) **minimal-pair over-merge gate** (काली≠कुल, கடல்≠கடா), (4) `_block_keys` prefix/suffix-edit parity re-proven on a real corpus for that script; until all 4 pass, the script stays byte-for-byte unhandled (safe over-split); generalization may only **reduce** merges |
+| WP-122 | **Community quality** (v2.9, non-breaking): multi-entity + TF-IDF labels, optional hierarchical communities, determinism **property tests within fixed env**. The **default-algo pin itself is a v3.0 break** (see "major" #2 + [C1]) | M/Md | 2.9 (quality) / **3.0 (pin)** | |
+| WP-123 | **Fact salience + confidence** (close **R-1**, *produces* values) + **provenance codepoint-offset spans** (over the digest-time `.md`, stored with the converter-fingerprint, stale-marked) [C5][C1] | L/Md | 3.0 | pairs with WP-134 (consumer) |
 | WP-124 | Graph hygiene & metrics: dedup/junk filtering, centrality + theme-size in `memory_overview` | M/Lo | 2.9 | |
-| WP-125 | **Exports**: GraphML/GEXF/CSV (deterministic) | S/Lo | 2.9 | split from the viewer |
-| WP-126 | **Opt-in zero-network static HTML viewer** [C3]: vendored inline JS/CSS (no CDN/font), **CSP `default-src 'none'`**, all labels/facts **HTML-escaped** (XSS test asserts a payload in a label is inert), CI asserts **zero off-origin URLs** + no wall-clock/abs-path → deterministic | L/Md | 2.10 | consumes the canonical partition (WP-122) |
+| WP-125 | **Exports**: GraphML/GEXF/CSV (deterministic) | S/Lo | 2.9 | |
+| WP-126 | **Opt-in zero-network static HTML viewer** [C3]: **single self-contained `.html` with the partition data inlined** as an escaped `<script type="application/json">` island (no runtime `fetch` → `default-src 'none'` holds & `file://` works); **CSP `default-src 'none'`**; **all fields that reach the DOM HTML-escaped** (labels/aliases/themes **and** any WP-134 snippet/doc ref) — XSS test asserts a payload is inert; **doc refs = basenames only** (CI asserts zero absolute paths); no wall-clock → deterministic; CI asserts **zero off-origin URLs** | L/Md | 2.10 | consumes the canonical partition (WP-122) |
+| WP-127 | **Table / numeric-fact recall view** (directive #10 "data mapping"): recall a digested table's cells + numeric facts as a small cited slice (token-free) | M/Md | 2.9 | aggregation stays host-model's job |
 
 ### Theme D — Retrieval (IR) quality & token frugality
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
 | WP-130 | Recall query filters (by document / entity type / theme) | S/Lo | additive args |
-| WP-131 | ⚠️ **Opt-in hybrid retrieval** (BM25 + optional local embeddings + lexical gate) | L/Hi | default pure-BM25; enabling `[hybrid]` **never** auto-downloads (model user-provided/pre-pulled, else clear error → BM25 fallback) [C3]; model **safetensors-only, hash-pinned** [C4]; hybrid scores **only re-rank**, never bypass the off-topic gate; hybrid output **excluded** from byte-identity [C1] |
-| WP-132 | Layout/table-aware **chunk-boundary** logic — consumes WP-111a's table model; **never re-segments a table mid-row** (owns boundaries only, not the table representation) | M/Md | co-located with WP-111a (v2.8) |
-| WP-133 | **Token frugality**: `MTA_RECALL_BUDGET` = a **hard total-payload UTF-8 byte cap** at the tool boundary (today only per-field caps exist), applied **deterministically** — cap each field, then drop **whole trailing hits in fixed rank order** until under budget (never resize a field by neighbours/k); deduped/compressed synopsis | M/Md | schema-v1-achievable; **reconcile the number with shipped caps** (k=5 worst-case ≈ 8 KB today) — set the budget, then prove median ≤ it |
-| WP-134 | **Provenance pointers over text** (schema v2): cite by `doc + codepoint-offset` (consumes WP-123 spans); pointer-only stays token-free | M/Md | 3.0; further frugality beyond WP-133 |
+| WP-131 | ⚠️ **Opt-in hybrid retrieval** | L/Hi | default pure-BM25; `[hybrid]` **never auto-downloads** (model user-provided/pre-pulled, else error → BM25 fallback) [C3]; model **safetensors-only, hash-pinned** [C4]; hybrid scores **only re-rank**, never bypass the off-topic gate; **excluded from byte-identity** [C1] |
+| WP-132 | Layout/table-aware **chunk-boundary** logic — consumes WP-111a's table model; **never re-segments a table mid-row** (owns boundaries only) | M/Md | co-located with WP-111a (v2.8) |
+| WP-133 | **Token frugality**: **`MTA_RECALL_BUDGET` default = 16384 bytes** (hard total-payload UTF-8 cap at the tool boundary; covers `k=8` worst-case ≈14 KB at current per-field caps), applied **deterministically** — cap each field, then drop **whole trailing hits in fixed rank order** until under budget (never resize a field by neighbours/k); deduped/compressed synopsis | M/Md | **instrument:** CI asserts `len(json.dumps(recall).encode()) ≤ MTA_RECALL_BUDGET` for every golden query **and median ≤ 4096**; per-field caps unchanged |
+| WP-134 | **Provenance pointers over text** (schema v2): cite by `doc + codepoint-offset` (consumes WP-123 spans); pointer-only stays token-free [C5] | M/Md | 3.0 |
 
 ### Theme E — Lifecycle & large-corpus UX
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
-| WP-140 | Incremental / `mta watch` mode — **owns the single content-hash manifest** (sidecar + invalidation contract); WP-113 consumes it | M/Md | watch opt-in; request model default |
-| WP-141 | Snapshot / rollback — each snapshot dir records `schema_version`; **restore routes through `load_graph`/`migrate_doc`** and refuses-with-backup if newer [C5]; document the relationship to `_backup_store` | M/Md | |
-| WP-142 | `forget --secure` — **documented as best-effort only**: overwrite cannot erase on SSD/flash/CoW/synced/snapshotted stores; the real guarantee is **crypto-erase via WP-143**; also targets `state/http_token`, `_unpacked/` scratch, snapshots | S/Md | tie to WP-143 |
-| WP-143 | ⚠️ **Encryption-at-rest** (ADR-008) — **threat model: defends a stolen/cloud-synced `MTA_HOME` at rest; NOT a running process / memory / swap**; encrypts the **whole content corpus** (`markdown/`, `memory/`, `graph.json`, `vectors.*`), not just the graph; vetted KDF (argon2id/scrypt, stated params), AEAD; passphrase never persisted; **encryption wraps before the atomic temp** (no plaintext temp); migration/backup operate on decrypted plaintext (passphrase required, else **decline** — never "corrupt→backup"); determinism defined on **plaintext** (nonce-based ciphertext is not reproducible); encrypted stores excluded from the human-readable/diff-friendly guarantee | L/Hi | v2.10 |
+| WP-140 | Incremental / `mta watch` mode — **owns the single content-hash manifest**; WP-113 consumes it | M/Md | watch opt-in |
+| WP-141 | Snapshot / rollback — each snapshot records `schema_version`; **restore routes through `load_graph`/`migrate_doc`**, refuses-with-backup if newer [C5] | M/Md | document relationship to `_backup_store` |
+| WP-142 | `forget --secure` — **best-effort only** (overwrite can't erase on SSD/flash/CoW/synced/snapshotted; real guarantee = crypto-erase via WP-143); targets **all of `state/`** incl. `http_token` **and the WP-160 per-device store**, `_unpacked/`, snapshots | S/Md | tie to WP-143 |
+| WP-143 | ⚠️ **Encryption-at-rest** (ADR-008) — threat model: **stolen/cloud-synced `MTA_HOME` at rest; NOT a running process/memory/swap**; encrypts the **whole content corpus** (`markdown/`,`memory/`,`graph.json`,`vectors.*`) **+ `state/` secrets** (else documented gap); KDF argon2id/scrypt (stated params); passphrase never persisted; **wraps before the atomic temp**; migration/backup need the passphrase (else **decline**, not corrupt→backup); determinism on **plaintext** | L/Hi | v2.10 |
 | WP-144 | Multi-project recall / federation | M/Lo | additive |
 
 ### Theme F — Cross-AI breadth + novice how-to guides
-**Currently supported (v2.6.x), each gets a WP-154 novice guide:** Claude (Desktop/Code), **Gemini**, **Grok**
-(auto-discover), Cursor, VS Code, Windsurf, **Codex**.
+**Currently supported (v2.6.x), each gets a WP-154 guide:** Claude (Desktop/Code), **Gemini**, **Grok** (auto-discover),
+Cursor, VS Code, Windsurf, **Codex**.
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
 | WP-150 | Add **Ollama & LM Studio** to `mta setup` | M/Lo | both speak MCP |
-| WP-151 | Next tier: Jan, Cherry Studio, AnythingLLM, Continue, Zed, Msty + generic `mta setup --client <name>` | M/Lo | |
-| WP-152 | `mta setup` one-click: detect → configure → **verify** (round-trip a tool call) → "✅ working in …"; **on verify failure auto-print the WP-153 doctor diagnosis** | M/Md | |
-| WP-153 | `mta doctor`: plain-English diagnosis (no stack traces) **+ a failure-symptom catalogue keyed on what the user sees in their AI app** (works even before `mta` is callable; the `.mcpb` no-terminal user is routed to `memory_status` inside the AI) | M/Md | |
-| WP-154 | **Per-platform guides** `docs/guides/<client>.md` for **every supported client** (≥ Claude, Gemini, ChatGPT, Grok, Ollama, LM Studio, Cursor, VS Code, Windsurf, Codex) + a **single canonical "Start here — pick your AI" picker** (README/USER_GUIDE link *into* it). Required sections incl. **"How to point it at your files"** (copy-a-folder-path per OS; `~`/OneDrive/iCloud gotchas). **CI link-check: every client `mta setup` supports has a live guide**, and the picker lists only clients with one | L/Md | matrix is **client × OS** |
-| WP-155 | **ChatGPT support + guide** | M/Md | ChatGPT = MCP via **Codex** (restate existing target) + **remote-MCP / custom-GPT Actions** against `mta serve --http` (ties WP-160); ships `docs/guides/chatgpt.md` |
+| WP-151 | Next tier: Jan, Cherry Studio, AnythingLLM, Continue, Zed, Msty + generic `--client <name>` | M/Lo | |
+| WP-152 | `mta setup` one-click: **detect → configure → verify (round-trip a tool call) → "✅ working"**; on verify-fail **auto-print WP-153 doctor** | M/Md | |
+| WP-153 | `mta doctor`: plain-English diagnosis + **failure-symptom catalogue keyed on what the user sees** (works pre-`mta`; `.mcpb` no-terminal user routed to `memory_status` in-AI); detect **installed-but-not-on-PATH** + print the one-line fix | M/Md | |
+| WP-154 | **Per-platform guides** `docs/guides/<client>.md` for **every supported client** + a single canonical **"Start here" picker** that is **detection-first** (`mta setup` auto-scans & reports), has an **"I have no AI app yet → install one"** branch, and a **"browser ChatGPT/Gemini won't work — use X"** disambiguation; required section **"How to point it at your files"** (copy-a-path per OS; `~`/OneDrive/iCloud). **CI link-check: every supported client has a live guide** | L/Md | client × OS |
+| WP-155 | **ChatGPT support + guide** = Codex-MCP (restate) + **remote-MCP/custom-GPT Actions** against `mta serve --http` (ties WP-160); ships `docs/guides/chatgpt.md` | M/Md | |
 
 ### Theme G — Mobile: Android & iOS (staged, feasibility-first)
 | WP | Item | E/R | Feasibility / gates |
 |----|------|-----|---------------------|
-| WP-160 | **Remote-MCP from phones** to a self-hosted `mta serve --http` | M/Hi | **TLS-mandatory** when bound non-loopback; QR encodes a **short-lived single-use pairing token** exchanged for a **per-device** bearer (so the QR artifact is worthless after pairing; supports rotation/revocation); **refuse to emit a remote QR for a cleartext `http://` endpoint**; `--allow-remote` requires **interactive double-confirm**; **never bind `0.0.0.0` implicitly**; default novice recipe = loopback + SSH/Tailscale tunnel or reverse-proxy, **not** raw port exposure; HTTP tool responses are byte-cap-identical to stdio (conformance test) [C3] |
-| WP-161 | **Android on-device via Termux** | M/Hi | **HARD PREREQUISITE GATE:** WP-181a (numpy-free core) + WP-183 land AND `pip install memorised-them-all` (core, no extras) succeeds on stock **Termux aarch64 with zero compiler/`pkg` steps**, proven on a real device/CI, **before this WP starts**. One-liner installs the **pure-Python core only**; OCR/PDF/Office are `pkg install`-then-`pip install …[ocr]`, explicitly **not** in the one-liner (no Bionic wheels for pypdfium2/numpy/pillow) |
-| WP-162 | **iOS = remote-MCP only** (WP-160) as the supported path | S/Md | a-Shell on-device documented **experimental, text/CSV/MD-only, no OCR/PDF/Office/subprocess**, only after WP-181; **excluded** from the time-to-first-memory gate |
-| WP-163 | *(research, post-3.0, NOT on any release line)* native companion | — | **163a (lower risk):** thin Swift/Kotlin shell over the WP-160 HTTP API (no Python on device) — preferred. **163b (high risk):** BeeWare/Briefcase Python-on-device (painful for compiled deps) |
+| WP-160 | **Remote-MCP from phones** to a self-hosted `mta serve --http` | L/Hi | **NEW server state required** (today `transport.py` ships **one shared `state/http_token`**): add a **per-device token store** (`state/http_devices.json`, 0600, bearer+label+issued-at) + `mta serve --revoke <device>`/`mta devices`; BearerAuth checks membership. QR carries a **short-lived (≤120 s) single-use pairing token** redeemed once at `/pair` (atomic compare-and-set under the store lock → no TOCTOU double-redeem) for a fresh per-device bearer — the QR holds **no reusable secret**. **TLS-mandatory** when non-loopback; **refuse a remote QR for a cleartext `http://` endpoint**; **`--allow-remote` requires a real `y/N` tty confirm AND `--i-understand-remote-exposure`** (today `MTA_HTTP_ALLOW_REMOTE=on` enables it silently — close that); **never bind `0.0.0.0` implicitly**; default novice recipe = loopback + SSH/Tailscale tunnel. HTTP tool responses byte-cap-identical to stdio (conformance test) [C3] |
+| WP-161 | **Android on-device via Termux** | M/Hi | **HARD PREREQ GATE (before WP starts):** WP-181a (numpy-free core, **byte-identical** per [C1]) + WP-183 land AND `pip install memorised-them-all` (core, no extras) succeeds on **stock Termux aarch64, zero compiler/`pkg` steps**, proven on real device/CI. One-liner = **pure-Python core only**; OCR/PDF/Office = `pkg install`+`pip install …[ocr]`, explicitly not in the one-liner |
+| WP-162 | **iOS = remote-MCP only** (WP-160) | S/Md | a-Shell on-device documented **experimental, text/CSV/MD-only, no OCR/PDF/Office/subprocess**, only after WP-181a; **excluded** from the time-to-first-memory gate |
+| WP-163 | *(research, post-3.0, NOT on any release line)* | — | **163a** thin Swift/Kotlin shell over the WP-160 HTTP API (no Python on device) — preferred; **163b** BeeWare/Briefcase on-device (high risk) |
 
 ### Theme H — Frictionless installation + README/USER GUIDE overhaul (novice-first)
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
-| WP-170 | **One-command install per surface**: pipx, Homebrew, `.mcpb` double-click, winget/Scoop/Choco, `install.sh`, Termux one-liner; enumerate the **no-terminal vs one-command** story **per client** and fill gaps (GUI installer where a client has no double-click path); README matrix labels each row | L/Md | channels obey [C4] |
-| WP-171 | **README overhaul (novice-first)**: pick-your-AI → install → **first memory in 3 steps**, screenshots/GIFs, FAQ incl. the top pre-install failures (**no Python**, **SmartScreen block**, **"command not found: mta"/PATH**) | M/Md | |
-| WP-172 | **USER_GUIDE.md** (separate deliverable) + the per-platform guides (with WP-154) | M/Md | |
+| WP-170 | **One-command install per surface** (pipx, Homebrew, `.mcpb` double-click, winget/Scoop/Choco, `install.sh`, Termux); enumerate **no-terminal vs one-command per client**; **every console-script surface verifies `mta` is invocable post-install** (PATH probe + exact fallback `export PATH=…`/`py -m mta`) | L/Md | channels obey [C4] |
+| WP-171 | **README overhaul (novice-first)**: pick-your-AI → install → **first memory in 3 steps**, screenshots/GIFs, FAQ incl. **no Python**, **SmartScreen/Gatekeeper block**, **"command not found: mta"/PATH** | M/Md | |
+| WP-172 | **USER_GUIDE.md** (separate) + per-platform guides (with WP-154) | M/Md | |
 | WP-173 | **Reduce prerequisites**: OCR/LibreOffice optional, slim core (Theme I), offline-first first-run | M/Md | |
-| WP-174 | **Python-free / Python-bundled install** | L/Hi | the `.mcpb` and ≥1 desktop GUI installer per OS either **bundle a Python runtime** (PyInstaller/shiv/embeddable) or auto-install it via the platform PM **non-interactively**, so a non-technical user **never installs Python**. Until then, `pip install` is **not** the headline novice row |
-| WP-175 | **Windows novice hardening** | M/Hi | **Authenticode-sign** the Windows installer/`.exe` (extends cosign/SBOM to a code-signing cert) to clear **SmartScreen**; screenshot-driven "Windows protected your PC → More info → Run anyway (why it's safe)"; verify PATH so `mta` resolves, fallback `py -m mta` |
-| WP-176 | **Lifecycle: clean update & uninstall** | M/Md | ship **`mta uninstall`** that **reverses `mta setup`** (removes the server block from every client config it added, restoring the backups setup made), optionally removes `~/.memorised-them-all`, prints the one manual step (`pip/brew uninstall` / delete `.mcpb`); per-surface **update** story. Acceptance: after uninstall, no client config references the server |
-| WP-177 | **Accessibility & localization of the novice surface** | M/Md | every screenshot/GIF has alt text + (GIFs) captions; guides pass heading-structure/screen-reader check; **Bengali (bn) translation of the Start-Here picker + 3-step quickstart**; `mta setup`/`doctor` strings localisable (en+bn first) — the headline differentiator is Bengali docs, so Bengali users are first-class |
+| WP-174 | **Python-free / Python-bundled install** | L/Hi | `.mcpb` + ≥1 desktop GUI installer per OS **bundle a Python runtime** (PyInstaller/shiv/embeddable) or auto-install it non-interactively → user **never installs Python**. **Bundled-runtime invariant:** when frozen, every `mta setup` config block references the **bundled executable's own absolute path** (`sys.executable`/`sys.frozen`), never bare `python`/`mta` on PATH; CI conformance test launches an emitted config with **no system Python present**; WP-176 uninstall removes that same block |
+| WP-175 | **Desktop install hardening (Windows + macOS)** | M/Hi | **Windows:** Authenticode-sign the installer/`.exe` to clear **SmartScreen**; PATH verified; fallback `py -m mta`. **macOS:** **notarize** the GUI installer/`.app`/`.pkg` (Developer ID + `notarytool` + **staple**, hardened runtime), extending cosign/SBOM [C4] to an Apple Developer ID; screenshot-driven Gatekeeper recovery; Homebrew formula is notarization-exempt but the `.dmg`/GUI path is not |
+| WP-176 | **Lifecycle: clean update & uninstall** | M/Md | **`mta uninstall`** reverses `mta setup` (removes the server block from every client config it wrote, restoring backups), optionally removes `~/.memorised-them-all`, prints the one manual step; per-surface update story. Acceptance: after uninstall, no client config references the server |
+| WP-177 | **Accessibility & localization** | M/Md | screenshots/GIFs carry alt text + captions; guides pass heading/screen-reader check; **Bengali (bn) translation of the picker + 3-step quickstart**; localize (en+bn) the **user-facing failure/empty-state strings a novice hits first** (digest "no files found", recall "no memory yet", `.mcpb` `memory_status` guidance) — **tool payloads stay structured/locale-neutral** (no token regression) |
 
 ### Theme I — Dependency reduction (unblocks mobile + easy installs)
-Today's core (10 deps): `numpy, networkx, rapidfuzz, psutil, markitdown[…], pdfplumber, pillow, pytesseract,
-pypdfium2, striprtf`. Goal: tiny pure-Python default, heavy stuff opt-in (per ADR-005 + **ADR-010**).
+Today's core (**11 deps** per `pyproject` `[project].dependencies`): `mcp, numpy, networkx, rapidfuzz, psutil,
+markitdown[…], pdfplumber, pillow, pytesseract, pypdfium2, striprtf`. Goal per ADR-005 + **ADR-010**: tiny default,
+heavy stuff opt-in. **`mcp` is the required MCP transport — exempt from the "pure-Python" rule, but counts toward the
+budget.**
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
-| WP-180 | **Add** extras `[ocr]`/`[pdf]`/`[office]`/`[all]` (v2.7 = **additive**; core still pulls them) + emit a **deprecation notice** from `mta doctor`/first-run; the actual **removal-from-core lands in v3.0** (ADR-010) | M/Md | extras hash-pinned + SBOM'd + CI-installed [C4] |
-| WP-181a | **Code: de-numpy the core import graph** — guard `numpy` in `store.py`/`embed.py`/`resolve.py`; `embed` degrades to no-op (hash embedding has no semantic value), `save/load_vectors` skipped (recall already meta-only), resolve embedding-confirm pass skipped; **a digest still completes** (graph + bm25 written) with numpy uninstalled; CI lane imports & digests core-only | M/Md | must land before WP-181b; **`import mta` fails without numpy today** (`store.py:21`) |
-| WP-181b | **Packaging: move numpy to `[hybrid]`** (ships with WP-131, v2.10/3.0) | S/Md | gated on WP-181a + ADR-010 |
-| WP-182 | *(spike-only / Open Decisions — NOT in a committed release)* investigate stdlib community detection | S/Hi | **networkx is already pure-Python** (not on the mobile critical path); any reimpl **cannot byte-match** networkx's partition → it's an **output break that must ride v3.0**, not a silent dep-drop. Default value: low |
-| WP-183 | Harden the **pure-Python `rapidfuzz` fallback** → core works with **zero compiled deps** | M/Md | enables Termux/iOS core |
-| — | **KPI** (gate): `tests/test_dep_budget.py` parses `pyproject` `[project].dependencies`, asserts **count ≤ 5** and each is pure-Python (wheel tag `none-any` / pinned allowlist). Baseline recorded = 10 | — | exact integer, no "~" |
+| WP-180 | **Add** extras `[ocr]`/`[pdf]`/`[office]`/`[all]` (v2.7 = **additive**; core still pulls them) + **deprecation notice** from `mta doctor`/first-run; removal-from-core is **v3.0** (ADR-010). Folds old WP-114. | M/Md | extras hash-pinned+SBOM'd+CI-installed [C4] |
+| WP-181a | **Code: de-numpy the core, byte-identical** [C1] — reimplement the `resolve.py` embedding-confirm dot product in **pure Python** (md5-bucketed; **keeps the ratio≥60 merges**) so numpy-present == numpy-absent **byte-for-byte**; **repoint recall off the `.npz` existence gate** to a numpy-free sidecar (today `load_meta`/`load_vectors` gate on `vectors_path.exists()`, so numpy-absent → recall returns `no_memory`!); `embed`/`save_vectors` guarded; **a digest+recall completes with numpy uninstalled**; CI core-only lane digests **with & without numpy → byte-identical** | **M/Md** | **v2.7**; must precede WP-181b; **this is genuinely additive only because of the byte-identical fix** |
+| WP-181b | **Packaging: move numpy to `[hybrid]`** — numpy **leaves the default install in v3.0** (ADR-010); the `[hybrid]` extra ships earlier with WP-131 (v2.10) [C4] | S/Md | **v3.0** |
+| WP-182 | *(spike-only / Open Decisions — NOT in a committed release)* stdlib community detection | S/Hi | networkx is **already pure-Python** (not on the mobile path); any reimpl **can't byte-match** networkx → output break that must ride v3.0. Default value: low |
+| WP-183 | Harden the **pure-Python `rapidfuzz` fallback**, **proven byte-identical to rapidfuzz on the gate corpus** [C1] (else rapidfuzz stays a hard dep) → core with **zero compiled deps** | M/Md | enables Termux/iOS core |
+| — | **KPI (gate):** `tests/test_dep_budget.py` parses `[project].dependencies`; asserts **≤ 6 total (≤ 5 excluding `mcp`)**, each pure-Python **except `mcp`** (wheel-tag/allowlist). Baseline recorded = **11** | — | exact integers |
 
-### Theme J — Bijoy & Unicode Bangla (deepen the differentiator)
+### Theme J — Bijoy & Unicode Bangla
 | WP | Item | E/R | Notes |
 |----|------|-----|-------|
-| WP-190 | Corpus-driven Bijoy/SutonnyMJ map refinement (WP-87b) | M/Md | grow glyph coverage from real word-forms |
-| WP-191 | **Context-gated** reorder-artifact repairs (NOT blanket `replace`) | M/Hi | the S30 panel rejected ম্ন→ু / েস্ন→্লে / ে্য→্য / ণরে→ণের on **orthographic-impossibility** grounds, not corpus stats. Gate = **dual corpus**: a clean-Bengali set that must show **zero** changes (any change = fail) **+** an adversarial set of *pipeline-manufactured* artifacts that must be fixed; **frozen counterexample invariant** (`normalize(নিম্ন/সর্বনিম্ন/প্রত্যেক/"করে স্নান"/চরণরে/প্রাণরে) == input`); repairs fire only when flanking context makes the valid reading impossible; net-fix ratio denominator must be 0 |
-| WP-192 | Better Bijoy PDF text-layer recovery (line-wise `recover_mixed` thresholds; mixed EN+BN) — folds the "broken-font Bengali re-OCR" clause (removed from WP-112) | M/Md | |
-| WP-193 | **Fix the live Boishakhi mis-route FIRST**, then map-keyed routing | M/Md | `"boishakhi"` is in `_BIJOY_FONTS` (bangla_legacy.py:332) so it's force-converted through the **wrong SutonnyMJ map** today, contradicting the line-325 comment that says it's skipped → **remove/gate it (correctness bug)**; routing is **map-keyed**; a font with no shipped map stays **byte-for-byte** (never coerced); each new encoding (Boishakhi, Bangla-Word) needs its **own oracle-tested map fixture** before its fonts are added |
-| WP-194 | **Forward-conversion golden-vector regression** (Bijoy bytes → expected Unicode, frozen vectors) + **idempotence** (`convert(convert(x))==convert(x)`), NOT round-trip | S/Md | the Mukti map is **non-bijective** (many-to-one) so round-trip is ill-posed; **pin the oracle commit hash** in CI; the oracle is authoritative for **fidelity to Mukti**, NOT linguistic **correctness** (correctness questions route to WP-191's linguistic gates) |
+| WP-190 | Corpus-driven Bijoy/SutonnyMJ map refinement (WP-87b) | M/Md | |
+| WP-191 | **NEW context-gated reorder rules only** | M/Hi | The four **S30-rejected** rules (`ম্ন→ু`,`েস্ন→্লে`,`ে্য→্য`,`ণরে→ণের`) **stay rejected** — their LHS are substrings of valid words (নিম্ন/করে স্নান/প্রত্যেক/চরণরে) so **no local context** distinguishes them (needs a dictionary, out of scope) and they can never pass the zero-change clean gate. Scope = NEW orthographically-impossible artifacts (like shipped `রম্ন→রু`); gate = **dual corpus** (clean-Bengali **zero-change** + pipeline-**manufactured** artifacts fixed) + **frozen counterexample invariant** + net-fix-ratio denominator 0 |
+| WP-192 | Better Bijoy PDF recovery (line-wise `recover_mixed`; mixed EN+BN) — folds the broken-font re-OCR clause (removed from WP-112a) | M/Md | |
+| WP-193-fix | **(S, do first)** remove `"boishakhi"` from `_BIJOY_FONTS` (`bangla_legacy.py:332`) so it stays **byte-for-byte** (today it's force-converted through the **wrong SutonnyMJ map**, contradicting the line-325 comment) — correctness bug | S/Md | regression-test a Boishakhi run is unchanged |
+| WP-193-route | **(M, follow-on)** introduce a **map registry** (today `_bangla_maps.py` ships **one** map and `convert_bijoy_to_unicode` is hardwired to it); route font→map-id; **a font with no registered map is never coerced**; each new encoding (Boishakhi/Bangla-Word) needs its **own oracle-tested golden fixture** before its fonts are added | M/Md | |
+| WP-194 | **Forward-conversion golden-vector regression** (Bijoy bytes → expected Unicode, frozen) + **idempotence as a TESTED property** | S/Md | round-trip is ill-posed (map is **many-to-one**); idempotence is **non-trivial** (MAIN maps ASCII letters/digits → Bengali, so a 2nd pass over mixed EN+BN re-fires) → either prove on the pinned fixtures or scope idempotence to the `delegacify`/`recover_mixed` entry points (which gate on font/density) and document bare `convert_bijoy_to_unicode` is **not** idempotent on residual-ASCII; **pin the oracle commit hash** in CI; oracle = **fidelity to Mukti**, NOT linguistic correctness (correctness → WP-191 gates) |
 
-### Theme K — Performance / stability / accuracy / efficiency (these are **acceptance gates**, not WPs)
-Each attaches to the release whose WPs it measures (per [C6]); none is an independent deliverable.
+### Theme K — Perf / stability / accuracy / efficiency (these are **acceptance gates**, not WPs)
 | Gate | Measures | Type |
 |------|----------|------|
-| **Digest efficiency** | re-digest unchanged corpora — **gate** on the machine-independent proxy "second digest converts **0** changed files" (WP-140 cache-hit count); **benchmark** the ≥2× wall-clock on named hardware | gate + benchmark |
-| **Recall latency** | "p95 < 150 ms @ 50k **recall-units**" is a **benchmark on named hardware**, **contingent on WP-201's inverted index** (today's linear cached scan is ~0.5–0.6 s @ 50k per R-13). CI **gate** = a machine-independent op-count proxy (postings ops ∝ query terms, not corpus size). Define "unit" = entity cards + theme summaries, and the corpus size that yields 50k | benchmark + proxy gate |
-| **Accuracy** | recall@k ≥ committed floor on the EN+BN corpus (WP-202a), no regression; ratchet floor on green; run **with the byte-budget gate** so neither is gamed by dumping more text | gate |
-| **Stability** | grep no raw `open(...,"w")` outside `_io` [C2] + crash-injection tests; zero torn-write paths | gate |
-| **Efficiency** | peak RSS via `psutil` at `--scale`, recorded per cycle (benchmark; runner-variance makes a hard RSS gate non-blocking) | benchmark |
+| **Digest efficiency** | re-digest unchanged — **gate** on the proxy "second digest converts **0** changed files" (WP-140 cache-hit count); ≥2× wall-clock = **benchmark** (named hardware) | gate + benchmark |
+| **Recall latency** | "p95 < 150 ms @ 50k recall-units" = **benchmark on named hardware**, **lands with WP-201, not before** (today's linear cached scan is ~0.5–0.6 s @ 50k per R-13). CI **gate** = op-count proxy: replicate the corpus 1× vs 10× with a **fixed query** and assert the postings/scoring-iteration counter is **constant** (∝ query terms, not corpus size). Define "unit" = entity cards + theme summaries | benchmark + proxy gate |
+| **Accuracy** | EN recall@k floor **already CI-gated** (`test_eval.py`); **WP-202a** adds the **BN** + **conversion-fidelity** gates; run jointly with the byte-budget gate so neither is gamed | gate |
+| **Stability** | grep no raw `open(...,"w")`/`write_text` outside `_io` [C2] + crash-injection tests | gate |
+| **Efficiency** | peak RSS via `psutil` at `--scale`, per cycle (benchmark; runner variance ⇒ non-blocking) | benchmark |
 
-*(WP-201 = build the term→postings **inverted index** at digest time, parity-tested byte-identical to the linear scorer; this is the deliverable behind the latency benchmark. WP-200/203/204 are the gates above, not separate WPs.)*
+**WP-201** *(M/Md, v2.9)* = build the term→postings **inverted index** at digest time. **Parity = identical top-k
+result set AND ordering to the linear scorer** on the golden set, with a **documented deterministic tie-break
+(`-score`, then unit index)** the index reproduces exactly (scores may differ in the last ULP; byte-identity is **not**
+claimed — float re-association + WAND pruning forbid it; safe-up-to-k pruning is itself a parity property). The
+already-shipped pre-tokenised `bm25_index.json` cache is **not** this deliverable.
+**WP-202a** *(S/Md, v2.7)* = the [C6] eval-corpus + BN/conversion gates + baseline freeze (sequenced **first**).
 
 ### Theme Z — 🚀 v3.0.0 marquee: Graph schema v2
-Per **[C5]**. Typed & directional relations (WP-120) · temporal & numeric facts (PII-safe) · fact confidence +
-salience (WP-123) · entity sub-types (WP-121) · provenance codepoint-offset spans (WP-123 produce / WP-134 cite) ·
-community-algorithm pinning ([C1]) · default-dependency slim-down (WP-181b, ADR-010) · recall/render rewritten to
-exploit them — still token-free, still per-payload byte-capped. **Export-format v1→v2 deprecation:** ship
-`docs/export-format/v2/` (new fields optional); `mta export` emits v2 by default but supports **`--format v1`**
-(down-projecting) **through v3.1**, warning thereafter, removed **no earlier than v3.2**; v1 `graph.schema.json` stays
-published; the bundle carries a `format_version` header; v2 schema CI-enforces confidence ∈ [0,1], salience numeric,
-relation direction/type from a closed enum, offsets non-negative & bounded by doc length, plus the existing
-edge→node referential-integrity check.
+Per **[C5]**. Typed & directional relation attributes (WP-120) · temporal & numeric facts (PII-safe) · fact confidence
++ salience (WP-123) · entity sub-types (WP-121) · provenance codepoint-offset spans (WP-123 produce / WP-134 cite) ·
+**community-algorithm pin** ([C1]) · **default-dependency slim-down** (WP-181b, ADR-010) · recall/render rewritten —
+still token-free, per-payload byte-capped. **Export-format v1→v2 deprecation:** ship `docs/export-format/v2/` (new
+fields optional); `mta export` emits v2 by default but supports **`--format v1`** (down-projecting) **through v3.1**,
+warning thereafter, removed **no earlier than v3.2**; v1 `graph.schema.json` stays published; bundle carries a
+`format_version`; v2 schema CI-enforces confidence ∈ [0,1], salience numeric, relation direction/type closed enum,
+offsets non-negative & bounded, plus the existing edge→node referential-integrity check.
 
 ---
 
 ## Release train
+| Release | Marquee | Headline WPs (L-items ≤3) |
+|--------|---------|----------------------------|
+| **v2.7.0** | Slim core (additive) + easy install | WP-180 (additive), **WP-181a**, WP-183, WP-170(L), WP-173, **WP-174(L)**, WP-175, WP-176, WP-100/101/102, WP-103/104, **WP-105**, **WP-202a** |
+| **v2.7.x / v2.8.0** | Cross-AI guides + conversion accuracy | WP-150/151/152/153, **WP-154(L)**, WP-155, WP-171/172, WP-177; WP-110, WP-111a, **WP-111b(L)**, WP-112a, WP-113, WP-132, WP-140, WP-130 |
+| **v2.8.x** | Mobile | **WP-160(L)**, WP-161 (gated), WP-162, WP-141, WP-142, WP-144 |
+| **v2.9.0** | Bengali + graph quality + frugality | WP-190/191/192/193-fix/193-route/194, **WP-121(L)**, WP-122 (quality), WP-124/125/127, WP-133, WP-130, WP-201 |
+| **v2.10.0** | Opt-in power features *(at the L-budget ceiling — 3 L-items)* | ⚠️ **WP-131(L)**, ⚠️ **WP-143(L)**, **WP-126(L)** |
+| **v3.0.0** | Graph schema v2 (Theme Z) | **WP-120(L)**, **WP-123(L)**, WP-134, WP-181b, community-algo pin, WP-121 sub-types, recall/render v2, migration [C5] |
 
-| Release | Marquee | Headline WPs (L-items capped ≤3) |
-|--------|---------|----------------------------------|
-| **v2.7.0** | Slim core (additive) + easy install + cross-AI breadth | WP-180 (additive extras + deprecation notice), WP-181a, WP-183, WP-170, WP-173, WP-174, WP-175, WP-176, WP-100/101/102, WP-103/104, **WP-202a (eval corpus + CI wiring + baseline)** |
-| **v2.7.x / v2.8.0** | Cross-AI guides + conversion accuracy | WP-150/151/152/153, WP-154, WP-155 (ChatGPT), WP-171/172, WP-177; WP-110, WP-111a/111b, WP-112a, WP-113, WP-132, WP-140; WP-130 |
-| **v2.8.x** | Mobile | WP-160, WP-161 (gated), WP-162, WP-141, WP-142, WP-144 |
-| **v2.9.0** | Bengali + graph quality + frugality | WP-190/191/192/193/194, WP-121/122/124/125, WP-133, WP-201 (inverted index) |
-| **v2.10.0** | Opt-in power features (isolated invariant-risk) | ⚠️ WP-131 (hybrid), ⚠️ WP-143 (encryption), WP-126 (HTML viewer) |
-| **v3.0.0** | Graph schema v2 (Theme Z) | WP-120, WP-123, WP-134, WP-181b (default slim-down), community pinning, recall/render v2, migration [C5] |
-
-*(The arc is gated on schema v2, not on a version number — extra minors v2.7.x/v2.8.x/v2.10 are legitimate so no
-single release is overloaded.)*
+*(Gated on schema v2, not a version number — extra minors are legitimate so no release is overloaded.)*
 
 ## Global acceptance gates (measurable per [C6])
-- All invariants preserved; **cross-env determinism** asserted in the clean-image lane [C1]; **no-egress** test green [C3].
-- **Eval harness wired into CI** (WP-202a) before any accuracy/frugality gate is cited; EN+BN + conversion corpora committed; v2.6.2 baseline frozen.
-- **Token frugality**: `MTA_RECALL_BUDGET` total-payload cap enforced + median recall/overview ≤ the budget on the golden set (number reconciled with caps).
-- **Dep budget**: core deps ≤ **5**, all pure-Python (`test_dep_budget.py`).
-- **Conversion**: success ≥ committed baseline + golden-diff fidelity ≥ floor on the conversion fixture set (PDF columns = best-effort, non-gating).
-- **Accuracy**: recall@k ≥ floor on EN+BN, ratcheting, run jointly with the byte-budget gate.
-- **Migration** [C5]: frozen v1→v2 fixture migrates losslessly-forward, validates against v2 schema, recall-parity; idempotent; atomic.
-- **Manual acceptance (not CI)**: time-to-first-memory measured on a **fresh OS account, no Python, only the download link**, per (OS × no-terminal/one-command), recorded in `ACCEPTANCE.md`; CI-able proxy = **install ≤ 2 actions/surface** (scripted command count). Termux gated on WP-161 prereq; on-device iOS excluded.
+- Invariants preserved; **[C1] cross-env determinism matrix** green in the clean-image lane; **[C3] no-egress** green.
+- **WP-202a landed** before any BN-accuracy/conversion-fidelity gate is cited (EN recall@k is already gated).
+- **Frugality**: `MTA_RECALL_BUDGET=16384` enforced (max ≤ budget, median ≤ 4096 on the golden set).
+- **Dep budget**: ≤ 6 total / ≤ 5 excluding `mcp`, all pure-Python except `mcp` (`test_dep_budget.py`).
+- **Conversion**: success ≥ committed baseline + golden-diff fidelity ≥ floor (PDF columns non-gating).
+- **Accuracy**: recall@k ≥ floor on EN **and** BN, ratcheting, run with the byte-budget gate.
+- **Migration** [C5]: frozen v1→v2 fixture migrates losslessly-forward, validates against v2 schema, recall-parity vs the **pre-migration v1 store**; idempotent; atomic; crash-injection-tested.
+- **Manual acceptance (not CI)**: time-to-first-memory on a **fresh OS account, no Python, only the download link**, per (OS × no-terminal/one-command), in `ACCEPTANCE.md`; **GUI installer launches with no SmartScreen/Gatekeeper block** (per OS). CI proxy = **install ≤ 2 actions/surface** where an "action" = one user shell command **or** one GUI click (OS security prompts excluded, tracked under WP-175); a CI test parses the machine-readable install-recipe blocks and asserts ≤ 2. Termux gated on WP-161 prereq; on-device iOS excluded.
 
 ## Explicitly out of scope / won't-do
-- ❌ Any LLM/embedding/summarizer in the **default** path (breaks model-free + determinism). An `ask`/`summarize`
-  tool stays the host model's job; we only return citable slices.
+- ❌ Any LLM/embedding/summarizer in the **default** path. An `ask`/`summarize` tool stays the host model's job.
 - ❌ Always-on network, telemetry, or returning document contents to the model.
-- ❌ Mandatory heavy/compiled deps. `_rearrange` linearization (perf-only, fidelity risk) and full LIFE-02
-  refcounting (narrow, mitigated) stay deferred.
-- ❌ Blanket cross-script normalization or blanket Bijoy reorder `replace` (per the Bengali safety gates).
+- ❌ Mandatory heavy/compiled deps; `_rearrange` linearization; full LIFE-02 refcounting.
+- ❌ Blanket cross-script normalization; blanket Bijoy reorder `replace`; the 4 S30-rejected reorder rules.
+- ❌ Spreadsheet aggregation/charting (host-model + exports instead).
 
 ## Open decisions for the owner
-- **ADR-008** encryption-at-rest stays opt-in by default.
-- **ADR-010 (NEW — proposed):** *dependency-extra changes follow deprecate-then-remove; removing a default-on
-  capability forces a major or a flagged one-minor deprecation window.* (Add to `DECISIONS.md`.)
-- **Community-algorithm pinning** ([C1]): pin NetworkX Louvain as the deterministic default (Leiden opt-in). Confirm.
-- **WP-182** (stdlib community detection): spike-only; pursue only if it rides the v3 output break — else keep networkx.
-- **WP-163** native mobile app: research only (prefer 163a thin shell); confirm before committing engineering.
-- **WP-131** hybrid retrieval: pure-BM25 stays the shipping default; embeddings opt-in, safetensors-only, hash-pinned.
+- **ADR-008** encryption opt-in by default. **ADR-010** (now recorded): dependency deprecate-then-remove.
+- **Community-algo pin** ([C1]) = NetworkX Louvain default, Leiden opt-in; pin lands v3.0. Confirm.
+- **Paid signing identities** (Round 2): Windows **Authenticode cert** (WP-175) + **Apple Developer ID** (WP-175 macOS) are owner prerequisites with cost.
+- **WP-182** spike-only; **WP-163** research-only; **WP-131** pure-BM25 stays default.
+- **Interim cross-env nondeterminism** (RISKS R-20, to be added): until v3.0 pins the algo/numpy axes, two installs with
+  different optional deps can produce different `graph.json`; accepted interim, gate enforced same-environment.
 
 ---
 
 ## Adversarial review log
-- **Round 1 (S26)** — 10 expert lenses attacked every WP. Findings: ~5 Critical, ~14 High, ~20 Med/Low. **All
-  Critical/High folded into this revision** (community-detection determinism gap [C1]; schema-v2 migration unbound →
-  [C5]; eval corpus/CI-wiring nonexistent → [C6]/WP-202a; latency gate contradicted by R-13 → reframed benchmark;
-  1.5 KB↔caps inconsistency → WP-133; WP-180/181 breaking-in-a-minor → ADR-010 + WP-181a/b split; ChatGPT/Grok absent →
-  WP-155 + Theme F restated; novice Python-install/uninstall/SmartScreen gaps → WP-174/175/176/177; security on
-  QR/encryption/embeddings/viewer/channels → [C3]/[C4] + WP clauses; scope overload → v2.10 split + Effort/Risk tags;
-  Bengali blanket-rule & Boishakhi mis-route → WP-191/193 gates; WP-182 reframed spike-only; WP-201 latency = inverted
-  index). **Next: Round 2** — fresh lenses re-attack this revision; converge when a round yields no new Critical/High.
+- **Round 1 (S26)** — 10 lenses; ~5 Critical / ~14 High / ~20 Med-Low; all Critical/High folded (contracts [C1]–[C6],
+  Effort/Risk tags, v2.10 split, WP-155/174/175/176/177/202a/181a-b, ADR-010, reframed gates).
+- **Round 2 (S26)** — 7 fresh lenses (incl. convergence + internal-consistency auditors) re-attacked the revision.
+  Findings folded into **this Round-3 revision**: macOS notarization (Critical → WP-175 renamed) · numpy-absent
+  recall-death + graph divergence (Critical → WP-181a byte-identical pure-Python fix + [C1] numpy/rapidfuzz axes) ·
+  migration machinery unbuilt + best-effort backup (Critical → [C5] rewritten: write-lock, sentinel, abort-on-failed-
+  backup, in-memory-read-only) · WP-201 "byte-identical index" impossible (Critical → top-k result+order parity) ·
+  dep baseline 10→11 + `mcp` carve-out · WP-133 committed `16384`/median-`4096` + instrument · "run_eval already CI-
+  gated" correction → WP-202a scoped to BN+conversion · latency proxy named (corpus 1×/10× iteration-count) ·
+  "install ≤2 actions" defined + parser · WP-181b → v3.0 only · WP-105/WP-114 scheduled (114 folded into 180) ·
+  WP-121 split 2.9-resolution/3.0-subtypes + per-script `_norm` proof · WP-123/134 cite [C5] · WP-122 algo-pin → v3.0
+  (quality stays 2.9) · WP-160 per-device tokens/revocation/atomic-pairing/real-confirm · WP-126 inline-data + escape-
+  all-fields + basename paths · WP-154 detect-first/"no app yet"/"browser won't work" · PATH fix all-surfaces ·
+  WP-177 localize error/empty-state strings · directive-#10 "data mapping" scope + **WP-127** · WP-120 undirected-
+  backbone + CI precision gate · WP-191 the 4 rejected rules stay rejected (NEW rules only) · WP-193 split fix/route +
+  map-registry-doesn't-exist · WP-194 idempotence is tested-not-assumed + pinned oracle.
+- **Next: Round 3** — fresh lenses re-attack this revision; converge when a round yields **no new Critical/High**.

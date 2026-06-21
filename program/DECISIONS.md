@@ -39,3 +39,13 @@ Each entry: decision · why · alternatives weighed. Includes deliberately-decli
 ## ADR-009 — Self-update (DEP-02) is report-only for v1
 **Decided (S03):** the auto-updater applies *dependency* updates (MarkItDown — PyPI-pinned and verified, or commit-pinned upstream if opted in) but **does not self-replace the extension/plugin**; it only **reports** when a newer release exists (`latest_release`).
 **Why:** the `.mcpb` (Claude Desktop) and Claude Code plugin channels are updated by the host's own extension manager, and pip users run `pip install -U memorised-them-all`. In-place self-replacement of the running package is risky and redundant with those mechanisms. This closes the DEP-02 gap as a **deliberate scope choice**, not an omission. Revisit if a CLI-driven `mta self-update` proves worthwhile.
+
+## ADR-010 — Dependency-extra changes follow deprecate-then-remove; default-surface capability removal forces a major
+**Decided (S26, from the Round-1 v3 roadmap review):** moving a dependency that powers a **default-on** capability
+(today: OCR/PDF/Office via `markitdown[...]`/`pdfplumber`/`pillow`/`pytesseract`/`pypdfium2`; and `numpy`) out of the
+core install is a **backward-incompatible change** — `pip install -U` would silently remove a capability the user had.
+Therefore: (a) a minor may only **add** extras (`[ocr]`/`[pdf]`/`[office]`/`[hybrid]`/`[all]`) while core still pulls
+them, emitting a deprecation notice; (b) the actual **removal-from-core rides a major** (v3.0.0); (c) any change that
+alters *output* for an existing store (e.g. dropping the numpy embedding-confirm merges, or pinning the
+community-detection algorithm) is likewise a major-only break unless it is proven byte-identical to the prior default.
+`mcp` is exempt from any "pure-Python core" target (it is the required MCP transport). Reversible via the lockfile/PR.
