@@ -12,13 +12,14 @@ PyPI is first and required: if it fails, no GitHub Release is created.
 | Channel | How | Auth | Verify |
 |---|---|---|---|
 | **PyPI** | `pypa/gh-action-pypi-publish` (OIDC) | OIDC Trusted Publishing — no repo token | `pip install memorised-them-all==<v>` |
-| **GitHub Release** | `softprops/action-gh-release` | `GITHUB_TOKEN` (contents: write) | release carries wheel + sdist + `.mcpb` + SBOM + `.sig`/`.pem` |
+| **GitHub Release** | `softprops/action-gh-release` | `GITHUB_TOKEN` (contents: write) | release carries wheel + sdist + `.mcpb` + SBOM + a `*.sigstore.json` cosign bundle per artifact |
 | **`.mcpb` (Claude Desktop)** | built in `build`, attached to the Release | — | double-click → Settings ▸ Extensions |
 | **Homebrew tap** | `homebrew` job bumps `homebrew-memorised-them-all/Formula/mta.rb` | secret `HOMEBREW_TAP_TOKEN` (skips if unset; `continue-on-error`) | `brew install GRU-953/memorised-them-all/mta` |
 | **Docker (GHCR)** | `docker.yml` builds multi-arch (amd64+arm64), pushes `:<v>` + `:latest` on tag | `GITHUB_TOKEN` (packages: write) — **no extra secret** | `docker run ghcr.io/gru-953/memorised-them-all:<v> mta --help` |
 
 **Supply chain:** every Action is **SHA-pinned**; a **CycloneDX SBOM** and **cosign
-keyless** signatures (`.sig`/`.pem`) are produced per artifact; the build runs once
+keyless** single-file `*.sigstore.json` bundles (cosign v3 default; the legacy `.sig`/`.pem`
+two-file form is deprecated in v3 / removed in v4) are produced per artifact; the build runs once
 and publish jobs consume the same artifacts (no double-build); least-privilege
 per-job permissions; tag == version gate.
 
@@ -36,7 +37,13 @@ per-job permissions; tag == version gate.
 3. `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. Watch **Release**: `build → pypi → github_release → homebrew`.
 5. Post-publish smoke: `pip install memorised-them-all==X.Y.Z`; `brew update && brew upgrade … mta`;
-   download the `.mcpb` and `cosign verify-blob` it against its `.pem`/`.sig`.
+   download the `.mcpb` + its `.sigstore.json` and verify the keyless bundle (cosign v3):
+   ```bash
+   cosign verify-blob memorised-them-all.mcpb \
+     --bundle memorised-them-all.mcpb.sigstore.json \
+     --certificate-identity-regexp '^https://github.com/GRU-953/memorised-them-all/\.github/workflows/release\.yml@refs/tags/v.+$' \
+     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+   ```
 
 ## MCP registry (server.json — owner submits once)
 `server.json` (repo root, version-gated by `scripts/check_versions.py`) is ready for the

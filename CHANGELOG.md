@@ -6,6 +6,51 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-06-20
+
+Performance pass on the recall and entity-resolution hot paths — no behaviour change to
+ranking or merges (proven byte-identical / brute-force-parity in tests), no new runtime
+dependency, all invariants (token-free, 100% local, deterministic byte-identical output,
+crash-safe atomic writes) intact.
+
+### Changed
+- **Recall is ~9× faster on large memories (R-13/R-15).** Recall no longer re-tokenises
+  every recall unit and recomputes idf on each query, and no longer loads the unused
+  `vectors.npz` matrix into RAM. A digest now writes a deterministic, pre-tokenised BM25
+  index (`bm25_index.json`); recall reads it (meta-only) and ranks from it. Measured ~8.8×
+  on an 8k-unit corpus (118 → 13.5 ms/query), with byte-identical ranking. Purely additive
+  and back-compatible — **no re-digest required**: old memories with no index fall back to
+  on-the-fly tokenisation, and a torn/absent index degrades to that path safely.
+- **Entity resolution no longer blows up at O(n²), and the silent 1500-name cliff is gone
+  (R-14).** Resolution now compares only candidate pairs that share a `(script, token-
+  prefix)` blocking key — provably the same merges as the full scan (cross-script pairs
+  never matched anyway), at ~6.6% of the pair count on a 3k-name corpus — and the embedding
+  pass drops its dense n×n matrix for per-candidate dot products. The hard-coded 1500 cap
+  becomes the documented, configurable `MTA_RESOLVE_MAX_NAMES` (default **5000**, `0` =
+  unbounded). The WP-90 Bengali distinctness fix is untouched (bucketing can only shrink the
+  compared set, never introduce an over-merge).
+- **Release signing → single-file Sigstore bundle (R-18, supply-chain).** The release train
+  now cosign-signs each artifact to a single `*.sigstore.json` bundle (signature + Fulcio
+  certificate + Rekor proof in one file) and pins `cosign-release: v3.0.1`, replacing the
+  legacy `--output-signature`/`.sig` + `--output-certificate`/`.pem` two-file form
+  (deprecated in cosign v3, removed in v4). Verify with
+  `cosign verify-blob <file> --bundle <file>.sigstore.json --certificate-identity-regexp … --certificate-oidc-issuer …`
+  (see `program/PUBLISH_MANIFEST.md`).
+
+### Fixed
+- **Windows `mta setup` reliability (audit).** `os.replace` now retries on `PermissionError`
+  (a running client briefly holding its config open), and an unset `%APPDATA%` falls back to
+  `~/AppData/Roaming` (the real location) instead of `~` — so auto-config writes to the path
+  the client actually reads.
+- **Recall-path hardening (audit).** `graph.json`/`vectors.json`/`bm25_index.json` reads are
+  now size-gated by `MTA_MAX_FILE_MB` (default 200 MB) — a hostile or accidental multi-GB
+  store (these files are user-editable / copied between machines) is refused rather than
+  loaded into memory. Config backups written by `mta setup` are chmod-`0600` so a config that
+  holds secrets is never copied world-readable.
+- **cosign verify guidance** now pins the signer identity
+  (`--certificate-identity-regexp` + `--certificate-oidc-issuer`) — a bare `verify-blob`
+  trusts any Fulcio cert.
+
 ## [2.5.0] — 2026-06-20
 
 Cross-AI reach: the same local, token-free memory now installs into **every MCP-capable

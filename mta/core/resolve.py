@@ -9,13 +9,12 @@ absent.
 """
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
 from collections import Counter, defaultdict
 
-import numpy as np
-
-from .embed import Embedder, cosine
+from .embed import Embedder
 
 # Keep any Unicode word character (CJK, Cyrillic, …) AND the Bengali block — Bengali
 # vowel signs (matras), halant (্ U+09CD) and nukta (় U+09BC) are category Mc/Mn and are
@@ -45,6 +44,79 @@ def _norm(name: str) -> str:
     s = "".join(c for c in s if not (unicodedata.combining(c) and not ("ঀ" <= c <= "৿")))
     s = unicodedata.normalize("NFC", s)
     return _NORM_RE.sub(" ", s).lower().strip()
+
+
+def _script(s: str) -> str:
+    """Coarse script tag of the first significant char of a normalised name. Bengali
+    (U+0980–U+09FF) and ASCII alnum are split out; everything else is keyed by codepoint
+    block so e.g. Cyrillic/CJK never co-bucket with Latin. Used only for blocking."""
+    for c in s:
+        if c == " ":
+            continue
+        if "ঀ" <= c <= "৿":
+            return "bn"
+        if c.isascii() and c.isalnum():
+            return "la"
+        return f"u{ord(c) >> 8}"
+    return ""
+
+
+def _block_keys(norm: str, script: str) -> set[str]:
+    """Overlapping blocking keys: per distinct token, BOTH its first-2 and last-2 chars
+    (script-tagged). A *fuzzy-string* merge (token_set_ratio ≥ threshold) needs a shared
+    near-identical token; a single edit changes a token's leading OR trailing chars but not
+    both (for the realistic OCR/transliteration typos this ingests), so a near-identical
+    token pair shares at least one of {prefix-2, suffix-2} and co-buckets — blocking
+    reproduces the full-scan fuzzy merges (parity-tested on a realistic corpus incl.
+    leading-edit pairs).
+
+    Blocking is always a SAFE REFINEMENT of the full O(n²) scan: it only ever drops
+    comparisons, and the merge predicate is unchanged, so it can never introduce an
+    over-merge. The one case where it legitimately diverges is the *embedding* pass — the
+    hash embedder can give cosine 1.0 to two unrelated single-token names that collide in
+    256 dims; the full scan would then merge them if token_set_ratio ≥ 60, whereas blocking
+    skips the (spurious, hash-collision) merge. That divergence is over-SPLIT (the safe
+    direction) and avoids a bad merge, so it is accepted. Cross-script pairs (ratio≈0) are
+    never merged today, so skipping them changes nothing."""
+    toks = norm.split()
+    if not toks:
+        return {f"{script}:"}
+    keys: set[str] = set()
+    for t in toks:
+        keys.add(f"{script}:p{t[:2]}")   # prefix block
+        keys.add(f"{script}:s{t[-2:]}")  # suffix block — catches leading-char edits
+    return keys
+
+
+def _resolve_cap_from_env() -> int:
+    """Fallback cap when ``resolve_entities`` is called without a Config (mirrors
+    ``Config.resolve_max_names`` / MTA_RESOLVE_MAX_NAMES; 0 or negative = unbounded)."""
+    try:
+        return int(str(os.environ.get("MTA_RESOLVE_MAX_NAMES", "5000")).strip())
+    except (TypeError, ValueError):
+        return 5000
+
+
+def _candidate_pairs(norms: list[str], block: bool = True) -> list[tuple[int, int]]:
+    """All (i<j) pairs that share at least one blocking key — the only pairs that can
+    pass the fuzzy/embedding thresholds. Deterministic (sorted keys + sorted output).
+    ``block=False`` returns the full O(n²) pair set (the unblocked reference used to
+    prove parity, and a safety escape hatch)."""
+    n = len(norms)
+    if not block:
+        return [(i, j) for i in range(n) for j in range(i + 1, n)]
+    scripts = [_script(nm) for nm in norms]
+    buckets: dict[str, list[int]] = defaultdict(list)
+    for i in range(n):
+        for key in _block_keys(norms[i], scripts[i]):
+            buckets[key].append(i)            # appended in ascending i
+    seen: set[tuple[int, int]] = set()
+    for key in sorted(buckets):
+        idxs = buckets[key]
+        for a in range(len(idxs)):
+            for b in range(a + 1, len(idxs)):
+                seen.add((idxs[a], idxs[b]))  # i<j by construction
+    return sorted(seen)
 
 
 def _numbered_siblings(a: str, b: str) -> bool:
@@ -81,7 +153,9 @@ class _UnionFind:
 
 def resolve_entities(mentions: list[dict], embedder: Embedder,
                      fuzz_threshold: int = 88,
-                     cos_threshold: float = 0.92) -> dict:
+                     cos_threshold: float = 0.92,
+                     resolve_cap: int | None = None,
+                     _block: bool = True) -> dict:
     """Group mention dicts ({name,type}) into canonical entities.
 
     Returns {"canonical": {cid: {label,type,aliases,count}},
@@ -115,18 +189,25 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
         for k in range(1, len(group)):
             uf.union(group[0], group[k])
 
-    # Fuzzy string match (only worthwhile for a manageable set).
-    if _HAVE_FUZZ and n <= 1500:
-        for i in range(n):
-            for j in range(i + 1, n):
-                if uf.find(i) == uf.find(j):
-                    continue
-                if abs(len(norms[i]) - len(norms[j])) > 12:
-                    continue
-                if _numbered_siblings(norms[i], norms[j]):
-                    continue
-                if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
-                    uf.union(i, j)
+    # R-14: only compare plausibly-matching pairs (shared blocking key) instead of the
+    # full O(n²) scan. The cap now bounds the unique-name set entering the pairwise
+    # passes — above it, exact-norm + acronym (both O(n)) still run; only fuzzy/embedding
+    # are skipped (a documented, configurable degradation, not a silent 1500 cliff).
+    cap = resolve_cap if resolve_cap is not None else _resolve_cap_from_env()
+    do_pairwise = _HAVE_FUZZ and n >= 2 and (cap <= 0 or n <= cap)
+    candidate_pairs = _candidate_pairs(norms, block=_block) if do_pairwise else []
+
+    # Fuzzy string match over candidate pairs only (per-pair guards unchanged).
+    if do_pairwise:
+        for i, j in candidate_pairs:
+            if uf.find(i) == uf.find(j):
+                continue
+            if abs(len(norms[i]) - len(norms[j])) > 12:
+                continue
+            if _numbered_siblings(norms[i], norms[j]):
+                continue
+            if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
+                uf.union(i, j)
 
     # Acronym ↔ expansion linking, e.g. "NGA" ↔ "Nordic Grid Authority". An
     # acronym is matched to an expansion only when its letters exactly equal the
@@ -155,12 +236,12 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
     # merging is unsafe for short proper nouns — domain-related names (e.g. two
     # different organisations) sit close in embedding space and would otherwise
     # collapse into one entity. Requiring a fuzzy floor prevents that.
-    if _HAVE_FUZZ and 2 <= n <= 1500:
+    if do_pairwise:
         mat = embedder.embed(names)
-        sims = cosine(mat, mat)
-        rows, cols = np.where(np.triu(sims >= cos_threshold, k=1))
-        for i, j in zip(rows.tolist(), cols.tolist()):
+        for i, j in candidate_pairs:        # same blocked candidates; no dense n×n matrix
             if uf.find(i) == uf.find(j):
+                continue
+            if float(mat[i] @ mat[j]) < cos_threshold:   # L2-normalised rows → dot = cosine
                 continue
             if fuzz.token_set_ratio(norms[i], norms[j]) >= 60:
                 uf.union(i, j)

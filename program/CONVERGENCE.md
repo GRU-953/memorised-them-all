@@ -1,3 +1,42 @@
+# Convergence note — v2.6.0 recall + resolve performance pass (S24)
+
+**Status: CONVERGED. No open Critical/High.** Closed deferred backlog R-13/R-14/R-15 (perf)
+with NO behaviour change: recall ranking is byte-identical (cached vs on-the-fly) and resolve
+merges equal the true full O(n²) scan on realistic corpora (parity-tested). No new dependency.
+
+- **R-13 + R-15 (recall):** a deterministic pre-tokenised `bm25_index.json` is built once at
+  digest time; recall ranks from it via a meta-only load (never the `vectors.npz` matrix).
+  **~8.8× faster @8k units** (118→13.5 ms/query), identical hits. Additive (no SCHEMA bump),
+  back-compat: old stores / torn / absent / corrupt cache all fall back to on-the-fly safely.
+- **R-14 (resolve):** `(script, prefix-2 + suffix-2 per token)` blocking → candidate pairs are
+  **6.6% of O(n²)** at 3k names; dense n×n cosine replaced by per-candidate dot product; the
+  silent 1500 cap is now documented/configurable `MTA_RESOLVE_MAX_NAMES` (default 5000). `_norm`
+  untouched → WP-90 Bengali distinctness preserved.
+
+Convergence criteria — ALL met:
+- **(a) Two clean rounds.** Up-front: 3 expert design/cross-check agents. Round 1 (adversarial
+  diff review) → **1 High** (the prefix-only block key dropped fuzzy merges where the matching
+  token differed at its LEADING char — MacDonald/McDonald; the parity test compared blocking-vs-
+  blocking and couldn't catch it) + 1 Low (cache gate didn't check inner tokens are str) → **both
+  fixed**: added a per-token SUFFIX block key + a TRUE full-scan parity test (`_block=False`).
+  Round 2 = **independent fresh-verification** (own adversarial fuzz corpus, ran the suite + all
+  gates first-hand) → **NO Critical/High**; one Low (the "reproduces the full scan" wording over-
+  claims for the *embedding* pass, where blocking safely skips spurious hash-collision merges —
+  the over-split/safe direction) → docstring + test comment tightened. Monotonic (1H+Low → 0).
+- **(b) Numeric gates / no regression.** **261 pass / 3 skip** (+11 over v2.5.0); determinism
+  byte-identical incl. the new `bm25_index.json` (independently SHA-256-verified across two homes);
+  recall cache-equivalence + corrupt-cache fallback verified; resolve blocked==full-scan on a
+  realistic corpus + a 40-trial fuzzer (only benign over-split divergences); `check_versions` OK
+  @2.6.0; wheel+sdist `twine check` PASSED.
+- **(c) No open Critical/High.** Invariants re-verified intact: token-free, no network on
+  recall/resolve, crash-safe atomic writes (new file via `_atomic_write_text`), dependency-free
+  (no pyproject/requirements change), back-compat. RISKS R-13/14/15 marked Resolved.
+
+**Disposition:** MINOR **v2.6.0** (perf only; no tool/schema change). Awaiting CI confirmation +
+the owner tag-push publish gate. _Prior v2.5.0 note below._
+
+---
+
 # Convergence note — v2.5.0 cross-AI multi-client auto-config (S23)
 
 **Status: CONVERGED. No open Critical/High.** New feature (`mta setup` + `mta/core/clients.py`):

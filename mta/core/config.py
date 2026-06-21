@@ -105,6 +105,12 @@ class Config:
     # Set MTA_RECALL_MIN_SCORE on the BM25 scale (scores routinely exceed 1).
     recall_min_score: float = field(default_factory=lambda: _env_float("MTA_RECALL_MIN_SCORE", 0.0))
     max_chunks: int = field(default_factory=lambda: _env_int("MTA_MAX_CHUNKS", 1500))
+    # Ceiling on the number of UNIQUE entity surface-forms entering the pairwise fuzzy +
+    # embedding resolution passes (MTA_RESOLVE_MAX_NAMES). Above it, exact-normalised and
+    # acronym merges still run (both O(n)); only the pairwise similarity passes are skipped.
+    # Default 5000 (was a silent hard-coded 1500) — R-14 blocking made the pairwise cost
+    # ~O(n·b) not O(n²), so this is a CPU-safety bound, not a quality cliff. 0 = unbounded.
+    resolve_max_names: int = field(default_factory=lambda: max(0, _env_int("MTA_RESOLVE_MAX_NAMES", 5000)))
     # Skip individual files larger than this (MB) before reading them into memory,
     # bounding OOM/decompression-bomb risk. 0 disables the cap.
     max_file_mb: int = field(default_factory=lambda: max(0, _env_int("MTA_MAX_FILE_MB", 200)))
@@ -177,6 +183,12 @@ class Config:
         return self.project_dir / "vectors.npz"
 
     @property
+    def bm25_index_path(self) -> Path:
+        """Pre-tokenised BM25 index (a deterministic, additive recall-perf cache).
+        Optional: absence is always tolerated (recall tokenises on the fly)."""
+        return self.project_dir / "bm25_index.json"
+
+    @property
     def memory_md(self) -> Path:
         return self.project_dir / "memory.md"
 
@@ -218,6 +230,7 @@ def persist_config(cfg: "Config") -> Path:
         "workers": cfg.workers, "extract_workers": cfg.extract_workers,
         "recall_k": cfg.recall_k, "recall_min_score": cfg.recall_min_score,
         "max_chunks": cfg.max_chunks, "max_file_mb": cfg.max_file_mb,
+        "resolve_max_names": cfg.resolve_max_names,
         "convert_timeout": cfg.convert_timeout,
     }
     path = cfg.state_dir / "config.json"

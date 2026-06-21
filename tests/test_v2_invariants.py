@@ -70,10 +70,12 @@ def test_graph_and_vectors_are_byte_identical_across_runs(tmp_path):
         # NO normalisation: the v2 contract is byte-identical persisted artifacts.
         outs.append((cfg.graph_path.read_text(encoding="utf-8"),
                      cfg.vectors_path.read_bytes() if cfg.vectors_path.exists() else b"",
-                     cfg.memory_md.read_text(encoding="utf-8")))
+                     cfg.memory_md.read_text(encoding="utf-8"),
+                     cfg.bm25_index_path.read_bytes() if cfg.bm25_index_path.exists() else b""))
     assert outs[0][0] == outs[1][0], "graph.json differs between identical runs"
     assert outs[0][1] == outs[1][1], "vectors.npz differs between identical runs"
     assert outs[0][2] == outs[1][2], "memory.md differs between identical runs"
+    assert outs[0][3] == outs[1][3], "bm25_index.json differs between identical runs"
 
 
 # ---- zero network: a digest must never open a socket ---------------------------------

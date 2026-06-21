@@ -111,7 +111,8 @@ def export_bundle(cfg: Config, dest: str) -> dict:
         # Include the vector store so recall works from the exported bundle, not
         # just human browsing + graph reload.
         for src in (cfg.memory_md, cfg.graph_path,
-                    cfg.vectors_path, cfg.vectors_path.with_suffix(".json")):
+                    cfg.vectors_path, cfg.vectors_path.with_suffix(".json"),
+                    cfg.bm25_index_path):
             if src.exists():
                 shutil.copy2(src, dest_path / src.name)
                 copied.append(src.name)
