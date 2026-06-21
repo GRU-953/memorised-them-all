@@ -17,12 +17,15 @@ truth, **not** model memory. Any fresh session resumes from it with zero prior c
    ▶ RESUME HERE) and append a `SESSION_LOG.md` entry ending with the single exact next step.
 
 ## Status
-**v2.4.2 SHIPPED** — PyPI + GitHub Release + `.mcpb` + Homebrew tap (OIDC, SBOM, cosign).
-**v2.5.0 IN-FLIGHT** on `claude/plugin-review-improve-rqktks`: cross-AI multi-client
-auto-config (`mta setup` → Claude/Gemini/Cursor/VS Code/Windsurf/Codex; Grok via auto-discover),
-green (245 pass/3 skip), awaiting review + publish gate.
-**Next = v2.x+ backlog** (optional): remote-MCP recipe polish, extra publishing channels, and
-the deferred Low/Med items in `program/RISKS.md` (R-13…R-19).
+**v2.6.1 SHIPPED** — PyPI + GitHub Release + `.mcpb` + Homebrew tap + GHCR (OIDC trusted-publish,
+SBOM, cosign single-file `*.sigstore.json` bundle). Ships v2.5.0 cross-AI `mta setup`
+(Claude/Gemini/Cursor/VS Code/Windsurf/Codex; Grok auto-discover) + v2.6.0 recall/resolve perf +
+supply-chain. v2.6.1 = the v2.6.0 package with two release-pipeline fixes (SBOM attach + cosign pin).
+**S25 docs reframe SHIPPED** (no version bump): README + all 7 metadata surfaces reframed
+Claude-only → cross-AI; live on GitHub / Claude-marketplace / Glama (PR #80→main, #81→develop).
+**Next = v2.x+ backlog** (optional): a docs-only `v2.6.2` to refresh PyPI's page with the new
+cross-AI description; remote-MCP recipe polish; the deferred Low items in `program/RISKS.md`
+(R-16/R-17, accepted).
 
 ## Invariants (must never regress)
 Token-free (tiny tool results; document contents never returned to the model) · 100%
