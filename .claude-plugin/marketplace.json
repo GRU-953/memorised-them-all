@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Local, token-free, deterministic file digestion → searchable knowledge-graph memory for Claude. Model-free (no LLM/Ollama/GPU), 100% private, open-source.",
-    "version": "2.6.0",
+    "version": "2.6.1",
     "pluginRoot": "."
   },
   "plugins": [
