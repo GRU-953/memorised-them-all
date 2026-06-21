@@ -731,3 +731,33 @@ User: "Cleanup and update the GitHub repository and completely redevelop the rea
 **EXACT NEXT STEP:** Nothing required. If the owner wants PyPI's project page / `.mcpb` manifest / MCP-registry entry to show the new description *now* (they refresh only on the next release), cut a docs-only **v2.6.2** patch: bump all 7 surfaces, CHANGELOG, FF `main`, owner tag-pushes `v2.6.2` (sandbox blocks tag pushes via HTTP-403 → train fires from an authenticated clone).
 
 **S25 addendum — v2.6.2 cut (docs/metadata refresh) + GHCR-public guidance.** User: "continue and How to GHCR public pulls." (1) **Cut v2.6.2** so the release-only channels show the cross-AI text: bumped all 7 surfaces 2.6.1→2.6.2 + CHANGELOG [2.6.2] + de-Claude-only'd the `mta/__init__.py` docstring; **no code/API/schema change** (identical package to 2.6.0/2.6.1). PR #83 → `develop` (10/10 green, incl. `build`'s twine-check = README renders on PyPI), PR #84 release → `main` (21/21 green, both ci.yml + e2e.yml runs). `main` = `develop` = **2.6.2**, untagged. **▶ OWNER tag-push `v2.6.2`** (sandbox 403) fires PyPI/GitHub-Release/.mcpb/Homebrew/GHCR; `mcp-publisher publish` updates the registry. (2) **GHCR public pulls** (`ghcr.io/gru-953/memorised-them-all`): the image is pushed via the built-in `GITHUB_TOKEN` so the package is **user-owned → defaults to private** (anon pull 404). Fix is a one-time UI action (no clean REST/`gh` path, and my repo-scoped tools can't flip package visibility): github.com/users/GRU-953/packages → `memorised-them-all` → Package settings → Danger Zone → **Change visibility → Public** → confirm; then `docker logout ghcr.io && docker pull ghcr.io/gru-953/memorised-them-all:latest` works anonymously. "Inherit access from source repository"/repo-linking governs authenticated collaborator access, NOT anon pulls. **SECURITY (unchanged):** the two GitHub PATs the user pasted earlier this session must be revoked — never used/stored/committed.
+
+---
+
+## Session 26 — 2026-06-21 — v2.6.2 shipped + v3.0.0 roadmap planned
+
+**Session id:** S26  **Branch:** `docs-roadmap-v3` → `develop`  **Mode:** release-verify + planning (no engine code)
+
+**Release-verify:** owner tag-pushed `v2.6.2`, flipped GHCR public, revoked the two pasted PATs.
+Verified job-by-job: release run 27900687385 = success (build · PyPI OIDC · GitHub Release+SBOM+cosign ·
+Homebrew tap bump) and docker run 27900687379 = success (GHCR multi-arch `:2.6.2`+`:latest`,
+amd64+arm64). `main` = `develop` = 2.6.2 live on every channel.
+
+**Planning — `program/ROADMAP_V3.md` (new):** consolidated the owner's directives across the session
+into a v2.7 → v3.0.0 plan. Themes: A quality/hardening · B file→Markdown conversion (stability/
+accuracy/perf/efficiency) · C data mapping & graphing · D retrieval + token frugality · E lifecycle/
+big-corpus · F cross-AI breadth (Ollama/LM Studio/…) + novice per-platform guides · G mobile
+(Android/iOS — remote-MCP + Termux now, native app a post-3.0 stretch) · H frictionless install +
+README/USER_GUIDE overhaul (novice-first, time-to-first-memory <5 min) · I dependency reduction
+(tiny pure-Python core; heavy stuff opt-in extras — unblocks mobile) · J Bijoy/Unicode Bangla · K
+cross-cutting perf/stability/accuracy/efficiency KPIs · Z v3.0.0 marquee = **graph schema v2** (typed/
+temporal/confident facts, salience, provenance offsets, sub-types) auto-migrated via the stubbed
+`store._MIGRATIONS`. WP-100…WP-204 minted; release train + global acceptance gates + invariant flags
+(model-free/local/token-free/deterministic preserved; hybrid embeddings, numpy, encryption, on-device
+mobile all opt-in/staged). Grounded in two read-only audits (deferred backlog from RISKS/IMPROVEMENT_
+PLAN/DECISIONS; engine architecture + quality ceilings). Nothing built yet — planning artifact.
+
+**EXACT NEXT STEP:** Kick off **v2.7.0** per ROADMAP_V3. First PR = WP-100/101/102 (atomic `.md` write
+[R-19] + Brahmic-block skeleton-merge generalize [R-16] + length-aware fuzzy threshold [R-17]) — one
+small, fully-deterministic, test-first change on `wp-100-...` → PR into `develop`. Residual non-code:
+owner to refresh the GitHub repo **About description + topics** to cross-AI (no edit-repo tool in-session).
