@@ -60,13 +60,17 @@ jobs:
           output-file: dist/sbom.cyclonedx.json
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac  # v3
-      - name: Sign every artifact (keyless, Sigstore OIDC)
+        with:
+          cosign-release: 'v3.0.1'   # v3 → the single-file *.sigstore.json bundle is the default
+      - name: Sign every artifact (keyless, Sigstore OIDC → single-file bundle)
         run: |
           shopt -s nullglob
+          # Single-file Sigstore bundle (signature + Fulcio cert + Rekor proof in one
+          # *.sigstore.json). Replaces the legacy --output-signature/.sig + --output-certificate/.pem
+          # two-file form (deprecated in cosign v3, removed in v4). The cert is embedded, so no
+          # separate .pem is produced; verify with `cosign verify-blob <f> --bundle <f>.sigstore.json`.
           for f in dist/*.whl dist/*.tar.gz dist/memorised-them-all.mcpb dist/sbom.cyclonedx.json; do
-            cosign sign-blob --yes \
-              --output-signature "${f}.sig" \
-              --output-certificate "${f}.pem" "$f"
+            cosign sign-blob --yes "$f" --bundle "${f}.sigstore.json"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
@@ -123,8 +127,7 @@ jobs:
             dist/*.tar.gz
             dist/memorised-them-all.mcpb
             dist/sbom.cyclonedx.json
-            dist/*.sig
-            dist/*.pem
+            dist/*.sigstore.json
             src/install.sh
 
   # Bump the Homebrew tap LAST. Gated on a cross-repo token; if it's absent the job

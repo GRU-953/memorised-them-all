@@ -93,5 +93,6 @@ every tool call require the token.
 - The optional `graph` extra (`python-igraph`, `leidenalg`) is **GPL-licensed** and is *not*
   installed by the MIT core, which falls back to NetworkX Louvain.
 - Releases use **OIDC trusted publishing** to PyPI (no long-lived token), ship a
-  **CycloneDX SBOM**, and are **Sigstore/cosign-signed** (a `.sig` + `.pem` per artifact);
+  **CycloneDX SBOM**, and are **Sigstore/cosign-signed** (a single-file `*.sigstore.json`
+  bundle per artifact — signature, Fulcio certificate and Rekor proof in one file);
   every GitHub Action is SHA-pinned.

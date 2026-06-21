@@ -29,6 +29,13 @@ crash-safe atomic writes) intact.
   becomes the documented, configurable `MTA_RESOLVE_MAX_NAMES` (default **5000**, `0` =
   unbounded). The WP-90 Bengali distinctness fix is untouched (bucketing can only shrink the
   compared set, never introduce an over-merge).
+- **Release signing → single-file Sigstore bundle (R-18, supply-chain).** The release train
+  now cosign-signs each artifact to a single `*.sigstore.json` bundle (signature + Fulcio
+  certificate + Rekor proof in one file) and pins `cosign-release: v3.0.1`, replacing the
+  legacy `--output-signature`/`.sig` + `--output-certificate`/`.pem` two-file form
+  (deprecated in cosign v3, removed in v4). Verify with
+  `cosign verify-blob <file> --bundle <file>.sigstore.json --certificate-identity-regexp … --certificate-oidc-issuer …`
+  (see `program/PUBLISH_MANIFEST.md`).
 
 ## [2.5.0] — 2026-06-20
 
