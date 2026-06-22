@@ -16,12 +16,24 @@ from collections import Counter, defaultdict
 
 from .embed import Embedder
 
-# Keep any Unicode word character (CJK, Cyrillic, …) AND the Bengali block — Bengali
-# vowel signs (matras), halant (্ U+09CD) and nukta (় U+09BC) are category Mc/Mn and are
-# NOT matched by \w, so a bare [^\w] squeeze DELETES every matra, collapsing distinct words
-# to consonant skeletons (ভোলা[Bhola] & ভালো[good] → "ভ ল"; ঢাকা[Dhaka] & ঢাকি[drum] → "ঢ ক")
-# and force-merging unrelated entities. Block range matches recall._TOK (U+0980–U+09FF).
-_NORM_RE = re.compile(r"[^\wঀ-৿]+", re.UNICODE)
+# All Brahmic combining marks live in U+0900–U+0DFF (Devanagari · Bengali · Gurmukhi ·
+# Gujarati · Oriya · Tamil · Telugu · Kannada · Malayalam · Sinhala). They are category
+# Mc/Mn and are NOT matched by \w, so a bare [^\w] squeeze DELETES every vowel-sign/halant,
+# collapsing distinct words to consonant skeletons and force-merging unrelated entities —
+# Bengali ভোলা & ভালো → "ভ ল"; Devanagari काली & कुल → "क ल"; Tamil கடல் & கடா → "க ட".
+# WP-101 (R-16): keep the *whole* Brahmic range, not just the Bengali block (U+0980–U+09FF),
+# so the matra-preservation that protected Bengali now protects every Indic script. Keeping
+# MORE marks only ever PRESERVES MORE DISTINCTIONS → fewer merges (the safe over-split
+# direction; can never introduce an over-merge). The per-script tightening + minimal-pair
+# proofs are WP-121.
+_BRAHMIC_LO, _BRAHMIC_HI = "ऀ", "෿"
+
+
+def _is_brahmic(c: str) -> bool:
+    return _BRAHMIC_LO <= c <= _BRAHMIC_HI
+
+
+_NORM_RE = re.compile(r"[^\wऀ-෿]+", re.UNICODE)
 
 try:
     from rapidfuzz import fuzz
@@ -36,12 +48,28 @@ except Exception:  # noqa: BLE001 - a hard dependency; if it's missing, degrade 
         "`mta doctor`).\n")
 
 
+def _eff_threshold(a: str, b: str, base: int) -> int:
+    """WP-102 (R-17): short names need near-identity. A one-character difference in a
+    4-char name (করিম / করিমা — `token_set_ratio` ≈ 89) is a *different entity*, not a typo,
+    yet it clears the default 88 and force-merges. Scale the required ratio up as the
+    shorter normalised name gets shorter. Monotone, deterministic, and it only ever RAISES
+    the bar → fewer merges (the safe over-split direction); long-name typo merges (where
+    fuzzy matching earns its keep) are unaffected."""
+    shorter = min(len(a), len(b))
+    if shorter <= 4:
+        return max(base, 95)
+    if shorter <= 6:
+        return max(base, 91)
+    return base
+
+
 def _norm(name: str) -> str:
     # Fold Latin accents (José → jose) + compatibility forms (ﬁ→fi, ＡＢＣ→abc) but PRESERVE
-    # Bengali combining marks (halant/nukta) — stripping them merged নিম্ন-class words. Matras
-    # are kept by _NORM_RE above; re-compose NFC so the canonical form matches stored labels.
+    # *Brahmic* combining marks (halant/nukta/matras) — stripping them merged নিম্ন-class words
+    # and (WP-101/R-16) काली/कुल-class words. Matras are also kept by _NORM_RE above; re-compose
+    # NFC so the canonical form matches stored labels.
     s = unicodedata.normalize("NFKD", name or "")
-    s = "".join(c for c in s if not (unicodedata.combining(c) and not ("ঀ" <= c <= "৿")))
+    s = "".join(c for c in s if not (unicodedata.combining(c) and not _is_brahmic(c)))
     s = unicodedata.normalize("NFC", s)
     return _NORM_RE.sub(" ", s).lower().strip()
 
@@ -206,7 +234,7 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
                 continue
             if _numbered_siblings(norms[i], norms[j]):
                 continue
-            if fuzz.token_set_ratio(norms[i], norms[j]) >= fuzz_threshold:
+            if fuzz.token_set_ratio(norms[i], norms[j]) >= _eff_threshold(norms[i], norms[j], fuzz_threshold):
                 uf.union(i, j)
 
     # Acronym ↔ expansion linking, e.g. "NGA" ↔ "Nordic Grid Authority". An

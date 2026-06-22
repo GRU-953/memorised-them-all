@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 
+from ._io import atomic_write_text as _atomic_write_text  # single shared crash-safe writer [C2]
+
 SERVER_NAME = "memorised-them-all"
 
 
@@ -48,42 +50,6 @@ def _mta_command() -> list[str]:
     if exe:
         return [exe, "serve"]
     return [sys.executable, "-m", "mta.server"]
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Crash-safe write: stage to a UNIQUE temp file (``mkstemp`` — so two concurrent
-    runs, e.g. ``install.sh`` + a manual run, can't clobber a shared temp), ``fsync``,
-    then ``os.replace`` (the single commit point) — a watcher (a running Claude Desktop,
-    Cursor, …) never sees a half-written file. The temp lands in the target's own
-    directory so the rename is same-filesystem (never a cross-device ``OSError``).
-
-    On Windows ``os.replace`` raises ``PermissionError`` if another process holds the
-    destination open without share-delete (a running MCP client editing/holding its
-    config) — so the commit is retried a few times before giving up, since the lock is
-    usually momentary."""
-    import tempfile
-    import time
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".mta-tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        for attempt in range(4):
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if attempt == 3:
-                    raise
-                time.sleep(0.15)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 
 
 def _backup_config(path: Path) -> Path:
