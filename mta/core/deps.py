@@ -9,16 +9,85 @@ sudo, so a no-admin box degrades gracefully.
 from __future__ import annotations
 
 import importlib.metadata as _md
+import os
 import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 
 from .config import Config
 from .platform import bootstrap_path
 
 _PKG = "memorised-them-all"
 _SYSTEM_BINS = ("tesseract", "ffmpeg")
+
+# Plain-English failure-symptom catalogue (WP-153), keyed on what a NON-TECHNICAL user
+# actually sees — in their AI app or terminal — not on internal error names. `mta doctor`
+# prints this so the people most likely to get stuck (who can't read a stack trace) get a
+# human next step. Deliberately short and jargon-light.
+SYMPTOMS: list[dict] = [
+    {"symptom": "My AI assistant says it doesn't have the memorise / recall tool.",
+     "cause": "The local server isn't registered in that app yet, or the app wasn't restarted.",
+     "fix": "Run `mta setup`, then FULLY quit and reopen the AI app (not just close the window)."},
+    {"symptom": "I typed `mta` and got “command not found” / “not recognized”.",
+     "cause": "Python's scripts folder isn't on your PATH.",
+     "fix": "Run it as `python -m mta` (Windows: `py -m mta`) — or see the PATH line above."},
+    {"symptom": "`mta` complains about a missing/old package (numpy, markitdown, …).",
+     "cause": "A dependency is missing or out of date.",
+     "fix": "Run `mta doctor --fix` (safe pip upgrades), or `pip install -U memorised-them-all`."},
+    {"symptom": "Scanned PDFs or images come out empty.",
+     "cause": "OCR (Tesseract) isn't installed — optional, only needed for scans/images.",
+     "fix": "Install Tesseract via your package manager (see the suggestion above), then re-digest."},
+    {"symptom": "Digest said it “found no files”.",
+     "cause": "The folder path was wrong or empty.",
+     "fix": "Copy the folder's real path (Finder: right-click → hold Option → Copy as Pathname; "
+            "Explorer: Shift-right-click → Copy as path) and digest that."},
+    {"symptom": "Recall says there's no memory / nothing to search.",
+     "cause": "Nothing has been digested into this project yet.",
+     "fix": "Digest a folder first (`mta digest <folder>`), then ask again."},
+    {"symptom": "Windows: “Windows protected your PC” when launching the installer.",
+     "cause": "The download is unsigned (we don't ship a paid certificate).",
+     "fix": "Click “More info” → “Run anyway”. To avoid it entirely, install via pip/winget."},
+    {"symptom": "macOS: “… can't be opened because Apple cannot check it”.",
+     "cause": "The app isn't notarized (we don't ship a paid Apple identity).",
+     "fix": "Right-click the app → Open (once), or System Settings → Privacy & Security → "
+            "“Open Anyway”. To avoid it entirely, install via Homebrew or pipx."},
+    {"symptom": "I use the app with no terminal (e.g. Claude Desktop) — how do I check health?",
+     "cause": "You don't need the terminal.",
+     "fix": "Ask your AI to run the `memory_status` tool — it reports the same health, in-app."},
+]
+
+
+def _scripts_dir() -> str:
+    """Where the `mta` console script lives (…/bin on POSIX, …\\Scripts on Windows)."""
+    try:
+        return sysconfig.get_path("scripts") or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def path_status() -> dict:
+    """Is the `mta` console script reachable on PATH? The #1 post-install novice failure is
+    "installed, but `command not found`" because the user-scripts dir isn't on PATH. When the
+    package is installed but `mta` doesn't resolve, return a one-line, OS-specific fix (plus
+    the always-works `python -m mta` fallback). Running from source (not installed) is not
+    flagged — that's a developer, not a stuck novice."""
+    installed = _installed_version(_PKG) is not None
+    resolved = shutil.which("mta")
+    on_path = resolved is not None
+    sd = _scripts_dir()
+    fix = None
+    if installed and not on_path:
+        if os.name == "nt":
+            fix = (f"`mta` is installed but not on PATH. Run it as `py -m mta`, or add "
+                   f'"{sd}" to PATH (Settings → Edit the system environment variables).')
+        else:
+            fix = (f"`mta` is installed but not on PATH. Run it as `{sys.executable} -m mta`, "
+                   f'or add it: export PATH="{sd}:$PATH"')
+    return {"installed": installed, "on_path": on_path, "resolved": resolved,
+            "scripts_dir": sd, "fix": fix,
+            "status": "ok" if (on_path or not installed) else "warn"}
 
 
 def _vtuple(s) -> tuple:
@@ -137,16 +206,60 @@ def _run(argv: list[str]) -> bool:
         return False
 
 
+def plain_report(result: dict, path: dict, plan: list[dict], applied: list[dict]) -> list[str]:
+    """Human-readable, non-technical summary lines for `mta doctor` (WP-153). Leads with a
+    one-line verdict, then each concrete issue + its plain fix, then the PATH check, then the
+    'common problems' catalogue keyed on what the user sees."""
+    lines: list[str] = []
+    issues = [d for d in result["python"] if d["status"] != "ok"] + \
+             [b for b in result["binaries"] if not b["present"]]
+    healthy = not issues and path["status"] == "ok"
+    lines.append("✅ Everything looks healthy." if healthy
+                 else f"⚠ Found {len(issues) + (0 if path['status'] == 'ok' else 1)} thing(s) to look at.")
+    for d in result["python"]:
+        if d["status"] == "missing":
+            lines.append(f"• Python package “{d['name']}” is missing → run `mta doctor --fix`.")
+        elif d["status"] == "outdated":
+            lines.append(f"• Python package “{d['name']}” is out of date "
+                         f"(have {d.get('installed', '?')}, need {d.get('required', '?')}) "
+                         "→ run `mta doctor --fix`.")
+    for b in result["binaries"]:
+        if not b["present"]:
+            lines.append(f"• Optional tool “{b['name']}” not found "
+                         f"(only needed for {'scanned-document OCR' if b['name'] == 'tesseract' else 'media'}) "
+                         "— install it via your package manager if you need it.")
+    if path["fix"]:
+        lines.append(f"• {path['fix']}")
+    for c in plan:
+        if not c.get("auto") and c.get("argv"):
+            lines.append("  suggested (not auto-run): " + " ".join(c["argv"]))
+        elif not c.get("auto") and c.get("hint"):
+            lines.append("  suggestion: " + c["hint"])
+    if applied:
+        ok = sum(1 for a in applied if a.get("ok"))
+        lines.append(f"Applied {ok}/{len(applied)} automatic fix(es).")
+    lines.append("")
+    lines.append("Common problems (what you might see → what to do):")
+    for s in SYMPTOMS:
+        lines.append(f"  • {s['symptom']}")
+        lines.append(f"      → {s['fix']}")
+    return lines
+
+
 def doctor(cfg: Config | None = None, fix: bool = False, dry_run: bool = False) -> dict:
     """Scan + report; with fix (and not dry_run) apply ONLY the safe pip upgrades.
     Idempotent and re-runnable; system-tool installs are always suggested, never
-    auto-run with admin rights."""
+    auto-run with admin rights. Includes a PATH check + a plain-English report + the
+    failure-symptom catalogue (WP-153)."""
     result = scan(cfg)
     plan = remediation(result)
+    path = path_status()
     applied: list[dict] = []
     if fix and not dry_run:
         for c in plan:
             if c.get("auto") and c.get("argv"):
                 applied.append({"argv": c["argv"], "ok": _run(c["argv"])})
-    return {"status": "ok", "scan": result, "remediation": plan,
-            "applied": applied, "dry_run": dry_run, "all_ok": result["all_ok"]}
+    report = plain_report(result, path, plan, applied)
+    return {"status": "ok", "scan": result, "path": path, "remediation": plan,
+            "applied": applied, "symptoms": SYMPTOMS, "report": report,
+            "dry_run": dry_run, "all_ok": result["all_ok"]}

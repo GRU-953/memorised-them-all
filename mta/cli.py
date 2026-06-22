@@ -186,7 +186,9 @@ def main(argv: list[str] | None = None) -> int:
         _print(updater.run_check(cfg, force=args.force))
     elif args.cmd == "doctor":
         from .core import deps
-        _print(deps.doctor(cfg, fix=args.fix, dry_run=args.dry_run))
+        res = deps.doctor(cfg, fix=args.fix, dry_run=args.dry_run)
+        # doctor is human-facing (WP-153): print the plain-English report, not raw JSON.
+        print("\n".join(res.get("report", [])))
     elif args.cmd == "serve":
         if args.http:
             from .transport import serve as serve_transport
