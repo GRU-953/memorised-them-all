@@ -15,7 +15,6 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -23,29 +22,9 @@ import numpy as np
 from .config import Config
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Write text durably: temp file in the same dir → fsync → os.replace.
-
-    Guarantees a reader never sees a half-written file, and an interrupt
-    (crash/power loss) leaves the *previous* valid file intact rather than a
-    truncated one. utf-8 explicit (Windows defaults to cp1252); ``newline=""`` disables
-    the platform newline translation so graph.json/memory.md/notes are byte-identical
-    across OSes (the determinism invariant holds cross-machine, not just same-OS).
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+# Single shared crash-safe writer ([C2]); re-exported under the legacy name so
+# store/render callers are unchanged.
+from ._io import atomic_write_text as _atomic_write_text  # noqa: E402
 
 
 def save_graph(cfg: Config, graph_doc: dict) -> None:

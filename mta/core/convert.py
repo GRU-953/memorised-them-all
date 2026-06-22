@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import Config
+from ._io import atomic_write_text
 
 # File-type groupings.
 _TEXT_EXTS = {".txt", ".md", ".markdown", ".text", ".log", ".rst"}
@@ -543,9 +544,11 @@ def convert_file(path: Path, out_dir: Path, cfg: Config,
 
     out = (out_dir / out_name) if out_name else _safe_out_name(path, out_dir)
     header = f"<!-- source: {path.name} · method: {method} -->\n\n"
-    # newline="" → LF on every OS, so the converted .md (which feeds the digest) is
-    # byte-identical cross-machine and downstream graph output stays deterministic.
-    out.write_text(header + text, encoding="utf-8", newline="")
+    # Crash-safe atomic write (R-19): a crash mid-write used to leave a torn .md; now it's
+    # staged→fsync→os.replace through the shared writer ([C2]). newline="" → LF on every OS,
+    # so the converted .md (which feeds the digest) is byte-identical cross-machine and
+    # downstream graph output stays deterministic.
+    atomic_write_text(out, header + text)
     res.output = str(out)
     res.chars = len(text)
     res.status = "ok"
