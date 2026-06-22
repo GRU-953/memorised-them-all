@@ -1,11 +1,11 @@
 """Entity resolution — collapse surface variants into canonical nodes.
 
 Two mentions refer to the same entity when their names are fuzzily similar
-(``rapidfuzz`` token-set ratio, with a normalised-string fast path) *or* their
-name embeddings are highly cosine-similar. A union-find groups the matches; the
-most frequent surface form becomes the canonical label and the rest become
-aliases. Falls back to exact normalised-string matching if ``rapidfuzz`` is
-absent.
+(token-set ratio, with a normalised-string fast path) *or* their name embeddings are
+highly cosine-similar. A union-find groups the matches; the most frequent surface form
+becomes the canonical label and the rest become aliases. Fuzzy matching uses the compiled
+``rapidfuzz`` when present and a decision-equivalent pure-Python fallback (``_fuzz``,
+WP-183) otherwise, so a zero-compiled-dep core still resolves entities identically.
 """
 from __future__ import annotations
 
@@ -35,17 +35,23 @@ def _is_brahmic(c: str) -> bool:
 
 _NORM_RE = re.compile(r"[^\wऀ-෿]+", re.UNICODE)
 
+# Fuzzy matching prefers the compiled rapidfuzz, but falls back to a pure-Python
+# implementation (WP-183) so a zero-compiled-dep core (Termux/iOS, with the numpy-free
+# WP-181a) still resolves entities. The fallback reproduces rapidfuzz's token_set_ratio
+# DECISIONS exactly (verified to ~1e-14 over thousands of pairs at the 60/88/91/95
+# thresholds), so the resolved graph is byte-identical regardless of which is installed
+# ([C1]). _HAVE_FUZZ is therefore always True — fuzzy resolution is never skipped.
 try:
     from rapidfuzz import fuzz
-    _HAVE_FUZZ = True
-except Exception:  # noqa: BLE001 - a hard dependency; if it's missing, degrade LOUDLY (PIPE-05)
+    _FUZZ_IMPL = "rapidfuzz"
+except Exception:  # noqa: BLE001 - optional acceleration; the pure-Python fallback is exact
+    from . import _fuzz as fuzz  # type: ignore[no-redef]
+    _FUZZ_IMPL = "python"
     import sys as _sys
-    _HAVE_FUZZ = False
     _sys.stderr.write(
-        "[mta] WARNING: rapidfuzz is not installed — entity resolution falls back to "
-        "exact-match only, which over-splits entities that differ only by spacing/case. "
-        "rapidfuzz is a required dependency; reinstall it (`pip install rapidfuzz`, or run "
-        "`mta doctor`).\n")
+        "[mta] note: rapidfuzz is not installed — using the slower pure-Python fuzzy "
+        "fallback (same results). Install rapidfuzz for speed: `pip install rapidfuzz`.\n")
+_HAVE_FUZZ = True
 
 
 def _eff_threshold(a: str, b: str, base: int) -> int:
