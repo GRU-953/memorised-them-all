@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     dr = sub.add_parser("doctor", help="scan dependencies; suggest or apply fixes")
     dr.add_argument("--fix", action="store_true", help="apply safe (pip) upgrades")
     dr.add_argument("--dry-run", action="store_true", help="only show what would change")
+    dr.add_argument("--json", action="store_true",
+                    help="machine-readable JSON instead of the plain-English report")
 
     sub.add_parser("forget", help="delete a project's memory (irreversible)")
 
@@ -187,8 +189,12 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "doctor":
         from .core import deps
         res = deps.doctor(cfg, fix=args.fix, dry_run=args.dry_run)
-        # doctor is human-facing (WP-153): print the plain-English report, not raw JSON.
-        print("\n".join(res.get("report", [])))
+        # doctor is human-facing (WP-153): print the plain-English report by default;
+        # --json gives the structured dict for scripts / setup-verify.
+        if getattr(args, "json", False):
+            _print(res)
+        else:
+            print("\n".join(res.get("report", [])))
     elif args.cmd == "serve":
         if args.http:
             from .transport import serve as serve_transport
