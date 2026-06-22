@@ -17,7 +17,12 @@ import shutil
 import sys
 from pathlib import Path
 
-import numpy as np
+try:
+    import numpy as np
+    _HAVE_NUMPY = True
+except Exception:  # noqa: BLE001 — numpy is optional (WP-181a): the recall path is meta-only,
+    np = None      # so a numpy-free core still digests (no vectors.npz) and recalls (sidecar).
+    _HAVE_NUMPY = False
 
 from .config import Config
 
@@ -123,23 +128,28 @@ def load_graph(cfg: Config) -> dict | None:
     return doc
 
 
-def save_vectors(cfg: Config, matrix: np.ndarray, meta: list[dict]) -> None:
+def save_vectors(cfg: Config, matrix, meta: list[dict]) -> None:
     cfg.ensure_dirs()
-    # Atomic: write the .npz to a temp handle (so np doesn't append .npz to a
-    # temp name), then os.replace; write the sidecar JSON atomically too.
-    tmp = cfg.vectors_path.with_name(cfg.vectors_path.name + ".tmp")
-    try:
-        with open(tmp, "wb") as f:
-            np.savez_compressed(f, matrix=matrix.astype(np.float32))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, cfg.vectors_path)
-    except BaseException:
+    # The embedding matrix (vectors.npz) is a numpy-only legacy artifact — write it FIRST
+    # (atomic; the same order as before, so numpy-present stores are byte-unchanged) when
+    # numpy is available and we actually have an ndarray. With numpy absent it is simply
+    # skipped: recall never reads the matrix (R-15), so a numpy-free core still works.
+    if _HAVE_NUMPY and matrix is not None and isinstance(matrix, np.ndarray):
+        tmp = cfg.vectors_path.with_name(cfg.vectors_path.name + ".tmp")
         try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+            with open(tmp, "wb") as f:
+                np.savez_compressed(f, matrix=matrix.astype(np.float32))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, cfg.vectors_path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+    # The meta sidecar (vectors.json) is ALWAYS written, numpy-free: recall ranks from it
+    # and (WP-181a) gates on it, so it is the real presence signal for the recall store.
     _atomic_write_text(cfg.vectors_path.with_suffix(".json"),
                        json.dumps(meta, ensure_ascii=False))
 
@@ -178,14 +188,15 @@ def load_meta(cfg: Config) -> list[dict] | None:
     matrix (R-15). BM25 recall ranks from text/labels in the meta, so materialising the
     embedding matrix every query was pure waste.
 
-    Preserves ``load_vectors``'s "no_memory" semantics exactly: both ``vectors.npz`` and
-    ``vectors.json`` must exist (a bare sidecar = an incomplete/torn store → ``None``),
-    and the sidecar must parse to a list. The matrix body is never read or decompressed,
-    so a malicious/pickled ``.npz`` can't even be touched on the recall path. The
-    matrix↔meta row-count cross-check that ``load_vectors`` does is unnecessary here
-    because recall indexes ``meta`` only — never the matrix."""
+    Gates on the **sidecar alone** (WP-181a): a numpy-free core writes no ``vectors.npz``,
+    so a bare ``vectors.json`` is now a *valid* store, not a torn one — the sidecar (plus
+    ``graph.json``, which a digest writes last) is the presence signal. The sidecar must
+    parse to a NON-EMPTY list; an empty/garbage/oversized sidecar reads as no_memory (a
+    real digest calls ``clear_vectors`` when there are no units, so an empty sidecar only
+    arises from a torn/hand-edited store). The matrix body is never read or decompressed,
+    so a malicious/pickled ``.npz`` can't even be touched on the recall path."""
     meta_path = cfg.vectors_path.with_suffix(".json")
-    if not cfg.vectors_path.exists() or not meta_path.exists():
+    if not meta_path.exists():
         return None
     if _too_big(meta_path, cfg):
         return None
@@ -194,10 +205,9 @@ def load_meta(cfg: Config) -> list[dict] | None:
     except (json.JSONDecodeError, OSError):
         return None
     # A non-list, or an EMPTY list, is treated as no memory: a real digest never persists
-    # an empty sidecar (it calls clear_vectors when there are no units), so an empty/var
+    # an empty sidecar (it calls clear_vectors when there are no units), so an empty/wrong
     # meta only arises from a torn or hand-edited store — recall should decline, not "ok"
-    # with zero hits. This also preserves load_vectors's torn-pair → no_memory behaviour
-    # for the matrix-rows≠meta-len case where meta is empty.
+    # with zero hits.
     return meta if isinstance(meta, list) and meta else None
 
 
@@ -231,7 +241,11 @@ def clear_bm25_index(cfg: Config) -> None:
         pass
 
 
-def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
+def load_vectors(cfg: Config):
+    """Load the embedding matrix + meta (the legacy numpy path; recall does NOT use this —
+    it reads ``load_meta`` only). Returns ``None`` without numpy or without a ``.npz``."""
+    if not _HAVE_NUMPY:
+        return None
     meta_path = cfg.vectors_path.with_suffix(".json")
     if not cfg.vectors_path.exists() or not meta_path.exists():
         return None
