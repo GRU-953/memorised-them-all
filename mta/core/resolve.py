@@ -14,7 +14,7 @@ import re
 import unicodedata
 from collections import Counter, defaultdict
 
-from .embed import Embedder
+from .embed import Embedder, embed_dot
 
 # All Brahmic combining marks live in U+0900–U+0DFF (Devanagari · Bengali · Gurmukhi ·
 # Gujarati · Oriya · Tamil · Telugu · Kannada · Malayalam · Sinhala). They are category
@@ -269,7 +269,7 @@ def resolve_entities(mentions: list[dict], embedder: Embedder,
         for i, j in candidate_pairs:        # same blocked candidates; no dense n×n matrix
             if uf.find(i) == uf.find(j):
                 continue
-            if float(mat[i] @ mat[j]) < cos_threshold:   # L2-normalised rows → dot = cosine
+            if embed_dot(mat, i, j) < cos_threshold:   # L2-normalised rows → dot = cosine; numpy-optional [WP-181a]
                 continue
             if fuzz.token_set_ratio(norms[i], norms[j]) >= 60:
                 uf.union(i, j)
