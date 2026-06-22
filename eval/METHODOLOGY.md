@@ -2,10 +2,22 @@
 
 So cycle-over-cycle deltas are comparable, both harnesses are fixed and offline.
 
-## KG-extraction quality — `eval/run_eval.py`
-Digests the committed `eval/corpus/*.md` and scores extracted entities/relations against the
-gold set in `eval/golden.json`. Deterministic (model-free engine). Run before/after any change
-that touches extraction/resolution and attach the score.
+## KG-extraction / recall quality — `eval/run_eval.py`
+Digests the committed `eval/corpus/*.md` and scores recall@k for the gold queries in
+`eval/golden.json`. Deterministic (model-free engine). Run before/after any change that touches
+conversion/extraction/resolution/recall and attach the score.
+
+**Per-suite gating (WP-202a):** queries carry a `suite` tag and `golden.json` sets a `floors`
+map, so **English (`en`) and Bengali (`bn`) each gate independently** — a Bengali-recall
+regression can't hide behind strong English recall. The Bengali suite digests
+`eval/corpus/bengali.md` (original, license-clean Unicode Bengali) and exercises the
+script-aware BM25 + halant tokenisation path that is the project's headline differentiator.
+The measured baseline at freeze (mta 2.6.2) is recorded in **`eval/baseline.json`**
+(`recall@8` overall **1.0**, `en` **1.0**, `bn` **1.0**); the gate floors (0.75/suite) sit below
+it so CI catches regressions, not noise. `eval/run_eval.py` is gated on the full CI matrix via
+`tests/test_eval.py`. *(Conversion-fidelity golden fixtures — PDF/DOCX/XLSX → expected Markdown —
+are a follow-on increment of WP-202a; they need license-clean binary samples and pair with the
+WP-111 table-model work.)*
 
 ## Performance — `eval/bench.py`
 Deterministic, offline (`MTA_AUTO_UPDATE=off`, no network), reports the **min** and median of

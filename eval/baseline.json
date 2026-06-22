@@ -1,0 +1,10 @@
+{
+  "_note": "Frozen reference numbers for the offline eval (WP-202a). The CI gate is the per-suite floor in golden.json (calibrated below this baseline so it catches regressions, not noise); this file records the MEASURED baseline at freeze time so 'no regression / ratcheting' has a concrete reference. Re-freeze deliberately when a real improvement lands (then raise the floor toward it).",
+  "frozen_at_mta_version": "2.6.2",
+  "k": 8,
+  "corpus_files": 5,
+  "entities": 25,
+  "embed_mode": "hash",
+  "recall_at_k": 1.0,
+  "recall_by_suite": {"en": 1.0, "bn": 1.0}
+}
