@@ -1,15 +1,21 @@
 {
   "k": 8,
   "recall_at_k_floor": 0.75,
-  "_note": "recall_at_k_floor is calibrated below the measured baseline so CI gates regressions, not an aspirational target. Offline path = hashing embeddings + classical extraction.",
+  "floors": {"en": 0.75, "bn": 0.75},
+  "_note": "Per-suite recall@k floors gate regressions, calibrated below the measured baseline (see eval/baseline.json) — not aspirational targets. Offline path = hashing embeddings + classical extraction. `recall_at_k_floor` is the overall floor (back-compat); `floors` gates each suite (en/bn) independently so a Bengali regression can't hide behind strong English recall (WP-202a).",
   "queries": [
-    {"query": "Who leads Project Helios?", "expect_any": ["Helios", "Marsh"]},
-    {"query": "Where is the Nordic Grid Authority based?", "expect_any": ["Nordic Grid Authority", "Oslo", "NGA"]},
-    {"query": "Who leads Project Aurora and the undersea cable?", "expect_any": ["Aurora", "Cole"]},
-    {"query": "Vptr Robotics partner maintenance", "expect_any": ["Vptr"]},
-    {"query": "solar plant in Reykjavik", "expect_any": ["Reykjavik", "Helios"]},
-    {"query": "Bergen marine power project", "expect_any": ["Bergen", "Aurora"]},
-    {"query": "who directs the grid authority", "expect_any": ["Haugen", "Nordic Grid Authority"]},
-    {"query": "Q3 budget distribution losses", "expect_any": ["budget", "distribution", "12 percent"]}
+    {"suite": "en", "query": "Who leads Project Helios?", "expect_any": ["Helios", "Marsh"]},
+    {"suite": "en", "query": "Where is the Nordic Grid Authority based?", "expect_any": ["Nordic Grid Authority", "Oslo", "NGA"]},
+    {"suite": "en", "query": "Who leads Project Aurora and the undersea cable?", "expect_any": ["Aurora", "Cole"]},
+    {"suite": "en", "query": "Vptr Robotics partner maintenance", "expect_any": ["Vptr"]},
+    {"suite": "en", "query": "solar plant in Reykjavik", "expect_any": ["Reykjavik", "Helios"]},
+    {"suite": "en", "query": "Bergen marine power project", "expect_any": ["Bergen", "Aurora"]},
+    {"suite": "en", "query": "who directs the grid authority", "expect_any": ["Haugen", "Nordic Grid Authority"]},
+    {"suite": "en", "query": "Q3 budget distribution losses", "expect_any": ["budget", "distribution", "12 percent"]},
+
+    {"suite": "bn", "query": "নর্ডিক গ্রিড কর্তৃপক্ষ কোথায় অবস্থিত?", "expect_any": ["অসলো", "নর্ডিক গ্রিড কর্তৃপক্ষ"]},
+    {"suite": "bn", "query": "সৌর বিদ্যুৎ কেন্দ্র কোথায়?", "expect_any": ["রেইকিয়াভিক", "সৌর", "হেলিওস"]},
+    {"suite": "bn", "query": "ঢাকার বিদ্যুৎ প্রকল্প", "expect_any": ["ঢাকা", "বিদ্যুৎ প্রকল্প"]},
+    {"suite": "bn", "query": "নর্ডিক গ্রিড কর্তৃপক্ষ কে পরিচালনা করেন?", "expect_any": ["হাউগেন", "বিজর্ন"]}
   ]
 }

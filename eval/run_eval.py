@@ -42,6 +42,8 @@ def run(home: Path) -> dict:
     queries = GOLDEN["queries"]
     found_n = 0
     per_query = []
+    by_suite_found: dict[str, int] = {}
+    by_suite_total: dict[str, int] = {}
     rt0 = time.time()
     for q in queries:
         out = recall(cfg, q["query"], k=k)
@@ -49,9 +51,14 @@ def run(home: Path) -> dict:
                         for h in out.get("hits", [])).lower()
         found = any(exp.lower() in blob for exp in q["expect_any"])
         found_n += int(found)
-        per_query.append({"query": q["query"], "found": found,
+        suite = q.get("suite", "en")
+        by_suite_total[suite] = by_suite_total.get(suite, 0) + 1
+        by_suite_found[suite] = by_suite_found.get(suite, 0) + int(found)
+        per_query.append({"suite": suite, "query": q["query"], "found": found,
                           "low_confidence": out.get("low_confidence")})
     recall_at_k = round(found_n / len(queries), 3) if queries else 0.0
+    recall_by_suite = {s: round(by_suite_found[s] / by_suite_total[s], 3)
+                       for s in sorted(by_suite_total)}
     recall_s = round(time.time() - rt0, 2)
 
     # Fast-mode timing (deterministic, no LLM) for the speedup figure.
@@ -69,6 +76,7 @@ def run(home: Path) -> dict:
         "queries": len(queries),
         "k": k,
         "recall_at_k": recall_at_k,
+        "recall_by_suite": recall_by_suite,
         "timing_s": {"digest": digest_s, "recall_total": recall_s, "fast_digest": fast_s},
         "per_query": per_query,
     }
@@ -79,11 +87,24 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as d:
         m = run(Path(d))
     print(json.dumps(m, indent=2, ensure_ascii=False))
-    floor = float(GOLDEN.get("recall_at_k_floor", 0.0))
-    if m["recall_at_k"] < floor:
-        print(f"FAIL: recall@{m['k']} = {m['recall_at_k']} < floor {floor}", file=sys.stderr)
+    ok = True
+    # Overall floor (back-compat).
+    overall_floor = float(GOLDEN.get("recall_at_k_floor", 0.0))
+    if m["recall_at_k"] < overall_floor:
+        print(f"FAIL: overall recall@{m['k']} = {m['recall_at_k']} < floor {overall_floor}", file=sys.stderr)
+        ok = False
+    # Per-suite floors (WP-202a) — a Bengali regression can't hide behind English recall.
+    for suite, floor in GOLDEN.get("floors", {}).items():
+        got = m["recall_by_suite"].get(suite)
+        if got is None:
+            print(f"FAIL: suite '{suite}' has a floor but no queries ran", file=sys.stderr)
+            ok = False
+        elif got < float(floor):
+            print(f"FAIL: {suite} recall@{m['k']} = {got} < floor {floor}", file=sys.stderr)
+            ok = False
+    if not ok:
         return 1
-    print(f"OK: recall@{m['k']} = {m['recall_at_k']} >= floor {floor}")
+    print(f"OK: recall@{m['k']} overall={m['recall_at_k']} by_suite={m['recall_by_suite']}")
     return 0
 
 
