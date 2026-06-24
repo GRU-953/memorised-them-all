@@ -53,9 +53,19 @@ def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Gr
                 if re.search(rf"(?<!\w){re.escape(lbl)}(?!\w)", fl) or (
                         not re.search(r"[a-z0-9]", lbl) and lbl in fl):
                     holders.append(cid)
+            explicit = len(holders)          # entities this fact actually NAMES
             if not holders and present:
-                holders = [present[0]]
-            rec = {"text": fact, "doc": chunk.doc, "heading": chunk.heading_path}
+                holders = [present[0]]        # fallback: attach to the most salient present entity
+            # WP-123 (Theme-Z): deterministic fact salience + confidence, additive. `salience`
+            # = how many distinct entities the fact names (its connectivity, ≥0); `confidence`
+            # ∈ [0,1] is higher when the fact explicitly names its holder(s) and lower (0.5) for
+            # a fallback attachment. Pure functions of the extraction → graph.json stays
+            # byte-identical run-to-run; facts are NOT reordered, so recall/render are unchanged
+            # (ranking by these values is the later recall/render-v2 brick).
+            salience = explicit
+            confidence = round(min(0.95, 0.6 + 0.1 * explicit), 2) if explicit else 0.5
+            rec = {"text": fact, "doc": chunk.doc, "heading": chunk.heading_path,
+                   "salience": salience, "confidence": confidence}
             for cid in holders:
                 facts = g.nodes[cid]["facts"]
                 # Dedupe identical fact text per node and cap the count — keeps

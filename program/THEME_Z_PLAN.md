@@ -29,10 +29,26 @@ directed typed relation; `graph.build_graph` records `(type, from, to)` on the e
 Backbone/weights/communities unchanged (precision gate: non-cued edges byte-identical). No
 schema bump (additive). Tests: `tests/test_typed_relations.py`. **English-only.**
 
-### WP-123 — fact salience + confidence (+ provenance codepoint-offset spans)
-Add a deterministic numeric `salience` and `confidence ∈ [0,1]` per fact, and a
-`span:{doc, start, end}` over the digest-time `.md` (store the converter-fingerprint; mark
-stale on mismatch). Additive to `nodes[].facts[]`. Pairs with WP-134.
+### ✅ WP-123 — fact salience + confidence (DONE, additive — S30)
+`graph.build_graph` now stamps each fact with a deterministic `salience` (int — count of
+distinct entities the fact names) and `confidence ∈ [0,1]` (≥0.7 when it explicitly names a
+holder, 0.5 for a fallback attachment). Additive to `nodes[].facts[]`; facts are NOT reordered,
+so recall meta / bm25 / render are unchanged and `graph.json` stays byte-identical run-to-run.
+Tests: `tests/test_fact_salience.py`. Accumulating on `develop` (not released alone).
+
+### WP-123b — provenance codepoint-offset spans (NEXT — needs offset plumbing)
+Add `span:{doc, start, end}` per fact over the digest-time `.md` + a converter-fingerprint
+(stale-marked on mismatch). **Why split from WP-123:** the segmentation pipeline reflows text
+(comment-strip → heading-split → line-join → sentence-pack) and extraction scrubs/redacts/
+reorders, so source `.md` offsets aren't preserved — this needs offset-preserving plumbing
+threaded through `segment` → `extract` → `graph` (a meatier, isolated change). Pairs with WP-134.
+
+### WP-121 (sub-types half) — entity sub-types in the schema
+Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
+closed `subtype` enum to nodes (gated on the 4 proofs in ROADMAP_V3 WP-121).
+
+### WP-134 — provenance pointers over text (consumes WP-123b spans)
+Recall cites `doc + codepoint-offset`; pointer-only stays token-free.
 
 ### WP-121 (sub-types half) — entity sub-types in the schema
 Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
