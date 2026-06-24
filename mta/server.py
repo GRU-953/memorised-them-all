@@ -72,14 +72,25 @@ def convert(paths: list[str], out_dir: str | None = None, project: str | None = 
         return _err(f"convert failed: {exc}", type=type(exc).__name__)
 
 
-def recall(query: str, project: str | None = None, k: int = 0) -> dict:
+def recall(query: str, project: str | None = None, k: int = 0,
+           projects: list[str] | None = None, doc: str | None = None,
+           entity_type: str | None = None) -> dict:
     """Answer from memory: returns a small, relevant slice (theme summaries +
-    entity cards with provenance) — never whole documents."""
+    entity cards with provenance) — never whole documents.
+
+    Optional filters (v3.1): ``doc`` limits hits to those citing one source document;
+    ``entity_type`` limits to entity hits of a type (person/org/place/…). ``projects``
+    federates the search across several named memories at once (each hit tagged with its
+    project)."""
     if not isinstance(query, str) or not query.strip():
         return _err("'query' must be a non-empty string")
+    if projects is not None and not (isinstance(projects, list)
+                                     and all(isinstance(p, str) for p in projects)):
+        return _err("'projects' must be a list of project-name strings")
     cfg = _cfg(project)
     try:
-        return recall_mod.recall(cfg, query, k=k or None)
+        return recall_mod.recall(cfg, query, k=k or None, projects=projects,
+                                 doc=doc, entity_type=entity_type)
     except Exception as exc:  # noqa: BLE001
         return _err(f"recall failed: {exc}", type=type(exc).__name__)
 

@@ -17,7 +17,7 @@
 [![Model-free](https://img.shields.io/badge/AI%20models-none%20needed-10b981)](#-why-no-ai-model)
 [![Tokens](https://img.shields.io/badge/context%20tokens-~0-10b981)](#-why-is-it-token-free)
 
-<sub><b>v3.0</b> · works with Claude · Gemini · Cursor · VS&nbsp;Code · Windsurf · Codex · Grok · 100% local · deterministic · model-free · token-free · incremental · English&nbsp;+&nbsp;Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
+<sub><b>v3.1</b> · works with Claude · Gemini · Cursor · VS&nbsp;Code · Windsurf · Codex · Grok · 100% local · deterministic · model-free · token-free · incremental · English&nbsp;+&nbsp;Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
 
 <p>
 <a href="#-what-is-this"><b>What is this?</b></a> ·
@@ -291,7 +291,7 @@ Once installed, your assistant can use these eleven tools on your behalf (you ju
 | --- | --- |
 | **digest** | Reads files/folders and builds (or updates) the memory. **Incremental:** re-running only re-reads the files that changed. |
 | **convert** | Just converts files to clean Markdown (no memory) — handy for exporting or fixing legacy Bengali. |
-| **recall** | Answers a question from memory with a few relevant, cited snippets. |
+| **recall** | Answers a question from memory with a few relevant, cited snippets. Can filter by document or entity type, and search several projects at once. |
 | **memory_overview** | Gives the big picture — a synopsis and the main themes. |
 | **list_digestible** | Shows which files in a folder it can read. |
 | **export_memory** | Saves the memory as portable Markdown + a JSON knowledge-graph sidecar, plus **GraphML + CSV** for Gephi/Excel ([export spec](docs/export-format/v1/)). |
@@ -317,6 +317,8 @@ The same engine ships as an `mta` command:
 ```bash
 mta digest ~/Documents/research        # build/update memory (incremental — only re-reads changed files)
 mta recall "what about the Q3 budget?" # query it (BM25 recall, cited slices)
+mta recall "renewal terms" --doc globex.pdf --type org   # filter by source doc / entity type
+mta recall "asset transfer" --projects clientA,clientB    # search several memories at once
 mta overview                            # synopsis + themes
 mta convert ~/docs --out ~/md_out       # just convert to Markdown (incl. legacy Bengali)
 mta export ./notes                      # portable Markdown + graph.json + GraphML + CSV

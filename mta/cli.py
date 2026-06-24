@@ -53,6 +53,12 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("recall", help="query the memory")
     r.add_argument("query")
     r.add_argument("-k", type=int, default=0)
+    r.add_argument("--projects", default=None, metavar="A,B,C",
+                   help="comma-separated project names to search together (federated recall)")
+    r.add_argument("--doc", default=None, metavar="NAME",
+                   help="only hits citing this source document (basename)")
+    r.add_argument("--type", dest="entity_type", default=None, metavar="TYPE",
+                   help="only entity hits of this type (person/org/place/…)")
 
     sub.add_parser("overview", help="synopsis + themes")
 
@@ -191,7 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         from .core.digest import convert_to_markdown
         _print(convert_to_markdown(cfg, args.paths, out_dir=args.out))
     elif args.cmd == "recall":
-        _print(recall_mod.recall(cfg, args.query, k=args.k or None))
+        _projs = [p.strip() for p in args.projects.split(",") if p.strip()] if args.projects else None
+        _print(recall_mod.recall(cfg, args.query, k=args.k or None,
+                                 projects=_projs, doc=args.doc, entity_type=args.entity_type))
     elif args.cmd == "overview":
         _print(recall_mod.overview(cfg))
     elif args.cmd == "export":
