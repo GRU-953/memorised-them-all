@@ -5,20 +5,20 @@
     "url": "https://github.com/GRU-953"
   },
   "metadata": {
-    "description": "Local, token-free, deterministic file digestion → searchable knowledge-graph memory for any AI assistant (Claude, Gemini, Cursor, VS Code, Codex, Grok). Model-free (no LLM/Ollama/GPU), 100% private, open-source.",
-    "version": "3.1.0",
+    "description": "Local, token-free, deterministic file digestion → searchable knowledge-graph memory for any AI assistant (Claude, Gemini, Cursor, VS Code, Windsurf, Codex, Grok). Incremental, portable (export/import/merge/diff), model-free (no LLM/GPU), 100% private, open-source.",
+    "version": "3.2.0",
     "pluginRoot": "."
   },
   "plugins": [
     {
       "name": "memorised-them-all",
       "source": "./",
-      "description": "Convert any local file to Markdown, then digest it into a token-free, searchable knowledge-graph memory (entities, relations, themes) + exportable Markdown notes, with model-free BM25 recall — usable from Claude, Gemini, Cursor, VS Code, Windsurf, Codex and Grok via one `mta setup`. Deterministic and model-free — no LLM/Ollama/GPU; 100% local & private; open-source; auto-installing. Legacy Bengali (SutonnyMJ/Bijoy) auto-converted to Unicode.",
+      "description": "Convert any local file to Markdown, then digest it into a token-free, searchable knowledge-graph memory (entities, relations, themes) + exportable Markdown notes, with model-free BM25 recall — usable from Claude, Gemini, Cursor, VS Code, Windsurf, Codex and Grok via one `mta setup`. Re-digests are incremental; recall filters by document/entity-type and spans several projects; memories export, import, merge and diff across machines. Deterministic and model-free — no LLM/GPU; 100% local & private; open-source; auto-installing. Legacy Bengali (SutonnyMJ/Bijoy) auto-converted to Unicode.",
       "license": "MIT",
       "homepage": "https://github.com/GRU-953/memorised-them-all",
       "keywords": ["memory", "knowledge-graph", "graphrag", "rag", "mcp", "markitdown",
                    "token-free", "deterministic", "offline", "local", "privacy", "bengali",
-                   "claude", "gemini", "cursor", "vscode", "windsurf", "codex", "grok"]
+                   "claude", "gemini", "cursor", "vscode", "windsurf", "codex", "grok", "incremental", "portable"]
     }
   ]
 }
