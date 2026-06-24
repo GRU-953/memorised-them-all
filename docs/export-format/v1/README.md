@@ -23,6 +23,9 @@ Validated by [`graph.schema.json`](graph.schema.json) (JSON Schema 2020-12). Con
   and `facts[]` (`{text, doc, heading}` — `doc` is the provenance source name).
 - **`edges[]`** — relations referencing node IDs: `{source, target, weight, labels[]}`. Every
   `source`/`target` MUST be an existing node `id` (referential integrity, enforced in CI).
+  **Optional (since v3.1):** an additive `relations: [{type, from, to}]` of directed,
+  verb-typed relations (`from`/`to` are node IDs) when a cued relation was detected; absent on
+  pure co-occurrence edges. v1 consumers ignore it safely.
 - **`communities[]`** — themes: `{id, label, summary, members[], size}`; `members` are node IDs.
 - **`version`** — on-disk schema version; bumped only on an incompatible change. Migrations and
   backward-compat tests ship with the engine; sharpening extraction must not break older bundles.

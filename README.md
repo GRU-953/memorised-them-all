@@ -4,9 +4,9 @@
 
 <h1>Memorised them All</h1>
 
-<h3>Give your AI assistant a private memory of your files — without paying for it in tokens.</h3>
+<h3>Give your AI assistant a private, living memory of your files — without paying for it in tokens.</h3>
 
-<p>Point it at a folder of PDFs, Word/Excel files, or whole archives. It reads and remembers them <b>entirely on your own computer</b> — no AI models to download, no copy-pasting, no uploads, no API keys, no surprise token bills. Then just <i>ask</i> — in Claude, Gemini, Cursor, VS&nbsp;Code, ChatGPT's Codex, and more.</p>
+<p>Point it at a folder of PDFs, Word/Excel files, or whole archives. It reads and remembers them <b>entirely on your own computer</b> — no AI models to download, no copy-pasting, no uploads, no API keys, no surprise token bills. Then just <i>ask</i> — in Claude, Gemini, Cursor, VS&nbsp;Code, Windsurf, ChatGPT's Codex, Grok, and more. Update it in seconds, and move or merge memories between machines.</p>
 
 [![PyPI](https://img.shields.io/pypi/v/memorised-them-all?color=ec4899&label=pip%20install)](https://pypi.org/project/memorised-them-all/)
 [![Release](https://img.shields.io/github/v/release/GRU-953/memorised-them-all?color=6366f1&label=release)](https://github.com/GRU-953/memorised-them-all/releases/latest)
@@ -17,14 +17,14 @@
 [![Model-free](https://img.shields.io/badge/AI%20models-none%20needed-10b981)](#-why-no-ai-model)
 [![Tokens](https://img.shields.io/badge/context%20tokens-~0-10b981)](#-why-is-it-token-free)
 
-<sub><b>v3.1</b> · works with Claude · Gemini · Cursor · VS&nbsp;Code · Windsurf · Codex · Grok · 100% local · deterministic · model-free · token-free · incremental · English&nbsp;+&nbsp;Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
+<sub><b>v3.2</b> · works with Claude · Gemini · Cursor · VS&nbsp;Code · Windsurf · Codex · Grok · 100% local · deterministic · model-free · token-free · incremental · portable · English&nbsp;+&nbsp;Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
 
 <p>
 <a href="#-what-is-this"><b>What is this?</b></a> ·
 <a href="#-why-its-different">Why it's different</a> ·
 <a href="#-get-started"><b>Get started</b></a> ·
 <a href="#-your-first-memory">First memory</a> ·
-<a href="#-what-can-i-use-it-for">Use cases</a> ·
+<a href="#-a-living-portable-memory">Living memory</a> ·
 <a href="#-english--bengali">Bengali</a> ·
 <a href="#-questions--troubleshooting">FAQ</a> ·
 <a href="#-for-power-users">Advanced</a>
@@ -38,11 +38,12 @@
 
 Imagine handing your AI a **filing cabinet** of your documents and saying *"remember all of this."* Later you just ask questions, and it answers from what it remembers — telling you which document each fact came from.
 
-That's **Memorised them All**. It's a small add-on (an [MCP server](https://modelcontextprotocol.io)) that works with **Claude**, **Gemini**, **Cursor**, **VS Code**, **ChatGPT's Codex**, **Windsurf**, and more (one command sets them all up — [see below](#-works-with-every-major-ai)). It:
+That's **Memorised them All**. It's a small add-on (an [MCP server](https://modelcontextprotocol.io)) that works with **Claude**, **Gemini**, **Cursor**, **VS Code**, **ChatGPT's Codex**, **Windsurf**, **Grok**, and more (one command sets them all up — [see below](#-works-with-every-major-ai)). It:
 
 1. **Reads your files** — PDFs, Word/Excel/PowerPoint (including *old* `.doc`/`.ppt`/`.xls`), web pages, CSVs, EPUBs, even zip/rar archives (unpacked safely) — and converts them to clean text **on your computer**.
 2. **Builds a memory** — a searchable map of the people, topics, and facts inside them (a "knowledge graph"), plus a tidy synopsis and per-document notes.
 3. **Lets you ask** — your assistant recalls just the relevant, **cited** snippets when you ask, instead of you pasting whole files into the chat.
+4. **Stays current and portable** — re-running only re-reads what changed, and you can export a memory, move it to another machine, or merge several into one.
 
 > **The one-line idea:** AI context tokens cost money; your computer's effort is free. So all the heavy lifting happens locally, and the assistant only ever receives a tiny answer. Memorising a 500-page folder costs **roughly zero** chat tokens.
 
@@ -56,6 +57,9 @@ AI:    ✅ Digested 38 files → 421 facts across 7 themes. (took ~30s, all loca
 
 You:   Which contracts mention an auto-renewal clause, and when do they renew?
 AI:    Three do — the Globex MSA (renews 1 Jan, 60-day notice), … [cites each source]
+
+You:   I added two contracts and deleted one — refresh the memory.
+AI:    ✅ Updated: 2 added, 1 removed, 36 unchanged (re-read only the 2 new files).
 
 You:   What changed between the 2023 and 2024 progress reports?
 AI:    Three headline shifts — … [cites each source document]
@@ -72,9 +76,11 @@ Nothing left your machine. The assistant never saw the 38 files — only the sma
 <td width="25%"><b>🔒 100% local & private</b><br><sub>Your files are read, converted, and remembered on your own machine. No telemetry, no uploads, no accounts, no API keys. <a href="#-is-my-data-private">More →</a></sub></td>
 <td width="25%"><b>⚙️ Deterministic & model-free</b><br><sub>No LLM, no Ollama, no GPU, no embedding model. Pure rules — so a digest <i>always</i> finishes and the same folder always gives byte-identical memory. <a href="#-why-no-ai-model">More →</a></sub></td>
 <td width="25%"><b>🪙 Token-free</b><br><sub>Your documents' contents are never sent to the AI. Building <i>and</i> recalling cost ≈0 context tokens. <a href="#-why-is-it-token-free">More →</a></sub></td>
-<td width="25%"><b>🤝 Works with every major AI</b><br><sub>One command wires it into Claude, Gemini, Cursor, VS&nbsp;Code, Windsurf & Codex. <a href="#-works-with-every-major-ai">More →</a></sub></td>
+<td width="25%"><b>🔄 Living & portable</b><br><sub>Incremental updates re-read only what changed; export, import, merge and diff memories across machines. <a href="#-a-living-portable-memory">More →</a></sub></td>
 </tr>
 </table>
+
+And it **works with every major AI** — one `mta setup` wires it into Claude, Gemini, Cursor, VS&nbsp;Code, Windsurf, Codex and Grok ([see below](#-works-with-every-major-ai)).
 
 ---
 
@@ -143,16 +149,35 @@ To add it by hand, every client just runs `mta serve`:
    > *"Summarise everything about Project Apollo."*
    > *"Who is mentioned most often, and in which files?"*
 
-3. **See the big picture, or take it with you:**
-   > *"Give me an overview of what's in this memory."* (the `memory_overview` tool — synopsis + main themes)
-   > *"Export the memory to ~/notes as Markdown."* (the `export_memory` tool — portable notes you can keep or share)
+3. **Keep it current** — add, edit or delete files, then just ask again:
+   > *"Refresh the research memory."* (re-reads **only** what changed — see [below](#-a-living-portable-memory))
 
-4. **Keep it tidy** — separate memories per topic with **projects**:
+4. **See the big picture, or take it with you:**
+   > *"Give me an overview of what's in this memory."* (the `memory_overview` tool — synopsis + main themes)
+   > *"Export the memory to ~/notes."* (the `export_memory` tool — portable notes + a knowledge-graph you can keep, share, or [move to another machine](#-a-living-portable-memory))
+
+5. **Keep it tidy** — separate memories per topic with **projects**:
    > *"Memorise ~/work/clientA into a project called clientA."*
    > *"Using the clientA project, what were the agreed deliverables?"*
    > *"Forget the clientA project."* (deletes just that memory)
 
-Your memory lives in a folder on your computer (`~/.memorised-them-all` by default) and persists between chats. Re-running *"memorise"* updates it. The same memory is shared by **every** assistant you set up — build it once, use it everywhere.
+Your memory lives in a folder on your computer (`~/.memorised-them-all` by default) and persists between chats. The same memory is shared by **every** assistant you set up — build it once, use it everywhere.
+
+---
+
+## 🔄 A living, portable memory
+
+A memory isn't a one-shot snapshot — it grows with you, and it travels.
+
+- **Incremental updates.** Re-running a digest re-reads **only the files whose bytes changed** and drops ones you deleted — so keeping a 2 GB library current takes seconds, not a full rebuild. The result is byte-for-byte identical to a from-scratch digest, and you're told exactly what happened (`added / updated / unchanged / removed`). *(On by default; `MTA_INCREMENTAL=off` forces a full re-convert.)*
+- **Export — anywhere.** `export_memory` writes a portable bundle: `memory.md` + per-document notes, a `graph.json` knowledge-graph (with portable per-document content hashes), and **GraphML + CSV** you can open straight in Gephi / yEd / Cytoscape or a spreadsheet.
+- **Import — on another machine.** `import_memory` restores an exported bundle into a project, recall-ready, so a memory built on your laptop works on your server.
+- **Merge — combine projects.** `merge_memory` fuses several projects' corpora into one coherent memory (deterministic, duplicate-deduped).
+- **Diff — compare two memories.** `diff_memory` shows which documents, people and themes differ between two projects (matched by content hash, so a renamed-but-identical file isn't flagged).
+- **Focused recall.** Ask within one source document (`--doc`), one entity type (`--type person/org/place`), or across **several projects at once** (`--projects a,b,c`) — each hit still cited and token-tiny.
+- **Secure delete.** `forget --secure` overwrites a memory's bytes before removing it.
+
+Just talk to your assistant (*"merge clientA and clientB into one memory"*, *"what's different between the 2023 and 2024 memories?"*) or use the [`mta` CLI](#-for-power-users).
 
 ---
 
@@ -160,7 +185,7 @@ Your memory lives in a folder on your computer (`~/.memorised-them-all` by defau
 
 - **📚 Research & study** — digest a pile of papers or a textbook, then ask for explanations, comparisons, and citations.
 - **📑 Contracts & policies** — load all your agreements and ask *"which ones auto-renew?"* or *"what are the termination clauses?"*
-- **🗂️ Personal knowledge base** — point it at years of notes, receipts, or manuals and actually *find* things.
+- **🗂️ Personal knowledge base** — point it at years of notes, receipts, or manuals and actually *find* things; refresh it as it grows.
 - **🖼️ Scanned documents & images** — switch on OCR and it reads text from photos and scans so they become searchable.
 - **🇧🇩 Legacy Bengali archives** — digitise old Bijoy/SutonnyMJ documents that show up as gibberish elsewhere, and actually search them (see [below](#-english--bengali)).
 - **🔒 Sensitive material** — legal, medical, financial, or confidential files that must **never leave your machine**.
@@ -189,6 +214,7 @@ It's the difference between mailing someone an entire library versus asking a li
 - ✅ **No telemetry, no tracking, no accounts, no API keys.**
 - ✅ **Works fully offline.** Disconnect the internet and it still memorises and answers. (Verified in CI: the test suite passes with networking disabled.)
 - ✅ **PII-aware.** Personal data such as phone numbers and survey/roster rows is deterministically dropped or redacted from summaries and recall, so sensitive details don't surface — even locally.
+- ✅ **Secure delete.** `forget --secure` overwrites a memory's bytes before removing it.
 - ✅ **Signed & auditable.** Open source (MIT); every release ships a CycloneDX SBOM and a Sigstore/cosign signature per artifact.
 
 The only times anything touches the network are clearly optional and on *your* command: installing/updating software, an occasional check for a new version (turn off with `MTA_AUTO_UPDATE=off`), or *if you explicitly choose* the remote-HTTP server. With the defaults, **your documents stay with you.** See [SECURITY.md](SECURITY.md) for the full threat model.
@@ -236,13 +262,13 @@ Yes — the software is free and open-source (MIT), and it runs on your own comp
 <details>
 <summary><b>My AI says it doesn't have the tool / it's not showing up.</b></summary>
 
-Run `mta setup` (it configures every detected client), then fully **restart** the AI app (Claude Desktop, Cursor, VS Code, …) or your CLI session. To confirm the engine itself works, run `mta status` in a terminal. Still stuck? Run `mta doctor`.
+Run `mta setup` (it configures every detected client), then fully **restart** the AI app (Claude Desktop, Cursor, VS Code, …) or your CLI session. To confirm the engine itself works, run `mta status` in a terminal. Still stuck? Run `mta doctor` — it gives a plain-English diagnosis (including "installed but not on your PATH" with the one-line fix).
 </details>
 
 <details>
 <summary><b>The first "memorise" was slow.</b></summary>
 
-The first run sets things up. Later runs are much faster, and re-memorising only processes what changed. There's no AI model to download or load — the engine is deterministic and starts instantly.
+The first run sets things up and reads every file once. **Later runs are incremental** — they re-read only the files that changed, so refreshing a big library takes seconds. There's no AI model to download or load; the engine is deterministic and starts instantly.
 </details>
 
 <details>
@@ -260,13 +286,19 @@ Text in any language works (it's Unicode throughout), and Bengali gets special l
 <details>
 <summary><b>How does it pick which snippets to show? Why are the answers cited?</b></summary>
 
-Recall ranks the stored facts and themes against your question with **BM25**, a fast, classic keyword-relevance method that runs entirely on your machine (no AI model). It returns only the top few, each tagged with its source document — so answers are grounded and citable. If nothing relevant matches, recall flags **low confidence** so your assistant can say *"I don't have that"* instead of guessing.
+Recall ranks the stored facts and themes against your question with **BM25**, a fast, classic keyword-relevance method that runs entirely on your machine (no AI model). It returns only the top few, each tagged with its source document — so answers are grounded and citable. You can narrow recall to one document, one entity type, or across several projects at once. If nothing relevant matches, recall flags **low confidence** so your assistant can say *"I don't have that"* instead of guessing.
+</details>
+
+<details>
+<summary><b>Can I move a memory to another computer, or combine memories?</b></summary>
+
+Yes. **Export** a memory (`export_memory`) to a portable bundle, copy it to another machine, and **import** it (`import_memory`) — recall works immediately, no re-digest. You can also **merge** several projects into one (`merge_memory`) or **diff** two of them to see what's different. See [A living, portable memory](#-a-living-portable-memory).
 </details>
 
 <details>
 <summary><b>How do I delete a memory?</b></summary>
 
-Tell your assistant *"forget the clientA project"* (it asks you to name the project, on purpose). It deletes that project's memory from your disk — irreversibly.
+Tell your assistant *"forget the clientA project"* (it asks you to name the project, on purpose). It deletes that project's memory from your disk — irreversibly. Add `--secure` (CLI) to overwrite the bytes first.
 </details>
 
 <details>
@@ -289,17 +321,17 @@ Once installed, your assistant can use these eleven tools on your behalf (you ju
 
 | Tool | What it does for you |
 | --- | --- |
-| **digest** | Reads files/folders and builds (or updates) the memory. **Incremental:** re-running only re-reads the files that changed. |
+| **digest** | Reads files/folders and builds (or updates) the memory. **Incremental:** re-running only re-reads the files that changed and drops deleted ones. |
 | **convert** | Just converts files to clean Markdown (no memory) — handy for exporting or fixing legacy Bengali. |
-| **recall** | Answers a question from memory with a few relevant, cited snippets. Can filter by document or entity type, and search several projects at once. |
+| **recall** | Answers a question with a few relevant, cited snippets. Can filter by **document** or **entity type**, and search **several projects at once**. |
 | **memory_overview** | Gives the big picture — a synopsis and the main themes. |
 | **list_digestible** | Shows which files in a folder it can read. |
-| **export_memory** | Saves the memory as portable Markdown + a JSON knowledge-graph sidecar, plus **GraphML + CSV** for Gephi/Excel ([export spec](docs/export-format/v1/)). |
+| **export_memory** | Saves the memory as portable Markdown + a `graph.json` knowledge-graph, plus **GraphML + CSV** for Gephi/Excel ([export spec](docs/export-format/v1/)). |
+| **import_memory** | Restores an exported bundle into a project — move a memory between machines. |
+| **merge_memory** | Combines several projects' memories into one. |
+| **diff_memory** | Compares two memories — which documents, people and themes differ. |
 | **memory_status** | Reports your local setup — deterministic engine, OCR/MarkItDown availability, platform, and existing projects. |
 | **forget** | Deletes a project's memory (you name it explicitly; `secure` overwrites the bytes first). |
-| **diff_memory** | Compares two memories — which documents, people and themes differ. |
-| **import_memory** | Restores an exported memory bundle into a project (great for moving a memory between machines). |
-| **merge_memory** | Combines several projects' memories into one. |
 
 Every tool returns only small results — **never your documents' contents**.
 
@@ -322,9 +354,9 @@ mta recall "asset transfer" --projects clientA,clientB    # search several memor
 mta overview                            # synopsis + themes
 mta convert ~/docs --out ~/md_out       # just convert to Markdown (incl. legacy Bengali)
 mta export ./notes                      # portable Markdown + graph.json + GraphML + CSV
-mta diff other-project                  # compare two memories (docs/entities/themes)
 mta import ./notes                      # restore an exported bundle into this project
 mta merge --into combined projA projB   # merge several projects' memories into one
+mta diff other-project                  # compare two memories (docs / entities / themes)
 mta forget --secure                     # delete a project's memory (overwrite bytes first)
 mta status                              # local stack health   ·   mta doctor  (fix deps)
 mta setup                               # auto-configure every detected AI client (--dry-run to preview)
@@ -354,7 +386,7 @@ Both HTTP modes are loopback-only by default and require a bearer token (with a 
 `mta export ./bundle` (or the `export_memory` tool) writes a **neutral, versioned** bundle that any assistant can consume:
 
 - `memory.md` + per-document notes — UTF-8 Markdown.
-- `graph.json` — a JSON knowledge-graph sidecar (entities, relations, themes with **stable IDs**, plus a portable per-document content hash), validated against a published [JSON Schema](docs/export-format/v1/graph.schema.json) in CI.
+- `graph.json` — a JSON knowledge-graph sidecar (entities, relations, themes with **stable IDs**, a portable per-document content hash, and directed/typed relations where detected), validated against a published [JSON Schema](docs/export-format/v1/graph.schema.json) in CI.
 - `graph.graphml` + `entities.csv` / `relations.csv` — deterministic exports you can open straight in Gephi / yEd / Cytoscape or a spreadsheet.
 
 Feed `graph.json` first (it's a compact index) then Markdown on demand when an assistant's context is smaller than the bundle. Bring a bundle back with **`mta import`** (or the `import_memory` tool). Full spec + per-assistant import notes: [`docs/export-format/v1`](docs/export-format/v1/).
@@ -420,7 +452,7 @@ The trade-off: extraction and search are rule- and keyword-based rather than sem
 <details>
 <summary><b>How it works under the hood</b></summary>
 
-`convert` (files → Markdown, locally; archives unpacked safely; duplicates deduped) → `extract` (entities, relations, facts — rule-based, deterministic) → `graph` (build + detect communities/themes) → `summarise` (layered: per-theme + a global synopsis, fact-joined) → `materialise` (memory.md + per-doc notes + a cached recall index). At question time, `recall` ranks the stored facts/themes against your query with **BM25 lexical search** (model-free, Bengali-aware) and returns the closest, capped, cited snippets — with a low-confidence guard for off-topic questions. No models, no network — a digest **always** succeeds and is byte-for-byte reproducible. See [`CHANGELOG.md`](CHANGELOG.md) and [`SECURITY.md`](SECURITY.md) for details.
+`convert` (files → Markdown, locally; archives unpacked safely; duplicates deduped; **unchanged files skipped on a re-run**) → `extract` (entities, directed/typed relations, facts — rule-based, deterministic) → `graph` (build + detect communities/themes) → `summarise` (layered: per-theme + a global synopsis, fact-joined) → `materialise` (memory.md + per-doc notes + a cached recall index). At question time, `recall` ranks the stored facts/themes against your query with **BM25 lexical search** (model-free, Bengali-aware) and returns the closest, capped, cited snippets — with a low-confidence guard for off-topic questions. No models, no network — a digest **always** succeeds and is byte-for-byte reproducible. See [`CHANGELOG.md`](CHANGELOG.md) and [`SECURITY.md`](SECURITY.md) for details.
 </details>
 
 ---
@@ -436,5 +468,5 @@ Built on the shoulders of [MarkItDown](https://github.com/microsoft/markitdown),
 **MIT licensed** · made by [GRU-953](https://github.com/GRU-953). Issues and contributions welcome — start with [`SECURITY.md`](SECURITY.md) for the security model.
 
 <div align="center">
-<sub>100% local · deterministic · token-free · free &amp; open-source · your files never leave your machine.</sub>
+<sub>100% local · deterministic · token-free · incremental · portable · free &amp; open-source · your files never leave your machine.</sub>
 </div>

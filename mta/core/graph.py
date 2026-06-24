@@ -70,7 +70,13 @@ def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Gr
             s = cid_for(rel.get("source", ""), alias_to_cid)
             t = cid_for(rel.get("target", ""), alias_to_cid)
             if s and t and s != t and s in g and t in g:
-                _bump_edge(g, s, t, rel.get("relation", "related_to"))
+                rtype = rel.get("relation", "related_to")
+                _bump_edge(g, s, t, rtype)
+                # WP-120 (Theme-Z): record the DIRECTION + type of a verb-typed relation on
+                # the (still undirected) edge. Purely additive annotation — weights and the
+                # co-occurrence backbone are untouched, so community detection is unchanged.
+                if rtype not in ("related_to", "co_occurs"):
+                    g[s][t].setdefault("rels", set()).add((rtype, s, t))
         # Co-occurrence backbone within the chunk.
         for i in range(len(present)):
             for j in range(i + 1, len(present)):

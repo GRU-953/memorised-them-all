@@ -18,7 +18,7 @@ abstract: >-
   ranking (Bengali-aware, with a low-confidence guard that declines off-topic
   queries) and returns a tiny cited slice; document contents are never returned
   to the model, so building or recalling whole folders costs near-zero context
-  tokens, in whichever assistant you use. Specialised handling includes legacy Bengali SutonnyMJ/Bijoy
+  tokens, in whichever assistant you use. Version 3 makes the memory living and portable — incremental re-digests re-read only the files that changed, and memories can be exported, imported, merged and diffed across machines (plus document / entity-type / multi-project recall filters). Specialised handling includes legacy Bengali SutonnyMJ/Bijoy
   to-Unicode recovery (including the vetted reorder-artifact repair রম্ন→রু) and
   broken-font Bengali PDF re-OCR, optional image OCR (Tesseract), beneficiary-PII
   suppression, atomic crash-safe writes, and per-file conversion timeouts.
@@ -30,7 +30,7 @@ authors:
 repository-code: "https://github.com/GRU-953/memorised-them-all"
 url: "https://github.com/GRU-953/memorised-them-all"
 license: MIT
-version: 3.1.0
+version: 3.2.0
 keywords:
   - MCP
   - Model Context Protocol
@@ -61,3 +61,6 @@ keywords:
   - Bijoy
   - PDF conversion
   - LibreOffice
+  - incremental
+  - portable
+  - knowledge graph export

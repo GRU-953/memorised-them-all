@@ -196,6 +196,51 @@ def _bn_candidate(raw: str) -> str | None:
     return name if len(name) >= 3 else None
 
 
+# WP-120 (Theme-Z): high-precision English verb cues → typed, DIRECTED relations. A cue
+# found in the short gap between two entity mentions promotes that pair's edge from the
+# undirected "related_to" co-occurrence to a directed typed relation (subject→object by
+# sentence position). Deliberately small + high-precision: anything unmatched stays
+# "related_to" with the original entity order, so the undirected backbone, edge weights and
+# community detection are byte-for-byte unchanged — only cued edges gain a `type`+direction.
+# English-only by design (no Bengali verb analysis); fully deterministic (first match wins).
+_REL_CUES: list[tuple] = [
+    (re.compile(r"\b(?:operates?|runs?|manages?|administers?)\b", re.I), "operates"),
+    (re.compile(r"\b(?:leads?|directs?|heads?|chairs?|oversees?)\b", re.I), "leads"),
+    (re.compile(r"\b(?:founded|established|created|launched)\b", re.I), "founded"),
+    (re.compile(r"\b(?:acquired|bought|purchased)\b", re.I), "acquired"),
+    (re.compile(r"\b(?:approved|signed|authorised|authorized)\b", re.I), "approved"),
+    (re.compile(r"\b(?:reports?\s+to|works?\s+for|employed\s+by|member\s+of)\b", re.I), "works_for"),
+    (re.compile(r"\b(?:located\s+in|based\s+in|headquartered\s+in|situated\s+in)\b", re.I), "located_in"),
+    (re.compile(r"\b(?:part\s+of|belongs?\s+to|owned\s+by|subsidiary\s+of|division\s+of)\b", re.I), "part_of"),
+    (re.compile(r"\b(?:supplies|supplied|provides?|delivers?)\b", re.I), "supplies"),
+]
+_REL_GAP_MAX = 40   # only treat a verb as relating two entities if it sits in a short gap
+
+
+def _typed_relation(sentence: str, a: str, b: str) -> tuple:
+    """Return ``(relation_type, source, target)`` for an entity pair in one sentence.
+
+    If a high-precision verb cue sits in the SHORT gap between the two mentions, the relation
+    is that cue's type, directed subject→object by sentence position. Otherwise it stays the
+    undirected ``related_to`` with the ORIGINAL ``(a, b)`` order — byte-identical to the
+    prior behaviour, so non-cued edges/weights/communities never change (WP-120 precision
+    gate)."""
+    pa, pb = sentence.find(a), sentence.find(b)
+    if pa < 0 or pb < 0 or pa == pb:
+        return "related_to", a, b
+    if pa <= pb:
+        earlier, later, lo, hi = a, b, pa + len(a), pb
+    else:
+        earlier, later, lo, hi = b, a, pb + len(b), pa
+    if hi - lo > _REL_GAP_MAX:                 # entities too far apart → not a direct relation
+        return "related_to", a, b
+    gap = sentence[lo:hi]
+    for pat, rtype in _REL_CUES:               # first match wins (deterministic order)
+        if pat.search(gap):
+            return rtype, earlier, later
+    return "related_to", a, b
+
+
 def _classical(chunk: Chunk) -> Extraction:
     """Dependency-free extraction — the ONLY path in v2, so quality matters. Capitalised
     (Latin) AND Bengali-script phrase entities (gated to drop junk: sentence-initial lone
@@ -264,8 +309,11 @@ def _classical(chunk: Chunk) -> Extraction:
                 key = (present[i], present[j])
                 if key not in seen_rel:
                     seen_rel.add(key)
-                    relations.append({"source": _scrub(present[i]), "relation": "related_to",
-                                      "target": _scrub(present[j])})
+                    # WP-120: a verb cue in the gap makes this a directed, typed relation;
+                    # otherwise it's the original undirected related_to (unchanged bytes).
+                    rtype, src, tgt = _typed_relation(s, present[i], present[j])
+                    relations.append({"source": _scrub(src), "relation": rtype,
+                                      "target": _scrub(tgt)})
     # Facts: prefer sentences that actually mention a kept entity (more useful for recall);
     # fall back to any sentence if none qualify. Abbreviation-aware split, scrubbed.
     facts: list[str] = []

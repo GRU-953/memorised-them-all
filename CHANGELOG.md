@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [3.2.0] — 2026-06-25
+
+Typed relations (first additive brick of the Theme-Z graph-schema arc) + a full
+documentation/metadata refresh. Additive and invariant-safe (token-free, 100% local,
+deterministic, model-free); no graph-schema bump and no new tools.
+
+### Added
+- **Typed, directional relations (WP-120).** A high-precision English verb cue in the short
+  gap between two entities now promotes that edge from undirected `related_to` co-occurrence
+  to a directed typed relation, serialised additively as `graph.json` `edges[].relations:
+  [{type, from, to}]` (node IDs). Deterministic and English-only; the undirected backbone,
+  edge weights and community detection are byte-for-byte unchanged (only cued edges gain the
+  field), so recall is unaffected. First brick of the graph-schema arc — see
+  `program/THEME_Z_PLAN.md`.
+
+### Changed
+- **README completely rebuilt and every published-platform listing refreshed for v3.** The
+  README now leads with the "living, portable memory" story (a dedicated section), and the
+  descriptions/keywords on PyPI (`pyproject`), the `.mcpb` bundle (`manifest.json`), the MCP
+  registry (`server.json`), Glama (`glama.json` — was "8 MCP tools" → 11), the Claude
+  marketplace/plugin (`plugin.json`/`marketplace.json`) and `CITATION.cff` were updated to
+  reflect incremental digests, export/import/merge/diff, recall filters + multi-project
+  recall, GraphML/CSV exports, secure delete and the 11-tool set. No code change in this part.
+
 ## [3.1.0] — 2026-06-24
 
 Recall power-ups — additive and invariant-safe (token-free, 100% local, deterministic,
