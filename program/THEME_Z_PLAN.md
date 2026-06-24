@@ -46,16 +46,18 @@ the offsets index into (stale-detection). A fact whose stored text isn't verbati
 deterministic; recall/render/meta/bm25 untouched. Tests: `tests/test_provenance_spans.py`.
 A future refinement could thread exact sentence offsets through segmentation for 100% coverage.
 
-### WP-121 (sub-types half) — entity sub-types in the schema  ← NEXT
-Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
-closed `subtype` enum to nodes (gated on the 4 proofs in ROADMAP_V3 WP-121).
+### ✅ WP-121 (sub-types half) — entity sub-types in the schema (DONE, additive — S32)
+`extract._infer_subtype` + `graph.build_graph` stamp graph nodes with an additive, deterministic
+closed-enum `subtype` refining the coarse `type` (org → government/financial/education/nonprofit/
+company; place → division/district/upazila/city/town/union/village/region/ward, gazetteer-first).
+High-precision (no cue ⇒ no field), English-only. Tests: `tests/test_entity_subtypes.py`.
+*(The per-script `_SCRIPT_BLOCKS` **resolution/normalization** half stays a separate v2.9-style
+item — gated on ROADMAP_V3 WP-121's 4 proofs — not part of this schema brick.)*
 
-### WP-121 (sub-types half) — entity sub-types in the schema
-Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
-closed `subtype` enum to nodes (gated on the 4 proofs in ROADMAP_V3 WP-121).
-
-### WP-134 — provenance pointers over text (consumes WP-123b spans)
-Recall cites `doc + codepoint-offset`; pointer-only stays token-free.
+### WP-134 — provenance pointers over text (consumes WP-123b spans)  ← NEXT
+Recall cites `doc + codepoint-offset` (reads the WP-123b `span` already in `graph.json`);
+pointer-only stays token-free. This is the first **consumer** brick — it surfaces spans through
+recall (a small, additive change to the recall hit shape).
 
 ### WP-121 (sub-types half) — entity sub-types in the schema
 Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a

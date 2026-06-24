@@ -13,6 +13,7 @@ from collections import defaultdict
 
 import networkx as nx
 
+from .extract import _infer_subtype
 from .resolve import cid_for
 
 _MAX_FACTS_PER_NODE = 25
@@ -27,6 +28,12 @@ def build_graph(extractions: list, alias_to_cid: dict, canonical: dict) -> nx.Gr
     for cid, meta in canonical.items():
         g.add_node(cid, label=meta["label"], type=meta["type"],
                    count=meta["count"], facts=[], docs=set(), aliases=meta["aliases"])
+        # WP-121 (Theme-Z): additive, deterministic entity sub-type (closed enum) when a
+        # confident cue applies — refines `type` without touching it; nodes with no cue get
+        # no `subtype` key. Recall/render read label/type/facts only, so this is graph.json-only.
+        sub = _infer_subtype(meta["label"], meta["type"])
+        if sub:
+            g.nodes[cid]["subtype"] = sub
 
     for chunk, ex in extractions:
         present: list[str] = []

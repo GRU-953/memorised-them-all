@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/) and
 ## [Unreleased]
 
 ### Added (Theme-Z — accumulating toward the next major; see `program/THEME_Z_PLAN.md`)
+- **Entity sub-types (WP-121, schema half).** Graph nodes now carry an additive, deterministic
+  `subtype` — a closed-enum refinement of the coarse `type` — when a confident cue applies: org →
+  `government`/`financial`/`education`/`nonprofit`/`company`; place →
+  `division`/`district`/`upazila`/`city`/`town`/`union`/`village`/`region`/`ward` (the
+  Bangladesh gazetteer classifies divisions vs districts). High-precision (no cue ⇒ no field),
+  English-only by construction. Additive and deterministic (`graph.json` byte-identical
+  run-to-run); recall/render read `label`/`type`/`facts` only, so they're unaffected. No schema
+  bump, no new tools.
 - **Fact salience + confidence (WP-123).** Every fact in `graph.json` now carries an additive,
   deterministic `salience` (integer — how many distinct entities the fact names) and
   `confidence` ∈ `[0,1]` (higher when the fact explicitly names its holder entity, `0.5` for a
