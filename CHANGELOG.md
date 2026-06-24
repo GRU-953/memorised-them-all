@@ -6,7 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
-### Added (Theme-Z — accumulating toward the next major; see `program/THEME_Z_PLAN.md`)
+## [3.3.0] — 2026-06-25
+
+Theme-Z additive bricks — a richer knowledge graph + provenance, shipped ahead of the
+graph-schema-v3 major. **All additive and invariant-safe** (token-free, 100% local,
+deterministic, model-free): no breaking changes, no new tools, no graph-schema bump. New
+fields ride `graph.json` (existing consumers ignore them) and recall provenance is derived at
+query time, so the stored recall index is unchanged and **no re-digest is required** — though
+re-digesting populates the new graph fields for older memories.
+
+### Added
 - **Provenance pointers in recall (WP-134).** `recall` now surfaces the WP-123b fact spans as a
   pointer-only `spans` list (`{doc, start, end}` codepoint offsets, capped) on entity hits, so an
   assistant can cite *exactly where* a fact came from in the source `.md`. Spans are derived from
