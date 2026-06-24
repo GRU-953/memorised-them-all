@@ -54,19 +54,14 @@ High-precision (no cue ⇒ no field), English-only. Tests: `tests/test_entity_su
 *(The per-script `_SCRIPT_BLOCKS` **resolution/normalization** half stays a separate v2.9-style
 item — gated on ROADMAP_V3 WP-121's 4 proofs — not part of this schema brick.)*
 
-### WP-134 — provenance pointers over text (consumes WP-123b spans)  ← NEXT
-Recall cites `doc + codepoint-offset` (reads the WP-123b `span` already in `graph.json`);
-pointer-only stays token-free. This is the first **consumer** brick — it surfaces spans through
-recall (a small, additive change to the recall hit shape).
+### ✅ WP-134 — provenance pointers in recall (DONE, additive — S33)
+First **consumer** brick. `recall._node_spans` + `_hit` surface the WP-123b fact spans as a
+pointer-only `spans` list (`{doc,start,end}`, capped) on entity hits — derived from
+`graph.json` **at query time**, so the stored recall index (`vectors.json`/`bm25_index.json`)
+is untouched and old stores work with no re-digest. Pointer-only → token-free; theme hits and
+unlocatable facts have no `spans`. Tests: `tests/test_recall_provenance.py`.
 
-### WP-121 (sub-types half) — entity sub-types in the schema
-Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
-closed `subtype` enum to nodes (gated on the 4 proofs in ROADMAP_V3 WP-121).
-
-### WP-134 — provenance pointers over text (consumes WP-123 spans)
-Recall cites `doc + codepoint-offset`; pointer-only stays token-free.
-
-### WP-122 (pin) — community-algorithm pin ([C1])
+### WP-122 (pin) — community-algorithm pin ([C1])  ← NEXT
 Make NetworkX Louvain the deterministic default regardless of `leidenalg` presence
 (canonical node ordering; `_from_sets` numbers communities by `min(sorted(member_ids))`);
 Leiden strictly opt-in (`MTA_COMMUNITY_ALGO=leiden`). **Breaking** (changes partitions) →

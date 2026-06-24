@@ -51,7 +51,7 @@ def _clip_bytes(s, max_bytes: int) -> str:
     return b[:max_bytes].decode("utf-8", "ignore")
 
 
-def _hit(u: dict, score) -> dict:
+def _hit(u: dict, score, spans: list[dict] | None = None) -> dict:
     docs = u.get("docs", []) or []
     out = {"score": score, "kind": u.get("kind"),
            "label": _clip_bytes(u.get("label"), _MAX_LABEL),
@@ -59,6 +59,31 @@ def _hit(u: dict, score) -> dict:
            "docs": [_clip_bytes(d, _MAX_DOC_NAME) for d in docs[:_MAX_HIT_DOCS]]}
     if len(docs) > _MAX_HIT_DOCS:
         out["doc_count"] = len(docs)
+    # WP-134: pointer-only provenance — a few {doc,start,end} codepoint offsets into the
+    # source .md (from WP-123b spans), so a consumer can jump to where a fact came from.
+    # Pointer-only (no extra text) → stays token-free; capped to _MAX_HIT_DOCS.
+    if spans:
+        out["spans"] = spans[:_MAX_HIT_DOCS]
+    return out
+
+
+def _node_spans(graph: dict | None) -> dict[str, list[dict]]:
+    """Map node id → a small list of pointer-only provenance spans (one per fact that has a
+    WP-123b ``span``, in card order, ≤_MAX_HIT_DOCS). Computed at recall time from
+    ``graph.json`` — the recall meta/BM25 index are NOT changed, so an old store still works
+    and the token-free index is untouched."""
+    out: dict[str, list[dict]] = {}
+    if not isinstance(graph, dict):
+        return out
+    for n in graph.get("nodes", []):
+        spans: list[dict] = []
+        for f in (n.get("facts") or [])[:_MAX_HIT_DOCS]:
+            s = f.get("span") if isinstance(f, dict) else None
+            if isinstance(s, dict) and isinstance(s.get("start"), int):
+                spans.append({"doc": _clip_bytes(s.get("doc"), _MAX_DOC_NAME),
+                              "start": s["start"], "end": s.get("end")})
+        if spans:
+            out[n.get("id")] = spans
     return out
 
 
@@ -219,15 +244,19 @@ def _recall_locked(cfg: Config, query: str, k: int | None, *,
     # R-13: use the digest-time pre-tokenised index when present; fall back to on-the-fly.
     # With a structured filter active, rank the FULL set first (not just top-k) so the
     # filter can't starve the result of matching-but-lower-ranked units.
+    graph = load_graph(cfg)                 # also powers the WP-134 provenance spans below
+    node_spans = _node_spans(graph)
     filtering = bool(doc or entity_type)
     ranked = _bm25_rank_cached(query, meta, load_bm25_index(cfg), len(meta) if filtering else k)
     hits = []
     for s, i in ranked:
         if i >= len(meta):
             continue
-        if filtering and not _unit_matches(meta[i], doc, entity_type):
+        u = meta[i]
+        if filtering and not _unit_matches(u, doc, entity_type):
             continue
-        hits.append(_hit(meta[i], round(float(s), 3)))
+        spans = node_spans.get(u.get("ref")) if u.get("kind") == "entity" else None
+        hits.append(_hit(u, round(float(s), 3), spans))
         if len(hits) >= k:
             break
     raw_top = hits[0]["score"] if hits else 0.0   # best score BEFORE the floor
@@ -238,7 +267,6 @@ def _recall_locked(cfg: Config, query: str, k: int | None, *,
     # Off-topic guard: no BM25 overlap at all ⇒ low confidence (Claude can decline).
     low_conf = (not hits) or _lexical_overlap(query, hits[0].get("label", "") + " "
                                               + hits[0].get("text", "")) == 0
-    graph = load_graph(cfg)
     out = {"status": "ok", "project": cfg.project, "query": query,
            "synopsis": _clip_bytes((graph or {}).get("synopsis", ""), _MAX_SYNOPSIS),
            # The mode this memory was last BUILT in (always "deterministic" in v2).
