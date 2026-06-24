@@ -20,7 +20,9 @@ Bring a bundle back into a project with `mta import <dir>` (or the `import_memor
 ## Knowledge-graph sidecar (`graph.json`)
 Validated by [`graph.schema.json`](graph.schema.json) (JSON Schema 2020-12). Contract:
 - **`nodes[]`** — entities. `id` is a **stable** string (`e0`, `e1`, …); `label`, `type`, `count`,
-  and `facts[]` (`{text, doc, heading}` — `doc` is the provenance source name).
+  and `facts[]` (`{text, doc, heading}` — `doc` is the provenance source name). **Optional (since
+  v3.2):** each fact also carries an additive `salience` (integer ≥ 0 — how many distinct entities
+  it names) and `confidence` (float in `[0,1]`); v1 consumers ignore them safely.
 - **`edges[]`** — relations referencing node IDs: `{source, target, weight, labels[]}`. Every
   `source`/`target` MUST be an existing node `id` (referential integrity, enforced in CI).
   **Optional (since v3.1):** an additive `relations: [{type, from, to}]` of directed,

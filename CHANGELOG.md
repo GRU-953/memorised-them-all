@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+### Added (Theme-Z — accumulating toward the next major; see `program/THEME_Z_PLAN.md`)
+- **Fact salience + confidence (WP-123).** Every fact in `graph.json` now carries an additive,
+  deterministic `salience` (integer — how many distinct entities the fact names) and
+  `confidence` ∈ `[0,1]` (higher when the fact explicitly names its holder entity, `0.5` for a
+  fallback attachment). Pure functions of the extraction, so `graph.json` stays byte-identical
+  run-to-run; facts are **not** reordered, so recall/render and the recall meta/BM25 index are
+  unchanged (ranking by these values is the later recall/render-v2 brick). No schema bump, no
+  new tools. *(Codepoint-offset provenance spans are split out as WP-123b — they need
+  offset-preserving plumbing through segmentation.)*
+
 ## [3.2.0] — 2026-06-25
 
 Typed relations (first additive brick of the Theme-Z graph-schema arc) + a full
