@@ -21,6 +21,10 @@ Bring a bundle back into a project with `mta import <dir>` (or the `import_memor
 Validated by [`graph.schema.json`](graph.schema.json) (JSON Schema 2020-12). Contract:
 - **`nodes[]`** — entities. `id` is a **stable** string (`e0`, `e1`, …); `label`, `type`, `count`,
   and `facts[]` (`{text, doc, heading}` — `doc` is the provenance source name). **Optional (since
+  v3.2):** a node may carry a finer `subtype` (closed enum refining `type` — org →
+  government/financial/education/nonprofit/company; place →
+  division/district/upazila/city/town/union/village/region/ward), present only when a confident
+  cue applies. **Optional (since
   v3.2):** each fact also carries an additive `salience` (integer ≥ 0 — how many distinct entities
   it names), `confidence` (float in `[0,1]`), and a best-effort `span` (`{doc, start, end}` —
   codepoint offsets into the digest-time `.md`; verify against that document's `md_sha`). v1
