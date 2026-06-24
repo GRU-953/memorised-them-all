@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Local, token-free, deterministic file digestion → searchable knowledge-graph memory for any AI assistant (Claude, Gemini, Cursor, VS Code, Codex, Grok). Model-free (no LLM/Ollama/GPU), 100% private, open-source.",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "pluginRoot": "."
   },
   "plugins": [
