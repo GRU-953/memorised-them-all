@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/) and
 ## [Unreleased]
 
 ### Added (Theme-Z — accumulating toward the next major; see `program/THEME_Z_PLAN.md`)
+- **Provenance pointers in recall (WP-134).** `recall` now surfaces the WP-123b fact spans as a
+  pointer-only `spans` list (`{doc, start, end}` codepoint offsets, capped) on entity hits, so an
+  assistant can cite *exactly where* a fact came from in the source `.md`. Spans are derived from
+  `graph.json` **at query time** — the stored recall index (`vectors.json` / `bm25_index.json`)
+  is unchanged, so old stores work with no re-digest. Pointer-only (no extra text) → stays
+  token-free; theme hits and unlocatable facts simply have no `spans`. No new tools.
 - **Entity sub-types (WP-121, schema half).** Graph nodes now carry an additive, deterministic
   `subtype` — a closed-enum refinement of the coarse `type` — when a confident cue applies: org →
   `government`/`financial`/`education`/`nonprofit`/`company`; place →
