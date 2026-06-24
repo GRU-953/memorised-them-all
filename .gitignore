@@ -9,6 +9,12 @@ dist/
 venv/
 .pytest_cache/
 
+# Coverage (binary, machine-specific — never commit)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Runtime memory store / state
 .memorised-them-all/
 *.npz
