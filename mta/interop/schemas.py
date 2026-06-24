@@ -1,6 +1,6 @@
 """Export the MCP tool catalogue as schemas other AI systems understand (WP-21).
 
-The Memorised-them-All server speaks MCP, but the same eight tools are useful to
+The Memorised-them-All server speaks MCP, but the same eleven tools are useful to
 clients that speak other dialects. This module emits the catalogue in the three
 dominant external shapes:
 
@@ -63,7 +63,7 @@ def _raw_tools() -> list[tuple[str, str, dict]]:
     loop, where ``asyncio.run`` is illegal); falls back to the public async API only
     when the registry isn't exposed.
     """
-    from mta.server import mcp  # registers all eight tools at import time
+    from mta.server import mcp  # registers all eleven tools at import time
 
     mgr = getattr(mcp, "_tool_manager", None)
     if mgr is not None and hasattr(mgr, "list_tools"):

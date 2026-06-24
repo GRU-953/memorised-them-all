@@ -55,12 +55,28 @@ def save_graph(cfg: Config, graph_doc: dict) -> None:
 
 
 # Bump when the on-disk graph schema changes incompatibly.
-SCHEMA_VERSION = 1
+# v2 (v3.0.0): documents[] carry a portable per-document content hash (sha256) that powers
+# cross-machine diff/merge. digest.py stamps version = SCHEMA_VERSION (single source).
+SCHEMA_VERSION = 2
 
-# Registry of forward migrations: from_version -> fn(doc) -> doc that upgrades a
-# store from `from_version` to the next version. Empty today (only v1 exists); a
-# future incompatible schema bump registers its step here. Migrations are pure.
-_MIGRATIONS: dict = {}
+
+def _migrate_v1_to_v2(doc: dict) -> dict:
+    """v1 → v2: v2 adds documents[].sha256 (a portable content hash). A v1 store predates
+    it and its source bytes may be gone, so the hashes can't be back-filled — we only stamp
+    the version; the fields stay absent and diff/merge fall back to matching documents by
+    name. A fresh re-digest writes a full v2 store with hashes populated (it is NOT a
+    migration — it supersedes the v1 graph from the markdown/ corpus). Pure: returns a new
+    dict, writes nothing → safe under the shared read lock."""
+    out = dict(doc)
+    out["version"] = 2
+    return out
+
+
+# Registry of forward migrations: from_version -> fn(doc) -> doc that upgrades a store from
+# `from_version` to the next version. A contiguous 1→2→…→SCHEMA_VERSION chain. Migrations
+# are pure (no disk writes) so they run safely under a shared read lock (read paths migrate
+# in memory only; disk is rewritten as a fresh store at the next digest).
+_MIGRATIONS: dict = {1: _migrate_v1_to_v2}
 
 
 def migrate_doc(doc: dict) -> dict:
@@ -95,7 +111,7 @@ def _backup_store(cfg: Config, reason: str) -> Path | None:
         dest.mkdir(parents=True, exist_ok=True)
         for src in (cfg.graph_path, cfg.vectors_path,
                     cfg.vectors_path.with_suffix(".json"), cfg.bm25_index_path,
-                    cfg.memory_md):
+                    cfg.manifest_path, cfg.memory_md):
             if src.exists():
                 shutil.copy2(src, dest / src.name)
         print(f"[mta] backed up existing memory to {dest}", file=sys.stderr)
@@ -241,6 +257,74 @@ def clear_bm25_index(cfg: Config) -> None:
         pass
 
 
+# ---- incremental-digest manifest (v3) --------------------------------
+_MANIFEST_SCHEMA = "mta-manifest/1"
+
+
+def save_manifest(cfg: Config, entries: dict) -> None:
+    """Persist the incremental-digest content-hash manifest (machine-local sidecar).
+    ``entries`` maps a source file's resolved path → ``{sha256, out, method}``. Written
+    through the shared crash-safe atomic writer."""
+    cfg.ensure_dirs()
+    _atomic_write_text(cfg.manifest_path, json.dumps(
+        {"schema": _MANIFEST_SCHEMA, "version": 1, "entries": entries},
+        ensure_ascii=False, indent=2))
+
+
+def load_manifest(cfg: Config) -> dict:
+    """Load the incremental manifest's ``entries`` map, or ``{}`` if absent/torn/garbage/
+    oversized — in which case the next digest simply re-converts everything and rebuilds it.
+    Never raises (it must not be able to break a digest)."""
+    path = cfg.manifest_path
+    if not path.exists() or _too_big(path, cfg):
+        return {}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    entries = doc.get("entries") if isinstance(doc, dict) else None
+    return entries if isinstance(entries, dict) else {}
+
+
+def clear_manifest(cfg: Config) -> None:
+    """Remove the incremental manifest (idempotent, best-effort)."""
+    try:
+        cfg.manifest_path.unlink()
+    except OSError:
+        pass
+
+
+def _secure_overwrite_tree(root: Path) -> int:
+    """Best-effort secure delete: overwrite every regular file's bytes with random data,
+    flush+fsync, BEFORE the tree is removed. Returns the count of files overwritten.
+
+    **Honest limitation:** this CANNOT guarantee erasure on SSD / flash / copy-on-write or
+    log-structured filesystems, snapshots, or cloud-synced folders — the OS/FS may have
+    already copied the blocks elsewhere. A real guarantee needs full-disk or file-level
+    encryption (encryption-at-rest is a roadmap item). Symlinks are never followed/written.
+    Never raises into the caller (a wipe failure must not block the delete)."""
+    count = 0
+    for dirpath, _dirs, files in os.walk(str(root)):  # followlinks=False by default
+        for name in files:
+            fp = Path(dirpath) / name
+            try:
+                if fp.is_symlink() or not fp.is_file():
+                    continue
+                size = fp.stat().st_size
+                with open(fp, "r+b", buffering=0) as f:
+                    remaining = size
+                    while remaining > 0:
+                        chunk = os.urandom(min(remaining, 1024 * 1024))
+                        f.write(chunk)
+                        remaining -= len(chunk)
+                    f.flush()
+                    os.fsync(f.fileno())
+                count += 1
+            except OSError:
+                continue
+    return count
+
+
 def load_vectors(cfg: Config):
     """Load the embedding matrix + meta (the legacy numpy path; recall does NOT use this —
     it reads ``load_meta`` only). Returns ``None`` without numpy or without a ``.npz``."""
@@ -267,21 +351,31 @@ def load_vectors(cfg: Config):
     return matrix, meta
 
 
-def delete_project(cfg: Config) -> dict:
+def delete_project(cfg: Config, secure: bool = False) -> dict:
     """Delete a project's entire memory (graph, converted Markdown, summaries, notes).
 
     Takes the project's exclusive write lock so a `forget` can't race a digest
     (the lock file lives under state/locks/, not the project dir, so it survives
     the rmtree). See locks.py.
+
+    ``secure=True`` overwrites every file's bytes with random data before removal
+    (best-effort — see ``_secure_overwrite_tree`` for the SSD/CoW caveat).
     """
     import shutil
 
     from . import locks
+    overwritten = 0
     with locks.write_lock(cfg):
         if not cfg.project_dir.exists():
             return {"status": "not_found", "project": cfg.project}
+        if secure:
+            overwritten = _secure_overwrite_tree(cfg.project_dir)
         shutil.rmtree(cfg.project_dir, ignore_errors=True)
-    return {"status": "ok", "project": cfg.project, "deleted": True}
+    out = {"status": "ok", "project": cfg.project, "deleted": True}
+    if secure:
+        out["secure"] = True
+        out["files_overwritten"] = overwritten
+    return out
 
 
 def list_projects(cfg: Config) -> list[dict]:

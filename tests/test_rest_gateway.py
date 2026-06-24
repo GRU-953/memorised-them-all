@@ -2,7 +2,7 @@
 
 In-process ASGI tests (no real socket → robust on Linux/macOS/Windows CI). They
 prove the security contract (loopback default, mandatory bearer, Host allowlist)
-and that the eight tools are callable as `POST /tools/{name}` returning their
+and that the eleven tools are callable as `POST /tools/{name}` returning their
 token-free dicts. Fully offline: `MTA_HOME` is redirected to a tmp dir and Ollama
 is disabled, so no real memory is touched and nothing hits the network.
 """

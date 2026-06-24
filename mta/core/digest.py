@@ -228,17 +228,27 @@ def _convert_isolated(payload, cfg: Config) -> dict:
     return res
 
 
-def _assign_output_names(files: list[Path]) -> dict[str, str]:
+def _assign_output_names(files: list[Path], *, reserved: set[str] | None = None,
+                         fixed: dict[str, str] | None = None) -> dict[str, str]:
     """Assign a unique output filename per source path (race-free, in the main
     process). Distinct files with the same basename in different directories
     (e.g. many README.md) would otherwise overwrite each other and silently lose
     data. The first (sorted) keeps the clean name; collisions get a short,
     deterministic path-hash suffix.
+
+    Incremental digest (v3) passes two extra maps so names stay STABLE across runs:
+    ``fixed`` pins a path to the name a prior manifest already gave it (an updated file
+    overwrites its own .md), and ``reserved`` seeds the taken-set with names that must not
+    be reused (existing .md from other folders / unchanged files) so a newly-converted
+    file can never clobber an unrelated existing output.
     """
     import hashlib
-    taken: set[str] = set()
-    assigned: dict[str, str] = {}
+    taken: set[str] = {n.lower() for n in (reserved or set())}
+    assigned: dict[str, str] = dict(fixed or {})
+    taken.update(v.lower() for v in assigned.values())
     for f in files:  # files are already sorted upstream → deterministic
+        if str(f) in assigned:           # pinned by `fixed` (incremental) → keep it
+            continue
         h = hashlib.sha1(str(f).encode("utf-8")).hexdigest()[:8]
         base = f.name + ".md"
         # Clamp well under NAME_MAX (255) / Windows MAX_PATH so a very long source name can't
@@ -251,11 +261,115 @@ def _assign_output_names(files: list[Path]) -> dict[str, str]:
     return assigned
 
 
+def _sha256_file(path: Path) -> str | None:
+    """Streaming sha256 of a file's bytes, or None if unreadable. Cheap relative to
+    conversion (no parsing/OCR), so re-hashing to detect changes is a clear net win."""
+    import hashlib
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def _plan_conversions(files: list[Path], prior: dict, cfg: Config,
+                      input_paths: list[str]) -> dict:
+    """Plan an incremental digest: decide which files to (re)convert, which prior converted
+    outputs to reuse unchanged, and which to prune because their source was deleted from a
+    digested directory. Pure planning (deletes nothing) — the caller acts on the result.
+
+    A file is **reused** (conversion skipped) when its bytes hash to the same value the
+    manifest recorded AND its .md still exists. Everything else is converted. A prior entry
+    whose source path no longer exists AND sat under one of THIS call's directory roots is
+    **removed** (its .md pruned); prior entries from other folders are **preserved**. With an
+    empty ``prior`` (full digest / incremental off) every file is converted and nothing is
+    pruned — so the same code path serves both, and always (re)builds the manifest.
+    """
+    cur_rp: dict[str, Path] = {}      # resolved source path -> Path (this call's inputs)
+    hashes: dict[str, str] = {}       # str(path) -> sha256
+    for f in files:
+        try:
+            rp = str(f.resolve())
+        except (OSError, RuntimeError, ValueError):
+            rp = str(f)
+        cur_rp[rp] = f
+        h = _sha256_file(f)
+        if h is not None:
+            hashes[str(f)] = h
+    cur_rp_set = set(cur_rp)
+
+    roots: list[Path] = []            # directory roots of THIS call (prune only within them)
+    for raw in input_paths:
+        try:
+            p = Path(raw).expanduser()
+            if p.is_dir():
+                roots.append(p.resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+
+    def _under_roots(rp: str) -> bool:
+        for root in roots:
+            try:
+                Path(rp).relative_to(root)
+                return True
+            except (ValueError, OSError):
+                continue
+        return False
+
+    preserved: dict[str, dict] = {}
+    removed_outputs: list[str] = []
+    removed = 0
+    for rp, entry in prior.items():
+        if rp in cur_rp_set or not isinstance(entry, dict):
+            continue
+        try:
+            still = Path(rp).exists()
+        except (OSError, ValueError):
+            still = False
+        if (not still) and _under_roots(rp):
+            removed += 1                              # source deleted from a digested folder
+            if entry.get("out"):
+                removed_outputs.append(entry["out"])
+        else:
+            preserved[rp] = entry                     # other folder / still present → keep
+
+    fixed = {str(cur_rp[rp]): prior[rp]["out"]
+             for rp in cur_rp_set
+             if isinstance(prior.get(rp), dict) and prior[rp].get("out")}
+    reserved = {e["out"] for e in preserved.values() if e.get("out")}
+    names = _assign_output_names(files, reserved=reserved, fixed=fixed)
+
+    to_convert: list[Path] = []
+    reused = 0
+    reused_paths: set[str] = set()
+    for rp, f in cur_rp.items():
+        h = hashes.get(str(f))
+        prior_e = prior.get(rp)
+        md_ok = (cfg.markdown_dir / names[str(f)]).exists()
+        if (h is not None and isinstance(prior_e, dict)
+                and prior_e.get("sha256") == h and md_ok):
+            reused += 1
+            reused_paths.add(rp)
+        else:
+            to_convert.append(f)
+
+    return {"to_convert": to_convert, "names": names, "hashes": hashes,
+            "reused": reused, "reused_paths": reused_paths, "preserved": preserved,
+            "removed_outputs": removed_outputs, "removed": removed, "prior": prior}
+
+
 def _convert_all(files: list[Path], cfg: Config,
-                 out_dir: Path | None = None) -> list[dict]:
+                 out_dir: Path | None = None,
+                 names: dict[str, str] | None = None) -> list[dict]:
     out_dir = out_dir or cfg.markdown_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    names = _assign_output_names(files)
+    # Incremental digest precomputes stable names over the FULL current corpus and passes
+    # them in (so an updated file overwrites its own .md and a new one never clobbers an
+    # unrelated existing output); the standalone `convert` path assigns fresh names.
+    names = names if names is not None else _assign_output_names(files)
     n = worker_count(cfg.workers)
     payloads = [(str(f), str(out_dir), cfg, names[str(f)]) for f in files]
 
@@ -372,11 +486,73 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         return {"status": "no_input", "project": cfg.project,
                 "message": "No convertible files found.", "paths": paths}
 
-    conv = _convert_all(files, cfg)
+    # Incremental plan (v3): re-convert only changed/new files, reuse unchanged .md, and
+    # prune the converted output of sources deleted from the digested folders. With an empty
+    # prior (full digest, reset, or MTA_INCREMENTAL=off) every file is converted — the same
+    # code path — and the manifest is rebuilt either way so the NEXT digest can be
+    # incremental. The rebuilt memory is byte-identical to a full digest of the same final
+    # corpus (conversion is deterministic), so this only changes WHICH files get converted.
+    prior = store.load_manifest(cfg) if (cfg.incremental and not reset) else {}
+    plan = _plan_conversions(files, prior, cfg, paths)
+    for out in plan["removed_outputs"]:
+        try:
+            (cfg.markdown_dir / out).unlink()
+        except OSError:
+            pass
+    conv = _convert_all(plan["to_convert"], cfg, names=plan["names"])
 
-    # Accumulative: rebuild the graph from the FULL markdown corpus on disk, so
-    # digesting another folder into the same project extends the memory rather
-    # than replacing it. `reset=True` clears the corpus first (above).
+    # Assemble the next manifest: preserved (other folders) ∪ reused (this run) ∪ freshly
+    # converted files that produced a .md. Skipped/failed files are left OUT so they are
+    # re-evaluated next run (a media skip is instant; a transient failure gets retried).
+    manifest = dict(plan["preserved"])
+    for rp in plan["reused_paths"]:
+        if isinstance(prior.get(rp), dict):
+            manifest[rp] = prior[rp]
+    res_by_src = {c.get("source"): c for c in conv}
+    added = updated = 0
+    for f in plan["to_convert"]:
+        c = res_by_src.get(str(f))
+        if not c or c.get("status") != "ok":
+            continue
+        h = plan["hashes"].get(str(f))
+        if h is None:
+            continue
+        try:
+            rp = str(f.resolve())
+        except (OSError, RuntimeError, ValueError):
+            rp = str(f)
+        manifest[rp] = {"sha256": h, "out": plan["names"][str(f)],
+                        "method": c.get("method", "")}
+        if rp in prior:
+            updated += 1
+        else:
+            added += 1
+    store.save_manifest(cfg, manifest)
+
+    # Rebuild the graph from the FULL markdown corpus on disk (accumulative; reset=True
+    # cleared it first). The rebuild is shared with merge_memory, which rebuilds from a
+    # merged corpus with no conversion step.
+    result = _rebuild_from_markdown(cfg, t0, files_count=len(files), conv=conv,
+                                    manifest=manifest)
+    result["incremental"] = {
+        "enabled": bool(cfg.incremental and not reset),
+        "added": added, "updated": updated,
+        "unchanged": plan["reused"], "removed": plan["removed"],
+        "converted": sum(1 for c in conv if c.get("status") == "ok"),
+    }
+    from .archive import cleanup_unpacked
+    cleanup_unpacked(cfg)            # extracted-archive scratch; the markdown persists
+    return result
+
+
+def _rebuild_from_markdown(cfg: Config, t0: float, *, files_count: int | None = None,
+                           conv: list[dict] | None = None,
+                           manifest: dict | None = None) -> dict:
+    """Build (segment → extract → resolve → graph → communities → summaries → persist →
+    materialise) from the project's CURRENT ``markdown/`` corpus — the deterministic core
+    shared by ``digest`` (after conversion) and ``merge_memory`` (after copying source
+    corpora, no conversion). Returns the token-free result dict (no incremental block)."""
+    conv = conv or []
     all_md = sorted(cfg.markdown_dir.glob("*.md"))
 
     # Segment + extract.
@@ -461,15 +637,17 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
     # build recency is observable from file mtimes.
     graph_doc = {
         "project": cfg.project,
-        "version": 1,
+        # Single-sourced from store.SCHEMA_VERSION (v2 in v3.0.0): adding a literal here is a
+        # CI lint failure. v2 = documents[] carry a portable per-document sha256.
+        "version": store.SCHEMA_VERSION,
         "synopsis": synopsis,
         "nodes": [{"id": n, **{k: v for k, v in G.nodes[n].items()}} for n in G.nodes()],
         "edges": [{"source": u, "target": v, "weight": d["weight"],
                    "labels": sorted(d.get("labels", []))} for u, v, d in G.edges(data=True)],
         "communities": communities,
-        "documents": _documents(cfg, all_md, conv),
+        "documents": _documents(cfg, all_md, conv, manifest),
         "stats": {
-            "files": len(files),
+            "files": files_count if files_count is not None else len(all_md),
             "converted": len(all_md),
             "chunks": len(all_chunks),
             "unique_chunks": len(unique_chunks),
@@ -518,8 +696,6 @@ def _digest_locked(cfg: Config, paths: list[str], reset: bool) -> dict:
         },
         "conversion": _conv_tally(conv),
     }
-    from .archive import cleanup_unpacked
-    cleanup_unpacked(cfg)            # extracted-archive scratch; the markdown persists
     return result
 
 
@@ -608,7 +784,8 @@ def _reset_project(cfg: Config) -> None:
     for path in (cfg.markdown_dir, cfg.memory_dir, cfg.unpack_dir):
         shutil.rmtree(path, ignore_errors=True)
     for f in (cfg.graph_path, cfg.vectors_path,
-              cfg.vectors_path.with_suffix(".json"), cfg.bm25_index_path, cfg.memory_md):
+              cfg.vectors_path.with_suffix(".json"), cfg.bm25_index_path,
+              cfg.manifest_path, cfg.memory_md):
         try:
             f.unlink()
         except OSError:
@@ -633,12 +810,20 @@ def _parse_md_header(md: Path) -> tuple[str, str]:
     return src, method
 
 
-def _documents(cfg: Config, all_md: list[Path], conv: list[dict]) -> list[dict]:
+def _documents(cfg: Config, all_md: list[Path], conv: list[dict],
+               manifest: dict | None = None) -> list[dict]:
     """Document manifest across the FULL corpus, plus this call's non-ok files.
 
     ``output`` is stored as a basename (not an absolute path) so a copied memory
-    bundle stays portable across machines / MTA_HOME locations.
+    bundle stays portable across machines / MTA_HOME locations. ``sha256`` (schema v2) is
+    the source file's content hash — portable (not machine-specific) and deterministic, so
+    it joins the byte-identity contract and powers cross-machine diff/merge. It is looked up
+    from the incremental manifest by output name; absent for a document whose source hash
+    is unknown (e.g. a v1 store migrated in place).
     """
+    out_to_sha = {e["out"]: e["sha256"]
+                  for e in (manifest or {}).values()
+                  if isinstance(e, dict) and e.get("out") and e.get("sha256")}
     docs = []
     ok_names: set[str] = set()
     for md in all_md:
@@ -650,8 +835,12 @@ def _documents(cfg: Config, all_md: list[Path], conv: list[dict]) -> list[dict]:
         except OSError:
             chars = 0
         ok_names.add(src)
-        docs.append({"name": src, "output": md.name, "status": "ok",
-                     "method": method, "chars": chars})
+        doc = {"name": src, "output": md.name, "status": "ok",
+               "method": method, "chars": chars}
+        sha = out_to_sha.get(md.name)
+        if sha:
+            doc["sha256"] = sha
+        docs.append(doc)
     for c in conv:  # surface files that failed/were unsupported this run (no dup)
         if c.get("status") != "ok":
             nm = Path(c.get("source", "")).name

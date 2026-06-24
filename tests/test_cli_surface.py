@@ -76,7 +76,7 @@ def test_recipes_text_and_json(home, capsys):
     assert "connection recipes" in capsys.readouterr().out
     assert main(["recipes", "--format", "json"]) == 0
     data = _json_out(capsys)
-    assert data["tools"] == 8 and "auto" in data["surfaces"]
+    assert data["tools"] == 11 and "auto" in data["surfaces"]
 
 
 def test_export_schema_all_and_one(home, capsys, tmp_path):
