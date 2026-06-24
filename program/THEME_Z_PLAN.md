@@ -29,19 +29,39 @@ directed typed relation; `graph.build_graph` records `(type, from, to)` on the e
 Backbone/weights/communities unchanged (precision gate: non-cued edges byte-identical). No
 schema bump (additive). Tests: `tests/test_typed_relations.py`. **English-only.**
 
-### WP-123 — fact salience + confidence (+ provenance codepoint-offset spans)
-Add a deterministic numeric `salience` and `confidence ∈ [0,1]` per fact, and a
-`span:{doc, start, end}` over the digest-time `.md` (store the converter-fingerprint; mark
-stale on mismatch). Additive to `nodes[].facts[]`. Pairs with WP-134.
+### ✅ WP-123 — fact salience + confidence (DONE, additive — S30)
+`graph.build_graph` now stamps each fact with a deterministic `salience` (int — count of
+distinct entities the fact names) and `confidence ∈ [0,1]` (≥0.7 when it explicitly names a
+holder, 0.5 for a fallback attachment). Additive to `nodes[].facts[]`; facts are NOT reordered,
+so recall meta / bm25 / render are unchanged and `graph.json` stays byte-identical run-to-run.
+Tests: `tests/test_fact_salience.py`. Accumulating on `develop` (not released alone).
 
-### WP-121 (sub-types half) — entity sub-types in the schema
-Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
-closed `subtype` enum to nodes (gated on the 4 proofs in ROADMAP_V3 WP-121).
+### ✅ WP-123b — provenance codepoint-offset spans (DONE, additive — S31)
+Solved without touching the determinism-critical segment/extract pipeline: a **post-digest
+best-effort locator** (`digest._attach_fact_spans` + `_normalize_with_map`) finds each fact in
+its source `.md` via a whitespace-/case-tolerant search that maps back to exact codepoint
+offsets, stamping `span:{doc,start,end}`. `documents[]` gain an `md_sha` fingerprint of the `.md`
+the offsets index into (stale-detection). A fact whose stored text isn't verbatim in the `.md`
+(PII-redacted / Bengali-reorder-normalised) gets no span — honest best-effort. Additive,
+deterministic; recall/render/meta/bm25 untouched. Tests: `tests/test_provenance_spans.py`.
+A future refinement could thread exact sentence offsets through segmentation for 100% coverage.
 
-### WP-134 — provenance pointers over text (consumes WP-123 spans)
-Recall cites `doc + codepoint-offset`; pointer-only stays token-free.
+### ✅ WP-121 (sub-types half) — entity sub-types in the schema (DONE, additive — S32)
+`extract._infer_subtype` + `graph.build_graph` stamp graph nodes with an additive, deterministic
+closed-enum `subtype` refining the coarse `type` (org → government/financial/education/nonprofit/
+company; place → division/district/upazila/city/town/union/village/region/ward, gazetteer-first).
+High-precision (no cue ⇒ no field), English-only. Tests: `tests/test_entity_subtypes.py`.
+*(The per-script `_SCRIPT_BLOCKS` **resolution/normalization** half stays a separate v2.9-style
+item — gated on ROADMAP_V3 WP-121's 4 proofs — not part of this schema brick.)*
 
-### WP-122 (pin) — community-algorithm pin ([C1])
+### ✅ WP-134 — provenance pointers in recall (DONE, additive — S33)
+First **consumer** brick. `recall._node_spans` + `_hit` surface the WP-123b fact spans as a
+pointer-only `spans` list (`{doc,start,end}`, capped) on entity hits — derived from
+`graph.json` **at query time**, so the stored recall index (`vectors.json`/`bm25_index.json`)
+is untouched and old stores work with no re-digest. Pointer-only → token-free; theme hits and
+unlocatable facts have no `spans`. Tests: `tests/test_recall_provenance.py`.
+
+### WP-122 (pin) — community-algorithm pin ([C1])  ← NEXT
 Make NetworkX Louvain the deterministic default regardless of `leidenalg` presence
 (canonical node ordering; `_from_sets` numbers communities by `min(sorted(member_ids))`);
 Leiden strictly opt-in (`MTA_COMMUNITY_ALGO=leiden`). **Breaking** (changes partitions) →

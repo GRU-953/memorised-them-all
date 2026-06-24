@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
   "name": "io.github.gru-953/memorised-them-all",
   "description": "Local, token-free file → knowledge-graph memory for any MCP client — Claude (Desktop & Code), Gemini CLI, Cursor, VS Code, Windsurf, ChatGPT's Codex and Grok. Converts any attachment — PDF, Office (incl. legacy .doc/.ppt/.xls), HTML, CSV, EPUB and more — to Markdown and digests it into a layered graph + exportable memory, entirely on-device. Deterministic and model-free (no LLM/embedding model/GPU), so it always completes and is byte-identical. Re-digests are incremental (only changed files are re-read); export, import, merge and diff memories across machines. 11 MCP tools; BM25 recall with document / entity-type / multi-project filters returns a tiny cited slice; PII suppressed; archives unpacked safely; legacy Bengali auto-converted to Unicode. Cross-platform (Linux/macOS/Windows).",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "repository": {
     "url": "https://github.com/GRU-953/memorised-them-all",
     "source": "github"
@@ -12,7 +12,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "memorised-them-all",
-      "version": "3.2.0",
+      "version": "3.3.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {

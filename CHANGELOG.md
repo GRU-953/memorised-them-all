@@ -6,6 +6,46 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [3.3.0] — 2026-06-25
+
+Theme-Z additive bricks — a richer knowledge graph + provenance, shipped ahead of the
+graph-schema-v3 major. **All additive and invariant-safe** (token-free, 100% local,
+deterministic, model-free): no breaking changes, no new tools, no graph-schema bump. New
+fields ride `graph.json` (existing consumers ignore them) and recall provenance is derived at
+query time, so the stored recall index is unchanged and **no re-digest is required** — though
+re-digesting populates the new graph fields for older memories.
+
+### Added
+- **Provenance pointers in recall (WP-134).** `recall` now surfaces the WP-123b fact spans as a
+  pointer-only `spans` list (`{doc, start, end}` codepoint offsets, capped) on entity hits, so an
+  assistant can cite *exactly where* a fact came from in the source `.md`. Spans are derived from
+  `graph.json` **at query time** — the stored recall index (`vectors.json` / `bm25_index.json`)
+  is unchanged, so old stores work with no re-digest. Pointer-only (no extra text) → stays
+  token-free; theme hits and unlocatable facts simply have no `spans`. No new tools.
+- **Entity sub-types (WP-121, schema half).** Graph nodes now carry an additive, deterministic
+  `subtype` — a closed-enum refinement of the coarse `type` — when a confident cue applies: org →
+  `government`/`financial`/`education`/`nonprofit`/`company`; place →
+  `division`/`district`/`upazila`/`city`/`town`/`union`/`village`/`region`/`ward` (the
+  Bangladesh gazetteer classifies divisions vs districts). High-precision (no cue ⇒ no field),
+  English-only by construction. Additive and deterministic (`graph.json` byte-identical
+  run-to-run); recall/render read `label`/`type`/`facts` only, so they're unaffected. No schema
+  bump, no new tools.
+- **Fact salience + confidence (WP-123).** Every fact in `graph.json` now carries an additive,
+  deterministic `salience` (integer — how many distinct entities the fact names) and
+  `confidence` ∈ `[0,1]` (higher when the fact explicitly names its holder entity, `0.5` for a
+  fallback attachment). Pure functions of the extraction, so `graph.json` stays byte-identical
+  run-to-run; facts are **not** reordered, so recall/render and the recall meta/BM25 index are
+  unchanged (ranking by these values is the later recall/render-v2 brick). No schema bump, no
+  new tools.
+- **Fact provenance offset spans (WP-123b).** Each locatable fact now also carries a
+  best-effort `span` (`{doc, start, end}` — codepoint offsets into the digest-time `.md`),
+  computed by a deterministic, whitespace-/case-tolerant locate (so a fact that wraps across
+  `.md` line breaks still resolves to exact offsets); a fact whose stored text can't be found
+  verbatim (e.g. PII-redacted) simply gets no span. `documents[]` gain an `md_sha` fingerprint
+  of the converted `.md` so a consumer can detect a stale span. Additive and deterministic
+  (`graph.json` byte-identical run-to-run); recall/render and the recall meta/BM25 index are
+  unaffected (spans live in `graph.json` only). Pairs with WP-134 (recall citing by offset).
+
 ## [3.2.0] — 2026-06-25
 
 Typed relations (first additive brick of the Theme-Z graph-schema arc) + a full

@@ -150,6 +150,63 @@ def _infer_type(name: str, text: str) -> str:
     return "other"
 
 
+# WP-121 (Theme-Z): finer-grained entity SUB-TYPES — a deterministic, high-precision
+# refinement of the coarse `type`, stored additively on graph nodes (closed enums). Ordered
+# so the most specific keyword wins; a name with no confident cue gets no sub-type (omitted).
+# The 8 Bangladesh divisions (a subset of `_BD_PLACES`) → "division"; every other gazetteer
+# hit → "district". English-only by construction (Bengali names type as "other" → no sub-type).
+_BD_DIVISIONS = frozenset({
+    "Dhaka", "Chattogram", "Chittagong", "Rajshahi", "Khulna", "Barishal", "Barisal",
+    "Sylhet", "Rangpur", "Mymensingh",
+})
+_ORG_SUBTYPES = (
+    ("government", frozenset({"Ministry", "Department", "Authority", "Commission",
+                             "Council", "Committee", "Agency", "Bureau", "Directorate",
+                             "Government", "Parishad"})),
+    ("financial", frozenset({"Bank", "Fund", "Finance", "Microfinance", "Insurance", "Credit"})),
+    ("education", frozenset({"University", "College", "School", "Institute", "Academy",
+                            "Madrasa", "Madrasah"})),
+    ("nonprofit", frozenset({"Foundation", "Association", "Society", "Trust", "Federation",
+                            "NGO", "Charity"})),
+    ("company", frozenset({"Corporation", "Company", "Ltd", "Inc", "Corp", "Limited", "Co",
+                          "GmbH", "LLC", "PLC", "Industries", "Enterprise", "Enterprises"})),
+)
+_PLACE_SUBTYPES = (
+    ("division", frozenset({"Division"})),
+    ("district", frozenset({"District"})),
+    ("upazila", frozenset({"Upazila", "Thana", "Sub-district"})),
+    ("city", frozenset({"City"})),
+    ("town", frozenset({"Town"})),
+    ("union", frozenset({"Union"})),
+    ("village", frozenset({"Village"})),
+    ("region", frozenset({"Region", "Zone"})),
+    ("ward", frozenset({"Ward"})),
+)
+
+
+def _infer_subtype(label: str, etype: str) -> str | None:
+    """Deterministic entity sub-type (closed enum) refining the coarse ``etype`` — or
+    ``None`` when no confident cue applies (so the field is additive). org →
+    government/financial/education/nonprofit/company; place →
+    division/district/upazila/city/town/union/village/region/ward (gazetteer first)."""
+    words = set(label.split())
+    if etype == "org":
+        for sub, keys in _ORG_SUBTYPES:
+            if words & keys:
+                return sub
+        return None
+    if etype == "place":
+        if label in _BD_DIVISIONS:
+            return "division"
+        if label in _BD_PLACES:
+            return "district"
+        for sub, keys in _PLACE_SUBTYPES:
+            if words & keys:
+                return sub
+        return None
+    return None
+
+
 _BN_DIGITS = "০১২৩৪৫৬৭৮৯"
 
 # Long digit-runs = phone/NID/account numbers (Latin OR Bengali numerals). Used to keep
