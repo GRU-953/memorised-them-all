@@ -17,7 +17,7 @@
 [![Model-free](https://img.shields.io/badge/AI%20models-none%20needed-10b981)](#-why-no-ai-model)
 [![Tokens](https://img.shields.io/badge/context%20tokens-~0-10b981)](#-why-is-it-token-free)
 
-<sub><b>v2.6</b> · works with Claude · Gemini · Cursor · VS&nbsp;Code · Windsurf · Codex · Grok · 100% local · deterministic · model-free · token-free · English&nbsp;+&nbsp;Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
+<sub><b>v3.0</b> · works with Claude · Gemini · Cursor · VS&nbsp;Code · Windsurf · Codex · Grok · 100% local · deterministic · model-free · token-free · incremental · English&nbsp;+&nbsp;Bengali · <a href="CHANGELOG.md">what's new →</a></sub>
 
 <p>
 <a href="#-what-is-this"><b>What is this?</b></a> ·
@@ -221,6 +221,7 @@ It's been hardened through repeated, deliberate stress-testing and multiple adve
 - **It reads awkward files.** Windows "Unicode" (UTF-16) text, archives (zip/tar/gz natively, rar/7z when an extractor is installed — unpacked safely, duplicates detected), and legacy Bengali fonts are handled; media, fonts, and junk files are skipped cleanly.
 - **It can't be tricked into reading elsewhere.** A shortcut planted in a folder that points *outside* it is ignored, and archives are unpacked behind Zip-Slip, decompression-bomb, and depth guards.
 - **It's fast at scale.** Recall returns in milliseconds even on large memories (a pre-tokenized index is built at digest time), and trivial text files convert without per-file process overhead.
+- **Re-digesting is incremental.** Point it at the same folder again and it re-reads only the files whose bytes changed and drops ones you deleted — so keeping a big library current is quick, and the rebuilt memory is byte-for-byte identical to a full re-digest.
 
 ---
 
@@ -282,20 +283,23 @@ No — and that's deliberate. The engine is **fully deterministic**: it extracts
 
 ---
 
-## 🧰 The eight tools your AI gets
+## 🧰 The eleven tools your AI gets
 
-Once installed, your assistant can use these eight tools on your behalf (you just talk normally — it picks the right one):
+Once installed, your assistant can use these eleven tools on your behalf (you just talk normally — it picks the right one):
 
 | Tool | What it does for you |
 | --- | --- |
-| **digest** | Reads files/folders and builds (or updates) the memory. |
+| **digest** | Reads files/folders and builds (or updates) the memory. **Incremental:** re-running only re-reads the files that changed. |
 | **convert** | Just converts files to clean Markdown (no memory) — handy for exporting or fixing legacy Bengali. |
 | **recall** | Answers a question from memory with a few relevant, cited snippets. |
 | **memory_overview** | Gives the big picture — a synopsis and the main themes. |
 | **list_digestible** | Shows which files in a folder it can read. |
-| **export_memory** | Saves the memory as portable Markdown + a JSON knowledge-graph sidecar ([export spec](docs/export-format/v1/)). |
+| **export_memory** | Saves the memory as portable Markdown + a JSON knowledge-graph sidecar, plus **GraphML + CSV** for Gephi/Excel ([export spec](docs/export-format/v1/)). |
 | **memory_status** | Reports your local setup — deterministic engine, OCR/MarkItDown availability, platform, and existing projects. |
-| **forget** | Deletes a project's memory (you name it explicitly). |
+| **forget** | Deletes a project's memory (you name it explicitly; `secure` overwrites the bytes first). |
+| **diff_memory** | Compares two memories — which documents, people and themes differ. |
+| **import_memory** | Restores an exported memory bundle into a project (great for moving a memory between machines). |
+| **merge_memory** | Combines several projects' memories into one. |
 
 Every tool returns only small results — **never your documents' contents**.
 
@@ -311,11 +315,15 @@ You don't need any of this to use the app — but it's here if you want it.
 The same engine ships as an `mta` command:
 
 ```bash
-mta digest ~/Documents/research        # build/update memory (deterministic, model-free)
+mta digest ~/Documents/research        # build/update memory (incremental — only re-reads changed files)
 mta recall "what about the Q3 budget?" # query it (BM25 recall, cited slices)
 mta overview                            # synopsis + themes
 mta convert ~/docs --out ~/md_out       # just convert to Markdown (incl. legacy Bengali)
-mta export ./notes                      # export portable Markdown + graph.json sidecar
+mta export ./notes                      # portable Markdown + graph.json + GraphML + CSV
+mta diff other-project                  # compare two memories (docs/entities/themes)
+mta import ./notes                      # restore an exported bundle into this project
+mta merge --into combined projA projB   # merge several projects' memories into one
+mta forget --secure                     # delete a project's memory (overwrite bytes first)
 mta status                              # local stack health   ·   mta doctor  (fix deps)
 mta setup                               # auto-configure every detected AI client (--dry-run to preview)
 mta setup-claude                        # Claude-only variant (Desktop + Code)
@@ -325,7 +333,7 @@ mta setup-claude                        # Claude-only variant (Desktop + Code)
 <details>
 <summary><b>Use it from other AI apps (Gemini, Cursor, VS Code, Codex, OpenAI, plain HTTP)</b></summary>
 
-`mta setup` auto-registers the local server into every MCP client it finds. For clients that take only *remote* MCP (the ChatGPT app, the xAI API) — or any other integration — the same eight tools are served beyond stdio:
+`mta setup` auto-registers the local server into every MCP client it finds. For clients that take only *remote* MCP (the ChatGPT app, the xAI API) — or any other integration — the same eleven tools are served beyond stdio:
 
 ```bash
 mta setup            # auto-configure every detected stdio MCP client (--dry-run to preview)
@@ -344,9 +352,10 @@ Both HTTP modes are loopback-only by default and require a bearer token (with a 
 `mta export ./bundle` (or the `export_memory` tool) writes a **neutral, versioned** bundle that any assistant can consume:
 
 - `memory.md` + per-document notes — UTF-8 Markdown.
-- `graph.json` — a JSON knowledge-graph sidecar (entities, relations, themes with **stable IDs**), validated against a published [JSON Schema](docs/export-format/v1/graph.schema.json) in CI.
+- `graph.json` — a JSON knowledge-graph sidecar (entities, relations, themes with **stable IDs**, plus a portable per-document content hash), validated against a published [JSON Schema](docs/export-format/v1/graph.schema.json) in CI.
+- `graph.graphml` + `entities.csv` / `relations.csv` — deterministic exports you can open straight in Gephi / yEd / Cytoscape or a spreadsheet.
 
-Feed `graph.json` first (it's a compact index) then Markdown on demand when an assistant's context is smaller than the bundle. Full spec + per-assistant import notes: [`docs/export-format/v1`](docs/export-format/v1/).
+Feed `graph.json` first (it's a compact index) then Markdown on demand when an assistant's context is smaller than the bundle. Bring a bundle back with **`mta import`** (or the `import_memory` tool). Full spec + per-assistant import notes: [`docs/export-format/v1`](docs/export-format/v1/).
 </details>
 
 <details>
@@ -371,6 +380,7 @@ Everything has sensible defaults. Common knobs (set as environment variables):
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MTA_HOME` | `~/.memorised-them-all` | where memory is stored |
+| `MTA_INCREMENTAL` | `on` | re-digest only re-converts files whose bytes changed and prunes deleted ones (`off` forces a full re-convert; `reset` always does) |
 | `MTA_SKIP_MEDIA` | `on` | skip photos/video/audio (set `off` to OCR images with Tesseract) |
 | `MTA_SKIP_FONTS` / `MTA_SKIP_GDRIVE` / `MTA_SKIP_JUNK` | `on` | skip font files / Google-Drive pointer stubs / `.tmp`,`.DS_Store` junk |
 | `MTA_ARCHIVE_RECURSIVE` | `on` | unpack zip/tar/gz (+ rar/7z via `unar`/`7z`) recursively, with bomb + path-traversal guards |

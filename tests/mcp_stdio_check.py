@@ -10,7 +10,8 @@ import os
 import sys
 
 EXPECTED = {"digest", "convert", "recall", "memory_overview", "export_memory",
-            "list_digestible", "memory_status", "forget"}
+            "list_digestible", "memory_status", "forget",
+            "diff_memory", "import_memory", "merge_memory"}
 
 
 async def _main() -> int:

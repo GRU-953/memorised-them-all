@@ -1,4 +1,4 @@
-"""WP-22 — local REST gateway: the eight tools over plain JSON HTTP.
+"""WP-22 — local REST gateway: the eleven tools over plain JSON HTTP.
 
 Serves exactly the OpenAPI 3.1 surface that :mod:`mta.interop.schemas` describes —
 ``POST /tools/{name}`` with a JSON body of the tool's arguments returns the tool's
@@ -53,7 +53,8 @@ def _tool_registry() -> dict:
     fns = (
         server.digest, server.convert, server.recall, server.memory_overview,
         server.export_memory, server.list_digestible, server.forget,
-        server.memory_status,
+        server.memory_status, server.diff_memory, server.import_memory,
+        server.merge_memory,
     )
     return {fn.__name__: fn for fn in fns}
 

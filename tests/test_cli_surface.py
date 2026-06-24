@@ -61,9 +61,14 @@ def test_convert_writes_markdown(home, capsys, tmp_path):
 
 
 def test_doctor_dry_run(home, capsys):
+    # default: the human-readable plain-English report (WP-153)
     assert main(["doctor", "--dry-run"]) == 0
+    text = capsys.readouterr().out
+    assert "Common problems" in text and "→" in text
+    # --json: structured dict (for scripts / setup-verify)
+    assert main(["doctor", "--dry-run", "--json"]) == 0
     out = _json_out(capsys)
-    assert "scan" in out and out["dry_run"] is True
+    assert "scan" in out and out["dry_run"] is True and "report" in out
 
 
 def test_recipes_text_and_json(home, capsys):
@@ -71,7 +76,7 @@ def test_recipes_text_and_json(home, capsys):
     assert "connection recipes" in capsys.readouterr().out
     assert main(["recipes", "--format", "json"]) == 0
     data = _json_out(capsys)
-    assert data["tools"] == 8 and "auto" in data["surfaces"]
+    assert data["tools"] == 11 and "auto" in data["surfaces"]
 
 
 def test_export_schema_all_and_one(home, capsys, tmp_path):

@@ -729,3 +729,45 @@ User: "Cleanup and update the GitHub repository and completely redevelop the rea
 **Shipped/live:** PR #80 merged to `main` → GitHub README, Claude plugin marketplace, and Glama render from the default branch and now show the cross-AI framing. PR #81 merged `main` → `develop` (source of truth carries it forward).
 
 **EXACT NEXT STEP:** Nothing required. If the owner wants PyPI's project page / `.mcpb` manifest / MCP-registry entry to show the new description *now* (they refresh only on the next release), cut a docs-only **v2.6.2** patch: bump all 7 surfaces, CHANGELOG, FF `main`, owner tag-pushes `v2.6.2` (sandbox blocks tag pushes via HTTP-403 → train fires from an authenticated clone).
+
+**S25 addendum — v2.6.2 cut (docs/metadata refresh) + GHCR-public guidance.** User: "continue and How to GHCR public pulls." (1) **Cut v2.6.2** so the release-only channels show the cross-AI text: bumped all 7 surfaces 2.6.1→2.6.2 + CHANGELOG [2.6.2] + de-Claude-only'd the `mta/__init__.py` docstring; **no code/API/schema change** (identical package to 2.6.0/2.6.1). PR #83 → `develop` (10/10 green, incl. `build`'s twine-check = README renders on PyPI), PR #84 release → `main` (21/21 green, both ci.yml + e2e.yml runs). `main` = `develop` = **2.6.2**, untagged. **▶ OWNER tag-push `v2.6.2`** (sandbox 403) fires PyPI/GitHub-Release/.mcpb/Homebrew/GHCR; `mcp-publisher publish` updates the registry. (2) **GHCR public pulls** (`ghcr.io/gru-953/memorised-them-all`): the image is pushed via the built-in `GITHUB_TOKEN` so the package is **user-owned → defaults to private** (anon pull 404). Fix is a one-time UI action (no clean REST/`gh` path, and my repo-scoped tools can't flip package visibility): github.com/users/GRU-953/packages → `memorised-them-all` → Package settings → Danger Zone → **Change visibility → Public** → confirm; then `docker logout ghcr.io && docker pull ghcr.io/gru-953/memorised-them-all:latest` works anonymously. "Inherit access from source repository"/repo-linking governs authenticated collaborator access, NOT anon pulls. **SECURITY (unchanged):** the two GitHub PATs the user pasted earlier this session must be revoked — never used/stored/committed.
+
+---
+
+## Session 26 — 2026-06-21 — v2.6.2 shipped + v3.0.0 roadmap planned
+
+**Session id:** S26  **Branch:** `docs-roadmap-v3` → `develop`  **Mode:** release-verify + planning (no engine code)
+
+**Release-verify:** owner tag-pushed `v2.6.2`, flipped GHCR public, revoked the two pasted PATs.
+Verified job-by-job: release run 27900687385 = success (build · PyPI OIDC · GitHub Release+SBOM+cosign ·
+Homebrew tap bump) and docker run 27900687379 = success (GHCR multi-arch `:2.6.2`+`:latest`,
+amd64+arm64). `main` = `develop` = 2.6.2 live on every channel.
+
+**Planning — `program/ROADMAP_V3.md` (new):** consolidated the owner's directives across the session
+into a v2.7 → v3.0.0 plan. Themes: A quality/hardening · B file→Markdown conversion (stability/
+accuracy/perf/efficiency) · C data mapping & graphing · D retrieval + token frugality · E lifecycle/
+big-corpus · F cross-AI breadth (Ollama/LM Studio/…) + novice per-platform guides · G mobile
+(Android/iOS — remote-MCP + Termux now, native app a post-3.0 stretch) · H frictionless install +
+README/USER_GUIDE overhaul (novice-first, time-to-first-memory <5 min) · I dependency reduction
+(tiny pure-Python core; heavy stuff opt-in extras — unblocks mobile) · J Bijoy/Unicode Bangla · K
+cross-cutting perf/stability/accuracy/efficiency KPIs · Z v3.0.0 marquee = **graph schema v2** (typed/
+temporal/confident facts, salience, provenance offsets, sub-types) auto-migrated via the stubbed
+`store._MIGRATIONS`. WP-100…WP-204 minted; release train + global acceptance gates + invariant flags
+(model-free/local/token-free/deterministic preserved; hybrid embeddings, numpy, encryption, on-device
+mobile all opt-in/staged). Grounded in two read-only audits (deferred backlog from RISKS/IMPROVEMENT_
+PLAN/DECISIONS; engine architecture + quality ceilings). Nothing built yet — planning artifact.
+
+**EXACT NEXT STEP:** Kick off **v2.7.0** per ROADMAP_V3. First PR = WP-100/101/102 (atomic `.md` write
+[R-19] + Brahmic-block skeleton-merge generalize [R-16] + length-aware fuzzy threshold [R-17]) — one
+small, fully-deterministic, test-first change on `wp-100-...` → PR into `develop`. Residual non-code:
+owner to refresh the GitHub repo **About description + topics** to cross-AI (no edit-repo tool in-session).
+
+**S26 addendum — 5-round adversarial review of ROADMAP_V3 → CONVERGED.** User: "critically/systematically review and update the improvement plan using the maximum expert agents, attacking each task, repeat until nothing to fix; fully automatic." Ran **26 expert-agent reviews** across 5 rounds against the live code: R1 (10 lenses: invariant/feasibility/semver/novice/security/KPI/scope/Bengali/traceability/migration) → ~5 Critical + ~14 High; R2 (7 fresh incl. convergence + internal-consistency auditors) → 4 Critical; R3 (6 fresh) → **0 Critical** (convergence auditor: all R2 items resolved); R4 = precision edit pass; **R5 (3 confirm lenses) → CONVERGED, no new Critical/High.** Criticals trend 5→4→0→0. Folded every Critical/High into the plan + added **ADR-010** (dependency deprecate-then-remove; default-capability removal = major). Headline fixes (all code-grounded): community-detection is env-nondeterministic today (auto→Leiden/Louvain) → [C1] determinism matrix + algo pin rides v3.0; schema-v2 migration machinery is unbuilt + `_backup_store` best-effort → [C5] (write-lock-only `mta migrate`, `.migrating` sentinel, abort-on-failed-backup, migrated≠fresh); numpy-removal would `no_memory` recall + diverge the graph → WP-181a merge-decision-identical pure-Python + sidecar-writer split + gate vs v2.6.2 baseline; WP-201 "byte-identical index" impossible → canonical-order summation→exact top-k; eval corpus is 0-Bengali & run_eval already CI-gated → WP-202a scoped to BN+conversion+baseline; WP-180/181 default-capability removal mis-scheduled into a minor → additive-in-v2.7, removal-in-v3.0 (ADR-010); macOS notarization absent → WP-175 (Win Authenticode + mac Developer ID); ChatGPT/Grok absent → WP-155 + Theme F restated; novice gaps → WP-174 (Python-bundled) / WP-176 (uninstall) / WP-177 (a11y+bn); WP-160 per-device tokens + live revocation + explicit TLS enforcement + ≥128-bit `/pair`; data-mapping → WP-127; Bengali blanket-rule & Boishakhi mis-route → WP-191 (4 rejected rules stay rejected) / WP-193 (fix+route, map-registry). Branch `docs-roadmap-v3-review`; commits per round; ADR-010 in DECISIONS.md.
+
+**EXACT NEXT STEP:** Merge PR (`docs-roadmap-v3-review` → `develop`). Then kick off **v2.7.0** per ROADMAP_V3: first WP branch = **WP-100/101/102** (atomic `.md` [R-19] + per-script Brahmic [R-16] + length-aware fuzzy [R-17]), test-first. Owner pre-reqs: paid code-signing identities (WP-175); confirm community-algo pin (v3.0); refresh the GitHub repo About description to cross-AI.
+
+---
+
+**S27 — v3.0.0 "Living memory + interchange" (owner-directed `/dev-gru953` task; WP-300).** User asked to clone, critically analyse the repo + its upgrade plan, redevelop to **v3.0.0**, and publish. **Analysis correction:** my first read (off `main`) wrongly concluded "backlog exhausted"; `develop` is +13 commits with the **adversarially-converged `program/ROADMAP_V3.md`** and six shipped v2.7 WPs (slim-core spine). Surfaced this divergence to the owner — the roadmap reserves v3.0.0 for the larger Theme-Z graph-schema-v2. **Owner chose (twice, informed):** ship the **"living memory + interchange"** set as 3.0.0 and **publish all the way as GRU-953**. **Delivered on `wp-300-v3-living-memory` off `develop`, test-first, all invariants intact:** incremental digest (content-hash `manifest.json` sidecar, `MTA_INCREMENTAL`, prune-removed, byte-identical-to-full proven), graph **schema v2** (`documents[].sha256` + `_MIGRATIONS[1]` contiguous chain; `digest` stamps `store.SCHEMA_VERSION`), **3 new tools 8→11** (`diff_memory`/`import_memory`/`merge_memory`) via a refactored shared `_rebuild_from_markdown`, deterministic **GraphML + CSV** exports, **`forget --secure`**. Bumped all 7 surfaces → 3.0.0 (check_versions OK); **325 pass / 2 skip** (Py 3.14, +~39 tests `test_v3_living_memory.py`); wheel+sdist **twine PASSED**; CHANGELOG `[3.0.0]` + README/manifest/export-spec/CITATION updated; test EXPECTED sets + "eight→eleven" prose updated. Note: this pulls roadmap **WP-140/125/142** forward; Theme-Z schema work remains roadmapped.
+
+**EXACT NEXT STEP:** Push `wp-300-v3-living-memory`; open PR → `develop`; get the full CI matrix green (Ubuntu/macOS/Windows × 3.10/3.12 + conversion-e2e + mcpb smoke); then FF `main` and **tag-push `v3.0.0`** to fire the release train (PyPI OIDC → GitHub Release+SBOM+cosign+`.mcpb` → Homebrew tap → GHCR); verify each channel.

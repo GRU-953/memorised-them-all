@@ -92,8 +92,15 @@ def test_load_meta_no_memory_semantics(tmp_path):
     assert store.load_meta(cfg) is None                       # nothing digested
     _seed(cfg)
     assert store.load_meta(cfg) is not None
-    cfg.vectors_path.unlink()                                  # bare sidecar = incomplete
-    assert store.load_meta(cfg) is None                       # preserves no_memory
+    # WP-181a: a bare sidecar (no vectors.npz) is now a VALID numpy-free store, not "torn"
+    # — recall reads the sidecar, never the matrix — so load_meta still returns it.
+    cfg.vectors_path.unlink()
+    assert store.load_meta(cfg) is not None
+    # The real no_memory signals: the sidecar is gone, or it's an empty/garbage list.
+    cfg.vectors_path.with_suffix(".json").unlink()
+    assert store.load_meta(cfg) is None
+    cfg.vectors_path.with_suffix(".json").write_text("[]", encoding="utf-8")
+    assert store.load_meta(cfg) is None                       # empty sidecar = no_memory
 
 
 def test_recall_never_loads_matrix(tmp_path, monkeypatch):

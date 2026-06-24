@@ -7,6 +7,7 @@ clears the calibrated floor. Runs on the standard CI matrix.
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -27,3 +28,24 @@ def test_eval_harness_meets_floor(tmp_path):
     assert m["entities"] > 0
     assert m["embed_mode"] == "hash"                    # exercising the offline path
     assert m["recall_at_k"] >= floor, (m["recall_at_k"], floor, m["per_query"])
+
+
+def test_per_suite_floors_including_bengali(tmp_path):
+    # WP-202a: English AND Bengali each gate independently, so a Bengali-recall regression
+    # can't hide behind strong English recall. The BN suite must actually run.
+    h = _load_harness()
+    m = h.run(tmp_path)
+    by_suite = m["recall_by_suite"]
+    assert "bn" in by_suite and "en" in by_suite, by_suite
+    for suite, floor in h.GOLDEN["floors"].items():
+        assert by_suite.get(suite, 0.0) >= float(floor), (suite, by_suite, m["per_query"])
+
+
+def test_baseline_frozen_and_consistent():
+    # The frozen baseline exists, matches golden's k, and never sits below the gate floor
+    # (the floor is calibrated below the baseline, not above it).
+    h = _load_harness()
+    base = json.loads((REPO / "eval" / "baseline.json").read_text(encoding="utf-8"))
+    assert base["k"] == h.GOLDEN["k"]
+    for suite, got in base["recall_by_suite"].items():
+        assert got >= float(h.GOLDEN["floors"][suite])

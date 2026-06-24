@@ -15,37 +15,21 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
-import numpy as np
+try:
+    import numpy as np
+    _HAVE_NUMPY = True
+except Exception:  # noqa: BLE001 — numpy is optional (WP-181a): the recall path is meta-only,
+    np = None      # so a numpy-free core still digests (no vectors.npz) and recalls (sidecar).
+    _HAVE_NUMPY = False
 
 from .config import Config
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Write text durably: temp file in the same dir → fsync → os.replace.
-
-    Guarantees a reader never sees a half-written file, and an interrupt
-    (crash/power loss) leaves the *previous* valid file intact rather than a
-    truncated one. utf-8 explicit (Windows defaults to cp1252); ``newline=""`` disables
-    the platform newline translation so graph.json/memory.md/notes are byte-identical
-    across OSes (the determinism invariant holds cross-machine, not just same-OS).
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+# Single shared crash-safe writer ([C2]); re-exported under the legacy name so
+# store/render callers are unchanged.
+from ._io import atomic_write_text as _atomic_write_text  # noqa: E402
 
 
 def save_graph(cfg: Config, graph_doc: dict) -> None:
@@ -71,12 +55,28 @@ def save_graph(cfg: Config, graph_doc: dict) -> None:
 
 
 # Bump when the on-disk graph schema changes incompatibly.
-SCHEMA_VERSION = 1
+# v2 (v3.0.0): documents[] carry a portable per-document content hash (sha256) that powers
+# cross-machine diff/merge. digest.py stamps version = SCHEMA_VERSION (single source).
+SCHEMA_VERSION = 2
 
-# Registry of forward migrations: from_version -> fn(doc) -> doc that upgrades a
-# store from `from_version` to the next version. Empty today (only v1 exists); a
-# future incompatible schema bump registers its step here. Migrations are pure.
-_MIGRATIONS: dict = {}
+
+def _migrate_v1_to_v2(doc: dict) -> dict:
+    """v1 → v2: v2 adds documents[].sha256 (a portable content hash). A v1 store predates
+    it and its source bytes may be gone, so the hashes can't be back-filled — we only stamp
+    the version; the fields stay absent and diff/merge fall back to matching documents by
+    name. A fresh re-digest writes a full v2 store with hashes populated (it is NOT a
+    migration — it supersedes the v1 graph from the markdown/ corpus). Pure: returns a new
+    dict, writes nothing → safe under the shared read lock."""
+    out = dict(doc)
+    out["version"] = 2
+    return out
+
+
+# Registry of forward migrations: from_version -> fn(doc) -> doc that upgrades a store from
+# `from_version` to the next version. A contiguous 1→2→…→SCHEMA_VERSION chain. Migrations
+# are pure (no disk writes) so they run safely under a shared read lock (read paths migrate
+# in memory only; disk is rewritten as a fresh store at the next digest).
+_MIGRATIONS: dict = {1: _migrate_v1_to_v2}
 
 
 def migrate_doc(doc: dict) -> dict:
@@ -111,7 +111,7 @@ def _backup_store(cfg: Config, reason: str) -> Path | None:
         dest.mkdir(parents=True, exist_ok=True)
         for src in (cfg.graph_path, cfg.vectors_path,
                     cfg.vectors_path.with_suffix(".json"), cfg.bm25_index_path,
-                    cfg.memory_md):
+                    cfg.manifest_path, cfg.memory_md):
             if src.exists():
                 shutil.copy2(src, dest / src.name)
         print(f"[mta] backed up existing memory to {dest}", file=sys.stderr)
@@ -144,23 +144,28 @@ def load_graph(cfg: Config) -> dict | None:
     return doc
 
 
-def save_vectors(cfg: Config, matrix: np.ndarray, meta: list[dict]) -> None:
+def save_vectors(cfg: Config, matrix, meta: list[dict]) -> None:
     cfg.ensure_dirs()
-    # Atomic: write the .npz to a temp handle (so np doesn't append .npz to a
-    # temp name), then os.replace; write the sidecar JSON atomically too.
-    tmp = cfg.vectors_path.with_name(cfg.vectors_path.name + ".tmp")
-    try:
-        with open(tmp, "wb") as f:
-            np.savez_compressed(f, matrix=matrix.astype(np.float32))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, cfg.vectors_path)
-    except BaseException:
+    # The embedding matrix (vectors.npz) is a numpy-only legacy artifact — write it FIRST
+    # (atomic; the same order as before, so numpy-present stores are byte-unchanged) when
+    # numpy is available and we actually have an ndarray. With numpy absent it is simply
+    # skipped: recall never reads the matrix (R-15), so a numpy-free core still works.
+    if _HAVE_NUMPY and matrix is not None and isinstance(matrix, np.ndarray):
+        tmp = cfg.vectors_path.with_name(cfg.vectors_path.name + ".tmp")
         try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+            with open(tmp, "wb") as f:
+                np.savez_compressed(f, matrix=matrix.astype(np.float32))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, cfg.vectors_path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+    # The meta sidecar (vectors.json) is ALWAYS written, numpy-free: recall ranks from it
+    # and (WP-181a) gates on it, so it is the real presence signal for the recall store.
     _atomic_write_text(cfg.vectors_path.with_suffix(".json"),
                        json.dumps(meta, ensure_ascii=False))
 
@@ -199,14 +204,15 @@ def load_meta(cfg: Config) -> list[dict] | None:
     matrix (R-15). BM25 recall ranks from text/labels in the meta, so materialising the
     embedding matrix every query was pure waste.
 
-    Preserves ``load_vectors``'s "no_memory" semantics exactly: both ``vectors.npz`` and
-    ``vectors.json`` must exist (a bare sidecar = an incomplete/torn store → ``None``),
-    and the sidecar must parse to a list. The matrix body is never read or decompressed,
-    so a malicious/pickled ``.npz`` can't even be touched on the recall path. The
-    matrix↔meta row-count cross-check that ``load_vectors`` does is unnecessary here
-    because recall indexes ``meta`` only — never the matrix."""
+    Gates on the **sidecar alone** (WP-181a): a numpy-free core writes no ``vectors.npz``,
+    so a bare ``vectors.json`` is now a *valid* store, not a torn one — the sidecar (plus
+    ``graph.json``, which a digest writes last) is the presence signal. The sidecar must
+    parse to a NON-EMPTY list; an empty/garbage/oversized sidecar reads as no_memory (a
+    real digest calls ``clear_vectors`` when there are no units, so an empty sidecar only
+    arises from a torn/hand-edited store). The matrix body is never read or decompressed,
+    so a malicious/pickled ``.npz`` can't even be touched on the recall path."""
     meta_path = cfg.vectors_path.with_suffix(".json")
-    if not cfg.vectors_path.exists() or not meta_path.exists():
+    if not meta_path.exists():
         return None
     if _too_big(meta_path, cfg):
         return None
@@ -215,10 +221,9 @@ def load_meta(cfg: Config) -> list[dict] | None:
     except (json.JSONDecodeError, OSError):
         return None
     # A non-list, or an EMPTY list, is treated as no memory: a real digest never persists
-    # an empty sidecar (it calls clear_vectors when there are no units), so an empty/var
+    # an empty sidecar (it calls clear_vectors when there are no units), so an empty/wrong
     # meta only arises from a torn or hand-edited store — recall should decline, not "ok"
-    # with zero hits. This also preserves load_vectors's torn-pair → no_memory behaviour
-    # for the matrix-rows≠meta-len case where meta is empty.
+    # with zero hits.
     return meta if isinstance(meta, list) and meta else None
 
 
@@ -252,7 +257,79 @@ def clear_bm25_index(cfg: Config) -> None:
         pass
 
 
-def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
+# ---- incremental-digest manifest (v3) --------------------------------
+_MANIFEST_SCHEMA = "mta-manifest/1"
+
+
+def save_manifest(cfg: Config, entries: dict) -> None:
+    """Persist the incremental-digest content-hash manifest (machine-local sidecar).
+    ``entries`` maps a source file's resolved path → ``{sha256, out, method}``. Written
+    through the shared crash-safe atomic writer."""
+    cfg.ensure_dirs()
+    _atomic_write_text(cfg.manifest_path, json.dumps(
+        {"schema": _MANIFEST_SCHEMA, "version": 1, "entries": entries},
+        ensure_ascii=False, indent=2))
+
+
+def load_manifest(cfg: Config) -> dict:
+    """Load the incremental manifest's ``entries`` map, or ``{}`` if absent/torn/garbage/
+    oversized — in which case the next digest simply re-converts everything and rebuilds it.
+    Never raises (it must not be able to break a digest)."""
+    path = cfg.manifest_path
+    if not path.exists() or _too_big(path, cfg):
+        return {}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    entries = doc.get("entries") if isinstance(doc, dict) else None
+    return entries if isinstance(entries, dict) else {}
+
+
+def clear_manifest(cfg: Config) -> None:
+    """Remove the incremental manifest (idempotent, best-effort)."""
+    try:
+        cfg.manifest_path.unlink()
+    except OSError:
+        pass
+
+
+def _secure_overwrite_tree(root: Path) -> int:
+    """Best-effort secure delete: overwrite every regular file's bytes with random data,
+    flush+fsync, BEFORE the tree is removed. Returns the count of files overwritten.
+
+    **Honest limitation:** this CANNOT guarantee erasure on SSD / flash / copy-on-write or
+    log-structured filesystems, snapshots, or cloud-synced folders — the OS/FS may have
+    already copied the blocks elsewhere. A real guarantee needs full-disk or file-level
+    encryption (encryption-at-rest is a roadmap item). Symlinks are never followed/written.
+    Never raises into the caller (a wipe failure must not block the delete)."""
+    count = 0
+    for dirpath, _dirs, files in os.walk(str(root)):  # followlinks=False by default
+        for name in files:
+            fp = Path(dirpath) / name
+            try:
+                if fp.is_symlink() or not fp.is_file():
+                    continue
+                size = fp.stat().st_size
+                with open(fp, "r+b", buffering=0) as f:
+                    remaining = size
+                    while remaining > 0:
+                        chunk = os.urandom(min(remaining, 1024 * 1024))
+                        f.write(chunk)
+                        remaining -= len(chunk)
+                    f.flush()
+                    os.fsync(f.fileno())
+                count += 1
+            except OSError:
+                continue
+    return count
+
+
+def load_vectors(cfg: Config):
+    """Load the embedding matrix + meta (the legacy numpy path; recall does NOT use this —
+    it reads ``load_meta`` only). Returns ``None`` without numpy or without a ``.npz``."""
+    if not _HAVE_NUMPY:
+        return None
     meta_path = cfg.vectors_path.with_suffix(".json")
     if not cfg.vectors_path.exists() or not meta_path.exists():
         return None
@@ -274,21 +351,31 @@ def load_vectors(cfg: Config) -> tuple[np.ndarray, list[dict]] | None:
     return matrix, meta
 
 
-def delete_project(cfg: Config) -> dict:
+def delete_project(cfg: Config, secure: bool = False) -> dict:
     """Delete a project's entire memory (graph, converted Markdown, summaries, notes).
 
     Takes the project's exclusive write lock so a `forget` can't race a digest
     (the lock file lives under state/locks/, not the project dir, so it survives
     the rmtree). See locks.py.
+
+    ``secure=True`` overwrites every file's bytes with random data before removal
+    (best-effort — see ``_secure_overwrite_tree`` for the SSD/CoW caveat).
     """
     import shutil
 
     from . import locks
+    overwritten = 0
     with locks.write_lock(cfg):
         if not cfg.project_dir.exists():
             return {"status": "not_found", "project": cfg.project}
+        if secure:
+            overwritten = _secure_overwrite_tree(cfg.project_dir)
         shutil.rmtree(cfg.project_dir, ignore_errors=True)
-    return {"status": "ok", "project": cfg.project, "deleted": True}
+    out = {"status": "ok", "project": cfg.project, "deleted": True}
+    if secure:
+        out["secure"] = True
+        out["files_overwritten"] = overwritten
+    return out
 
 
 def list_projects(cfg: Config) -> list[dict]:

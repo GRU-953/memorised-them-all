@@ -75,3 +75,56 @@ def test_doctor_fix_runs_pip_only(monkeypatch):
     out = deps.doctor(fix=True)
     assert len(ran) == 1 and ran[0][:3] == [sys.executable, "-m", "pip"]   # pip only
     assert any(c["for"] == "system" and not c["auto"] for c in out["remediation"])  # brew suggested, not run
+
+
+# ---- WP-153: plain-English diagnosis + PATH check + symptom catalogue -------
+
+def test_path_status_flags_installed_but_not_on_path(monkeypatch):
+    from mta.core import deps
+    monkeypatch.setattr(deps, "_installed_version", lambda n: "2.6.2")     # package IS installed
+    monkeypatch.setattr(deps.shutil, "which", lambda b: None)              # but `mta` not on PATH
+    ps = deps.path_status()
+    assert ps["installed"] and not ps["on_path"]
+    assert ps["status"] == "warn" and ps["fix"]                           # one-line fix offered
+    assert "-m mta" in ps["fix"]                                          # PATH-independent fallback
+
+
+def test_path_status_ok_when_resolved(monkeypatch):
+    from mta.core import deps
+    monkeypatch.setattr(deps, "_installed_version", lambda n: "2.6.2")
+    monkeypatch.setattr(deps.shutil, "which", lambda b: "/usr/local/bin/mta")
+    ps = deps.path_status()
+    assert ps["on_path"] and ps["status"] == "ok" and ps["fix"] is None
+
+
+def test_path_status_not_flagged_when_running_from_source(monkeypatch):
+    from mta.core import deps
+    monkeypatch.setattr(deps, "_installed_version", lambda n: None)        # not installed (dev/source)
+    monkeypatch.setattr(deps.shutil, "which", lambda b: None)
+    assert deps.path_status()["status"] == "ok"                           # don't nag developers
+
+
+def test_symptom_catalogue_is_well_formed():
+    from mta.core import deps
+    assert len(deps.SYMPTOMS) >= 6
+    for s in deps.SYMPTOMS:
+        assert s["symptom"].strip() and s["cause"].strip() and s["fix"].strip()
+
+
+def test_doctor_emits_plain_report_and_symptoms(monkeypatch):
+    from mta.core import deps
+    monkeypatch.setattr(deps, "scan", lambda cfg=None: {
+        "python": [{"name": "numpy", "status": "missing"}],
+        "binaries": [{"name": "tesseract", "present": False}],
+        "summary": {"ok": 0, "outdated": 0, "missing": 2}, "all_ok": False})
+    monkeypatch.setattr(deps, "path_status", lambda: {
+        "installed": True, "on_path": False, "resolved": None, "scripts_dir": "/x/bin",
+        "fix": "`mta` is installed but not on PATH. Run it as `python -m mta`.", "status": "warn"})
+    monkeypatch.setattr(deps.shutil, "which", lambda b: None)
+    out = deps.doctor()
+    assert out["symptoms"] == deps.SYMPTOMS
+    report = "\n".join(out["report"])
+    assert "numpy" in report                                  # the missing dep is named
+    assert "not on PATH" in report                            # the PATH issue surfaces
+    assert "Common problems" in report                        # the symptom catalogue is shown
+    assert "memorise / recall tool" in report                 # a real symptom entry is present

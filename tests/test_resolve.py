@@ -34,6 +34,41 @@ def test_norm_still_folds_latin_and_compat():
     assert _norm("  Dhaka   City ") == "dhaka city"  # case + whitespace squeeze
 
 
+def test_norm_preserves_non_bengali_indic_distinctness():
+    # WP-101 (R-16): the matra-preservation that protected Bengali now covers the whole
+    # Brahmic range, so Devanagari/Tamil/… no longer skeleton-merge to consonant-only forms.
+    assert _norm("काली") != _norm("कुल")              # Devanagari: Kali ≠ kul (was क ल = क ल)
+    assert _norm("கடல்") != _norm("கடா")              # Tamil: sea ≠ ox (matra/pulli preserved)
+    assert _norm("ভোলা") != _norm("ভালো")            # Bengali still distinct (regression)
+    # and the marks genuinely survive (the word isn't reduced to bare consonants)
+    assert _norm("काली") == "काली"
+    assert _norm("José") == "jose"                    # Latin accent-fold unaffected
+
+
+def test_eff_threshold_raises_bar_for_short_names_only():
+    from mta.core.resolve import _eff_threshold
+    # WP-102 (R-17): short names need near-identity; long names keep the base 88.
+    assert _eff_threshold("করিম", "করিমা", 88) == 95   # min len 4 → 95
+    assert _eff_threshold("teresa", "theresa", 88) == 91  # min len 6 → 91
+    assert _eff_threshold("nordic grid authority", "nordic grid authorrity", 88) == 88  # long → base
+    # monotone: the effective bar is never below the base
+    for a, b in [("করিম", "করিমা"), ("ab", "abc"), ("hello", "hellp"), ("a longer name", "a longr name")]:
+        assert _eff_threshold(a, b, 88) >= 88
+
+
+def test_short_names_do_not_overmerge_but_long_typos_still_merge(tmp_path):
+    os.environ["MTA_HOME"] = str(tmp_path)
+    # করিম vs করিমা (token_set_ratio ≈ 89) used to merge at the default 88 — now they stay
+    # separate (R-17), because a 1-char difference in a 4-char name is a different entity.
+    res = _resolve(["করিম", "করিমা"])
+    a2c = res["alias_to_cid"]
+    assert cid_for("করিম", a2c) != cid_for("করিমা", a2c)
+    # a genuine typo in a LONG name still merges — fuzzy matching keeps earning its keep.
+    res2 = _resolve(["International Atomic Agency", "International Atomic Agencyy"])
+    b2c = res2["alias_to_cid"]
+    assert cid_for("International Atomic Agency", b2c) == cid_for("International Atomic Agencyy", b2c)
+
+
 def _resolve(names):
     mentions = []
     for nm in names:

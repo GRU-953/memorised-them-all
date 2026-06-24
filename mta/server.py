@@ -2,7 +2,7 @@
 
 Claude Desktop / Claude Code launch it directly; ``mta setup`` also registers it with
 Gemini CLI, Cursor, VS Code, Windsurf and OpenAI Codex (and Grok via config auto-discovery).
-Exposes eight token-free tools. Every tool returns only compact metadata or a
+Exposes eleven token-free tools. Every tool returns only compact metadata or a
 small, relevant slice of memory — never document contents — so digesting and
 recalling whole folders costs ~0 context tokens. All work runs locally and
 is fully deterministic + model-free: no LLM, no embedding model, no GPU, no network.
@@ -119,10 +119,56 @@ def list_digestible(directory: str) -> dict:
         return _err(f"could not list {base}: {exc}")
 
 
-def forget(project: str | None = None) -> dict:
+def forget(project: str | None = None, secure: bool = False) -> dict:
     """Delete a project's memory (knowledge graph, converted Markdown, summaries
-    and notes). Irreversible. Pass the project name explicitly."""
-    return store.delete_project(_cfg(project))
+    and notes). Irreversible. Pass the project name explicitly. ``secure=True``
+    overwrites every file's bytes with random data before removal (best-effort — it
+    cannot guarantee erasure on SSD/flash/copy-on-write/synced storage)."""
+    return store.delete_project(_cfg(project), secure=bool(secure))
+
+
+def diff_memory(other: str, project: str | None = None) -> dict:
+    """Compare two project memories (read-only): documents added/removed/changed (matched by
+    portable content hash), entities and themes only-in-each, and a stats delta. Token-free."""
+    if not isinstance(other, str) or not other.strip():
+        return _err("'other' must be a non-empty project name to compare against")
+    cfg = _cfg(project)
+    try:
+        from .core import interchange
+        return interchange.diff_memory(cfg, other, project=project)
+    except Exception as exc:  # noqa: BLE001
+        return _err(f"diff_memory failed: {exc}", type=type(exc).__name__)
+
+
+def import_memory(src: str, project: str | None = None) -> dict:
+    """Import a previously-exported bundle directory (graph.json + recall sidecars + notes)
+    into a project, making it recall-ready on this machine. Backs up any existing store
+    first. A recall-only snapshot — re-digesting the project replaces it. Token-free."""
+    if not isinstance(src, str) or not src.strip():
+        return _err("'src' must be a non-empty path to an exported bundle directory")
+    cfg = _cfg(project)
+    try:
+        from .core import interchange
+        return interchange.import_memory(cfg, src, project=project)
+    except Exception as exc:  # noqa: BLE001
+        return _err(f"import_memory failed: {exc}", type=type(exc).__name__)
+
+
+def merge_memory(sources: list[str], into: str) -> dict:
+    """Merge several source projects' converted corpora into a NEW project and rebuild one
+    coherent memory (deterministic, model-free) — as if their files were digested together.
+    Returns digest-style stats (token-free)."""
+    if not isinstance(sources, list) or not sources or not all(
+            isinstance(s, str) and s.strip() for s in sources):
+        return _err("'sources' must be a non-empty list of project names")
+    if not isinstance(into, str) or not into.strip():
+        return _err("'into' must be a non-empty target project name")
+    cfg = _cfg(into)
+    try:
+        from .core import interchange
+        return interchange.merge_memory(cfg, sources, into)
+    except Exception as exc:  # noqa: BLE001
+        return _err(f"merge_memory failed: {exc}", type=type(exc).__name__)
 
 
 def memory_status() -> dict:
@@ -167,7 +213,7 @@ def _status() -> dict:
 
 
 def build_server() -> FastMCP:
-    """Construct a fresh MCP server with all eight tools registered.
+    """Construct a fresh MCP server with all eleven tools registered.
 
     A factory (not just a module singleton) so each transport owns its server +
     session manager: the stdio launcher and an opt-in HTTP server (mta/transport.py)
@@ -176,7 +222,8 @@ def build_server() -> FastMCP:
     (``python -m mta.server``) and tooling import."""
     srv = FastMCP("memorised-them-all")
     for fn in (digest, convert, recall, memory_overview, export_memory,
-               list_digestible, forget, memory_status):
+               list_digestible, forget, memory_status,
+               diff_memory, import_memory, merge_memory):
         srv.tool()(fn)
     return srv
 
