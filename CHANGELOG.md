@@ -6,6 +6,29 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-06-24
+
+Recall power-ups — additive and invariant-safe (token-free, 100% local, deterministic,
+model-free). No new tools (the 11-tool set is unchanged) and no graph-schema change:
+`recall` simply gained optional parameters.
+
+### Added
+- **Recall filters (WP-130).** `recall` accepts `doc` (limit hits to one source document,
+  matched by basename) and `entity_type` (limit to entity hits of a type —
+  person/org/place/…). Filters apply *after* BM25 ranking, so relevance order is preserved,
+  and the result stays within the token-free byte caps. CLI: `mta recall "q" --doc NAME
+  --type TYPE`.
+- **Multi-project recall (WP-144).** `recall` accepts `projects=[…]` to federate one query
+  across several memories at once; each hit is tagged with its project and the merged result
+  is capped to `k`. Read-only; complements v3.0's export/import/merge. CLI:
+  `mta recall "q" --projects a,b,c`.
+
+### Notes
+- `graph.json` / `vectors.npz` / `bm25_index.json` stay byte-identical (the determinism gate
+  is untouched); only the `vectors.json` meta sidecar gains an additive per-entity `type`
+  field that powers `entity_type` filtering. **Re-digest** an existing memory to populate it;
+  until then a type filter simply returns nothing while everything else recalls as before.
+
 ## [3.0.0] — 2026-06-24
 
 **Living memory + interchange.** A major release that makes a memory *incremental* (re-digest

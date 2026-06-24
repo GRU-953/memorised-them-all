@@ -171,14 +171,37 @@ def _bm25_rank_cached(query: str, meta: list[dict], cache: dict | None,
     return _bm25_rank_tokenized(set(_tokens(query)), docs, k)
 
 
-def recall(cfg: Config, query: str, k: int | None = None) -> dict:
-    # Shared (multi-reader) lock: never observe a half-updated graph<->vectors
-    # pair while a digest is persisting (LIFE-01).
+def _unit_matches(u: dict, doc: str | None, entity_type: str | None) -> bool:
+    """Structured recall filters (v3.1, WP-130), applied AFTER BM25 ranking so relevance
+    order is preserved within the filtered set. `doc` keeps units whose provenance includes
+    that source (matched by basename, case-insensitive — theme units carry no docs, so a
+    doc filter naturally narrows to cited entity facts). `entity_type` keeps only entity
+    units of that type (needs the v3.1 `type` field → re-digest an old store to use it)."""
+    if doc:
+        from pathlib import Path
+        want = Path(doc.strip()).name.lower()
+        if not any(Path(str(d)).name.lower() == want for d in (u.get("docs") or [])):
+            return False
+    if entity_type:
+        if u.get("kind") != "entity" or str(u.get("type", "")).lower() != entity_type.strip().lower():
+            return False
+    return True
+
+
+def recall(cfg: Config, query: str, k: int | None = None, *,
+           projects: list[str] | None = None, doc: str | None = None,
+           entity_type: str | None = None) -> dict:
+    # `projects` (v3.1, WP-144) federates recall across several memories; otherwise the
+    # active project under a shared (multi-reader) lock — never observe a half-updated
+    # graph<->vectors pair while a digest is persisting (LIFE-01).
+    if projects:
+        return _recall_federated(cfg, query, k, projects, doc, entity_type)
     with locks.read_lock(cfg):
-        return _recall_locked(cfg, query, k)
+        return _recall_locked(cfg, query, k, doc=doc, entity_type=entity_type)
 
 
-def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
+def _recall_locked(cfg: Config, query: str, k: int | None, *,
+                   doc: str | None = None, entity_type: str | None = None) -> dict:
     # Hard-clamp k so a caller can never pull the whole graph's text into Claude's
     # context — the token-free guarantee depends on recall returning a tiny slice.
     try:
@@ -194,8 +217,19 @@ def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
     # BM25 lexical ranking over the recall units (entity cards + theme summaries).
     # Model-free, script-agnostic (matches Bengali too), and ranks by genuine relevance.
     # R-13: use the digest-time pre-tokenised index when present; fall back to on-the-fly.
-    ranked = _bm25_rank_cached(query, meta, load_bm25_index(cfg), k)
-    hits = [_hit(meta[i], round(float(s), 3)) for s, i in ranked if i < len(meta)]
+    # With a structured filter active, rank the FULL set first (not just top-k) so the
+    # filter can't starve the result of matching-but-lower-ranked units.
+    filtering = bool(doc or entity_type)
+    ranked = _bm25_rank_cached(query, meta, load_bm25_index(cfg), len(meta) if filtering else k)
+    hits = []
+    for s, i in ranked:
+        if i >= len(meta):
+            continue
+        if filtering and not _unit_matches(meta[i], doc, entity_type):
+            continue
+        hits.append(_hit(meta[i], round(float(s), 3)))
+        if len(hits) >= k:
+            break
     raw_top = hits[0]["score"] if hits else 0.0   # best score BEFORE the floor
     # Optional absolute score floor (MTA_RECALL_MIN_SCORE; 0 = off, the default). Now on
     # the BM25 scale (unbounded positive) rather than the old 0–1 cosine scale.
@@ -204,13 +238,66 @@ def _recall_locked(cfg: Config, query: str, k: int | None) -> dict:
     # Off-topic guard: no BM25 overlap at all ⇒ low confidence (Claude can decline).
     low_conf = (not hits) or _lexical_overlap(query, hits[0].get("label", "") + " "
                                               + hits[0].get("text", "")) == 0
-    doc = load_graph(cfg)
-    return {"status": "ok", "project": cfg.project, "query": query,
-            "synopsis": _clip_bytes((doc or {}).get("synopsis", ""), _MAX_SYNOPSIS),
-            # The mode this memory was last BUILT in (always "deterministic" in v2).
-            "memory_mode": (doc or {}).get("stats", {}).get("mode"),
-            "top_score": (hits[0]["score"] if hits else 0.0),
-            "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}
+    graph = load_graph(cfg)
+    out = {"status": "ok", "project": cfg.project, "query": query,
+           "synopsis": _clip_bytes((graph or {}).get("synopsis", ""), _MAX_SYNOPSIS),
+           # The mode this memory was last BUILT in (always "deterministic" in v2).
+           "memory_mode": (graph or {}).get("stats", {}).get("mode"),
+           "top_score": (hits[0]["score"] if hits else 0.0),
+           "raw_top_score": raw_top, "low_confidence": low_conf, "hits": hits}
+    if filtering:
+        out["filters"] = {k2: v for k2, v in (("doc", doc), ("entity_type", entity_type)) if v}
+    return out
+
+
+def _recall_federated(cfg: Config, query: str, k: int | None,
+                      projects: list[str], doc: str | None, entity_type: str | None) -> dict:
+    """Multi-project recall (v3.1, WP-144): rank each named project independently, tag every
+    hit with its project, then merge by score and cap to k — so one question can draw cited
+    slices from several memories at once. Still token-free (the same per-field byte caps and
+    k clamp apply to the merged result). Read-only; each project is read under its own shared
+    lock. Cross-corpus BM25 scores aren't perfectly comparable (different idf/avg-length), so
+    the merge is a best-effort federation, not a single global ranking."""
+    import dataclasses
+
+    try:
+        k = int(k or cfg.recall_k)
+    except (TypeError, ValueError, OverflowError):
+        k = cfg.recall_k
+    k = max(1, min(k, 50))
+
+    names: list[str] = []
+    seen: set[str] = set()
+    for p in projects:
+        if not isinstance(p, str) or not p.strip():
+            continue
+        pcfg = dataclasses.replace(cfg).with_project(p)
+        if pcfg.project in seen:
+            continue
+        seen.add(pcfg.project)
+        names.append(pcfg.project)
+
+    all_hits: list[dict] = []
+    for name in names:
+        pcfg = dataclasses.replace(cfg).with_project(name)
+        with locks.read_lock(pcfg):
+            res = _recall_locked(pcfg, query, k, doc=doc, entity_type=entity_type)
+        if res.get("status") != "ok":
+            continue
+        for h in res.get("hits", []):
+            h = dict(h)
+            h["project"] = name
+            all_hits.append(h)
+    all_hits.sort(key=lambda h: -h["score"])
+    all_hits = all_hits[:k]
+    low_conf = (not all_hits) or _lexical_overlap(
+        query, all_hits[0].get("label", "") + " " + all_hits[0].get("text", "")) == 0
+    out = {"status": "ok", "query": query, "projects": names, "federated": True,
+           "top_score": all_hits[0]["score"] if all_hits else 0.0,
+           "low_confidence": low_conf, "hits": all_hits}
+    if doc or entity_type:
+        out["filters"] = {k2: v for k2, v in (("doc", doc), ("entity_type", entity_type)) if v}
+    return out
 
 
 def _lexical(query: str, meta: list[dict], k: int, cfg: Config) -> dict:

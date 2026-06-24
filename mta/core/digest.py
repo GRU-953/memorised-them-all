@@ -729,7 +729,13 @@ def _recall_units(graph_doc: dict) -> tuple[list[dict], list[str]]:
     for nid, n in nodes.items():
         facts = "; ".join(f["text"] for f in n.get("facts", [])[:5])
         card = f"{n['label']} ({n.get('type','other')}). {facts}".strip()
+        # `type` (v3.1) lets recall filter entity hits by kind (person/org/place/…). It
+        # rides the meta sidecar only — not the bm25 tokens or the embedded text — so
+        # graph.json / vectors.npz / bm25_index.json stay byte-identical (determinism
+        # gate untouched); an old store without it simply can't be type-filtered until
+        # the next re-digest.
         units.append({"kind": "entity", "ref": nid, "label": n["label"],
+                      "type": n.get("type", "other"),
                       "text": card, "docs": n.get("docs", [])})
         texts.append(card)
     return units, texts
