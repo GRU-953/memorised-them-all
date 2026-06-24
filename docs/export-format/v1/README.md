@@ -12,6 +12,10 @@ consumed by any assistant.
 | `graph.json` | JSON (this schema) | The knowledge-graph **sidecar**: entities (nodes), relations (edges), themes (communities), with **stable IDs**. |
 | `vectors.npz` / `vectors.json` | binary + JSON | Recall units (optional; for re-loading recall locally). |
 | `bm25_index.json` | JSON | Pre-tokenised recall index (optional; regenerated on digest). |
+| `graph.graphml` | GraphML (XML) | Deterministic graph export for Gephi / yEd / Cytoscape (since v3.0). |
+| `entities.csv` / `relations.csv` | CSV | Deterministic node/edge tables for spreadsheets (since v3.0). |
+
+Bring a bundle back into a project with `mta import <dir>` (or the `import_memory` tool).
 
 ## Knowledge-graph sidecar (`graph.json`)
 Validated by [`graph.schema.json`](graph.schema.json) (JSON Schema 2020-12). Contract:
@@ -22,6 +26,9 @@ Validated by [`graph.schema.json`](graph.schema.json) (JSON Schema 2020-12). Con
 - **`communities[]`** — themes: `{id, label, summary, members[], size}`; `members` are node IDs.
 - **`version`** — on-disk schema version; bumped only on an incompatible change. Migrations and
   backward-compat tests ship with the engine; sharpening extraction must not break older bundles.
+  **v2 (since v3.0)** adds an optional, additive `documents[].sha256` — a portable per-document
+  content hash that powers cross-machine `diff_memory` / `merge_memory`. It is purely additive
+  (the v1 schema permits it via `additionalProperties`), so v1 consumers ignore it safely.
 
 ## Token budgets & chunking
 `memory.md` is bounded (synopsis + ≤ theme summaries). When a target assistant's context is

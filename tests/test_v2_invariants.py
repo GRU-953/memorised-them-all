@@ -45,8 +45,8 @@ def test_no_module_references_ollama():
     assert not offenders, offenders
 
 
-# ---- exactly 8 tools; open_mindmap absent --------------------------------------------
-def test_exactly_eight_tools():
+# ---- exactly 11 tools (v3 adds diff/import/merge); open_mindmap absent ----------------
+def test_exactly_eleven_tools():
     from mta import server
     srv = server.build_server()
     import anyio
@@ -56,7 +56,8 @@ def test_exactly_eight_tools():
 
     names = anyio.run(_names)
     assert names == {"digest", "convert", "recall", "memory_overview", "export_memory",
-                     "list_digestible", "forget", "memory_status"}, names
+                     "list_digestible", "forget", "memory_status",
+                     "diff_memory", "import_memory", "merge_memory"}, names
 
 
 # ---- determinism: byte-identical artifacts across runs -------------------------------

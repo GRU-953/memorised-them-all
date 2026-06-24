@@ -19,6 +19,7 @@ from mta.interop import schemas
 EXPECTED = {
     "digest", "convert", "recall", "memory_overview", "export_memory",
     "list_digestible", "forget", "memory_status",
+    "diff_memory", "import_memory", "merge_memory",
 }
 
 

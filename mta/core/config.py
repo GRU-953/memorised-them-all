@@ -97,6 +97,14 @@ class Config:
     # extensions (digested as text when textual; binaries skipped). Hidden files/dirs (.*)
     # are still skipped. Off → only the known SUPPORTED_EXTS are collected.
     digest_all: bool = field(default_factory=lambda: _env_bool("MTA_DIGEST_ALL", True))
+
+    # Incremental digest (default ON, v3): re-digesting a folder re-converts ONLY the files
+    # whose bytes changed (a content-hash manifest sidecar tracks each source → its .md) and
+    # prunes the converted output of source files deleted from the digested directories. The
+    # rebuilt memory is byte-identical to a full digest of the same final corpus (conversion
+    # is deterministic), so this is a pure speed-up. Set MTA_INCREMENTAL=off (or pass
+    # reset=True) to force a full re-conversion of every file.
+    incremental: bool = field(default_factory=lambda: _env_bool("MTA_INCREMENTAL", True))
     community_algo: str = field(default_factory=lambda: _env("MTA_COMMUNITY_ALGO", "auto"))  # auto|leiden|louvain|greedy
     chunk_chars: int = field(default_factory=lambda: _env_int("MTA_CHUNK_CHARS", 1200))
     recall_k: int = field(default_factory=lambda: _env_int("MTA_RECALL_K", 8))
@@ -193,6 +201,15 @@ class Config:
         return self.project_dir / "memory.md"
 
     @property
+    def manifest_path(self) -> Path:
+        """Content-hash manifest for incremental digest (v3). Maps each source file's
+        resolved path → its sha256 + converted-output name, so a re-digest can skip
+        unchanged files. **Machine-local** (it stores absolute source paths), so it is
+        deliberately NOT part of the portable export bundle and never affects the
+        byte-identical determinism of graph.json/memory.md."""
+        return self.project_dir / "manifest.json"
+
+    @property
     def unpack_dir(self) -> Path:
         """Scratch root for recursively-expanded archive contents (under the project,
         in the MAIN process — never an mkdtemp inside a killable convert child)."""
@@ -225,7 +242,7 @@ def persist_config(cfg: "Config") -> Path:
         "skip_media": cfg.skip_media, "skip_fonts": cfg.skip_fonts,
         "skip_gdrive_pointers": cfg.skip_gdrive_pointers, "skip_junk": cfg.skip_junk,
         "archive_recursive": cfg.archive_recursive, "archive_max_depth": cfg.archive_max_depth,
-        "archive_max_entries": cfg.archive_max_entries,
+        "archive_max_entries": cfg.archive_max_entries, "incremental": cfg.incremental,
         "auto_update": cfg.auto_update, "markitdown_upstream": cfg.markitdown_upstream,
         "workers": cfg.workers, "extract_workers": cfg.extract_workers,
         "recall_k": cfg.recall_k, "recall_min_score": cfg.recall_min_score,

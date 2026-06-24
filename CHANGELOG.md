@@ -6,6 +6,62 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-06-24
+
+**Living memory + interchange.** A major release that makes a memory *incremental* (re-digest
+only re-reads what changed), *portable* (move it between machines) and *composable* (diff and
+merge memories), and that ships the v2.7 "slim-core" engine spine. All invariants hold:
+100% local, token-free, deterministic byte-identical output, model-free, atomic crash-safe
+writes. It also folds in the previously-unreleased v2.7 work (numpy-optional core, pure-Python
+rapidfuzz fallback, shared atomic-IO, `mta doctor`, eval + Bengali gate).
+
+> **Migration:** no action required. Old memories keep working — a v1 store is forward-migrated
+> in memory for recall, and the next `digest` writes a fresh v2 store. The on-disk graph schema
+> is now **v2** (documents carry a portable per-document content hash). `memory_status`/recall
+> are unchanged in shape.
+
+### Added
+- **Incremental digest** (default on; `MTA_INCREMENTAL=off` to disable, `reset=true` always does
+  a full rebuild). Re-digesting a folder re-converts only files whose **bytes changed** (tracked
+  in a machine-local `manifest.json` content-hash sidecar) and prunes the converted output of
+  files deleted from the digested directories. `digest` now reports
+  `incremental: {added, updated, unchanged, removed, converted}`. The rebuilt memory is
+  **byte-identical** to a full digest of the same final corpus — conversion is deterministic, so
+  this only changes *which* files are converted, never the result.
+- **Three new tools** (now **eleven** total, identical across stdio / HTTP-MCP / REST / OpenAI /
+  Gemini / OpenAPI):
+  - `diff_memory` — compare two project memories (documents added/removed/**changed by content
+    hash**, entities and themes only-in-each, stats delta). Read-only, token-free.
+  - `import_memory` — restore a previously-exported bundle into a project (recall-ready snapshot;
+    backs up any existing store first).
+  - `merge_memory` — combine several projects' converted corpora into one new project and rebuild
+    a single coherent memory (deterministic, content-hash-deduped).
+- **GraphML + CSV exports.** `export_memory` / `mta export` now also write a deterministic
+  `graph.graphml` and `entities.csv` / `relations.csv` alongside the Markdown + `graph.json`
+  bundle — open straight in Gephi / yEd / Cytoscape or a spreadsheet.
+- **`forget --secure`** (CLI) / `forget(secure=true)` (tool): overwrite each file's bytes with
+  random data before removal. Best-effort — documented that it cannot guarantee erasure on
+  SSD/flash/copy-on-write/synced storage (real guarantee needs encryption-at-rest, a roadmap item).
+- New CLI verbs: `mta diff`, `mta import`, `mta merge --into`.
+
+### Changed
+- **Graph schema → v2.** `graph.json` documents now carry a portable, deterministic
+  `sha256` content hash (powers cross-machine `diff_memory`/`merge_memory`). `version` is
+  single-sourced from `store.SCHEMA_VERSION`; a forward-migration registry upgrades a v1 store in
+  memory on read (disk is rewritten fresh by the next digest). Export-format **v1** is unchanged
+  and still validated in CI (the new field is additive).
+- **Slim-core engine (v2.7 spine, now shipped).** `numpy` and `rapidfuzz` are soft imports with
+  byte-identical pure-Python fallbacks, the converted-`.md` write goes through the single shared
+  crash-safe writer (`mta/core/_io.py`), `mta doctor` gives a plain-English diagnosis, and the
+  eval harness gained a frozen baseline + a Bengali recall gate.
+
+### Notes
+- Per the project's converged `program/ROADMAP_V3.md`, v3.0.0's reserved marquee is the larger
+  "graph schema v2 / Theme Z" (typed relations, fact confidence/salience, codepoint provenance).
+  This release deliberately delivers the **owner-approved** "living memory + interchange" feature
+  set (roadmap WP-140 incremental, WP-125 exports, WP-142 secure-forget, plus diff/import/merge)
+  and the slim-core spine; the deeper Theme-Z schema work remains on the roadmap.
+
 ## [2.6.2] — 2026-06-21
 
 Docs/metadata refresh only — **no code, API, or schema change** (identical package code to

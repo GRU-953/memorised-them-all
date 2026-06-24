@@ -128,8 +128,9 @@ def test_authenticated_handshake_lists_all_eight_tools(tmp_path):
                     headers=session)
         assert tl.status_code == 200
     tools = sorted(t["name"] for t in _sse_json(tl.text)["result"]["tools"])
-    assert tools == ["convert", "digest", "export_memory", "forget", "list_digestible",
-                     "memory_overview", "memory_status", "recall"]
+    assert tools == ["convert", "diff_memory", "digest", "export_memory", "forget",
+                     "import_memory", "list_digestible", "memory_overview",
+                     "memory_status", "merge_memory", "recall"]
 
 
 # ---- DNS-rebinding protection ----------------------------------------------

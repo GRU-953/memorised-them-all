@@ -53,15 +53,37 @@ def test_save_backs_up_incompatible_store(tmp_path):
 
 
 def test_forward_migration_applied(tmp_path, monkeypatch):
-    """An older store is forward-migrated in memory via the registry."""
+    """An older store is forward-migrated in memory via the registry — chaining EVERY step
+    up to SCHEMA_VERSION (here the monkeypatched 0→1 plus the real 1→2)."""
     from mta.core import store
     cfg = _cfg(tmp_path, "mig")
     _write_graph(cfg, 0)                                   # older (v0) store
     monkeypatch.setitem(store._MIGRATIONS, 0,
                         lambda d: {**d, "version": 1, "migrated": True})
     doc = store.load_graph(cfg)
-    assert doc["version"] == 1 and doc.get("migrated") is True
-    assert doc["nodes"][0]["label"] == "Helios"            # data preserved
+    assert doc["version"] == store.SCHEMA_VERSION and doc.get("migrated") is True
+    assert doc["nodes"][0]["label"] == "Helios"            # data preserved through the chain
+
+
+def test_v1_store_migrates_to_v2_in_memory(tmp_path):
+    """v3 schema v2: a real v1 store (documents without sha256) loads forward-migrated to
+    v2 in memory and stays recall-readable; disk is untouched until the next digest."""
+    from mta.core import store
+    cfg = _cfg(tmp_path, "v1v2")
+    _write_graph(cfg, 1)                                   # genuine v1 store
+    on_disk = json.loads(cfg.graph_path.read_text())
+    assert on_disk["version"] == 1                         # not rewritten by a read
+    doc = store.load_graph(cfg)
+    assert doc["version"] == store.SCHEMA_VERSION == 2     # migrated forward in memory
+    assert doc["nodes"][0]["label"] == "Helios"
+    assert json.loads(cfg.graph_path.read_text())["version"] == 1  # read path never writes
+
+
+def test_migration_registry_is_a_contiguous_chain():
+    """[C5](d): _MIGRATIONS forms a contiguous 1→2→…→SCHEMA_VERSION chain (no gaps)."""
+    from mta.core import store
+    for v in range(1, store.SCHEMA_VERSION):
+        assert v in store._MIGRATIONS, f"missing migration step for v{v}"
 
 
 def test_current_store_loads_without_backup(tmp_path):

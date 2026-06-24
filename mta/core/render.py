@@ -103,13 +103,75 @@ def _doc_key(d: dict) -> str:
     return Path(d.get("name", "")).name
 
 
+def write_graph_exports(doc: dict, dest_path: Path) -> list[str]:
+    """Write deterministic interop exports of the knowledge graph (v3, WP-125): GraphML
+    (Gephi / yEd / Cytoscape) + ``entities.csv`` / ``relations.csv``. Built over a SORTED
+    node/edge order, so two exports of the same memory are identical. These are
+    developer/interchange artifacts (not the core store), so they aren't on the [C1]
+    byte-identity *gate*, but they are deterministic for a fixed networkx + csv. List
+    attributes (docs / edge labels) are flattened to ``"; "``-joined strings because GraphML
+    only accepts primitive attribute values."""
+    import csv
+    import io
+
+    import networkx as nx
+
+    written: list[str] = []
+    nodes = sorted(doc.get("nodes", []), key=lambda n: str(n.get("id", "")))
+    edges = sorted(doc.get("edges", []),
+                   key=lambda e: (str(e.get("source", "")), str(e.get("target", ""))))
+
+    g = nx.Graph()
+    for n in nodes:
+        nid = str(n.get("id", ""))
+        if not nid:
+            continue
+        g.add_node(nid, label=str(n.get("label", "")), type=str(n.get("type", "")),
+                   count=int(n.get("count", 0) or 0), community=int(n.get("community", 0) or 0),
+                   docs="; ".join(str(d) for d in (n.get("docs") or [])))
+    for e in edges:
+        s, t = str(e.get("source", "")), str(e.get("target", ""))
+        if g.has_node(s) and g.has_node(t):
+            g.add_edge(s, t, weight=int(e.get("weight", 1) or 1),
+                       labels="; ".join(str(x) for x in (e.get("labels") or [])))
+
+    # GraphML: generate to a string, then commit through the crash-safe atomic writer.
+    _atomic_write_text(dest_path / "graph.graphml",
+                       "".join(nx.generate_graphml(g, encoding="utf-8", prettyprint=True)))
+    written.append("graph.graphml")
+
+    def _csv(rows: list[list], header: list[str]) -> str:
+        buf = io.StringIO()
+        w = csv.writer(buf, lineterminator="\n")   # fixed terminator → OS-independent bytes
+        w.writerow(header)
+        w.writerows(rows)
+        return buf.getvalue()
+
+    _atomic_write_text(dest_path / "entities.csv", _csv(
+        [[n.get("id", ""), n.get("label", ""), n.get("type", ""), n.get("count", 0),
+          n.get("community", 0), "; ".join(str(d) for d in (n.get("docs") or []))]
+         for n in nodes],
+        ["id", "label", "type", "count", "community", "docs"]))
+    written.append("entities.csv")
+
+    _atomic_write_text(dest_path / "relations.csv", _csv(
+        [[e.get("source", ""), e.get("target", ""), e.get("weight", 1),
+          "; ".join(str(x) for x in (e.get("labels") or []))] for e in edges],
+        ["source", "target", "weight", "labels"]))
+    written.append("relations.csv")
+    return written
+
+
 def export_bundle(cfg: Config, dest: str) -> dict:
+    import json
+
     dest_path = Path(dest).expanduser()
     copied = []
     try:
         dest_path.mkdir(parents=True, exist_ok=True)
         # Include the vector store so recall works from the exported bundle, not
-        # just human browsing + graph reload.
+        # just human browsing + graph reload. (The incremental manifest is deliberately
+        # excluded — it holds absolute machine-local source paths.)
         for src in (cfg.memory_md, cfg.graph_path,
                     cfg.vectors_path, cfg.vectors_path.with_suffix(".json"),
                     cfg.bm25_index_path):
@@ -127,4 +189,12 @@ def export_bundle(cfg: Config, dest: str) -> dict:
                 "copied": copied}
     if not copied:
         return {"status": "no_memory", "dest": str(dest_path)}
+    # v3: deterministic GraphML + CSV interop exports alongside the portable bundle.
+    try:
+        doc = json.loads(cfg.graph_path.read_text(encoding="utf-8")) \
+            if cfg.graph_path.exists() else None
+        if isinstance(doc, dict) and doc.get("nodes"):
+            copied += write_graph_exports(doc, dest_path)
+    except (OSError, ValueError, ImportError):
+        pass    # interop exports are best-effort; the portable bundle already succeeded
     return {"status": "ok", "dest": str(dest_path), "copied": copied}

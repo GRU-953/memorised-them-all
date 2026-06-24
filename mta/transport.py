@@ -1,6 +1,6 @@
 """Transport seam — stdio (default) and an opt-in, secure Streamable HTTP server.
 
-``mta/server.py`` *defines* the eight token-free tools; this module owns *how*
+``mta/server.py`` *defines* the eleven token-free tools; this module owns *how*
 they are exposed. stdio stays the default (Claude Desktop / Claude Code launch
 ``python -m mta.server`` → stdio, unchanged). The HTTP transport is opt-in
 (``mta serve --http``) and secure by construction:

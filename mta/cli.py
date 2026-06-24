@@ -4,7 +4,11 @@ Subcommands:
   mta digest <paths…> [--project P] [--reset]   build/refresh memory locally
   mta recall "<query>" [--project P] [-k N]      query memory (small slice)
   mta overview [--project P]                     synopsis + themes
-  mta export <dest> [--project P]                export portable markdown
+  mta export <dest> [--project P]                export portable markdown (+ GraphML/CSV)
+  mta diff <other> [--project P]                 compare two project memories
+  mta import <bundle> [--project P]              import an exported bundle into a project
+  mta merge --into P <sources…>                  merge projects' corpora into a new project
+  mta forget [--project P] [--secure]            delete a project's memory (irreversible)
   mta status                                     local stack health
   mta update [--force]                           update MarkItDown + deps
   mta doctor [--fix] [--dry-run]                 scan deps; suggest or apply fixes
@@ -66,7 +70,20 @@ def main(argv: list[str] | None = None) -> int:
     dr.add_argument("--json", action="store_true",
                     help="machine-readable JSON instead of the plain-English report")
 
-    sub.add_parser("forget", help="delete a project's memory (irreversible)")
+    fg = sub.add_parser("forget", help="delete a project's memory (irreversible)")
+    fg.add_argument("--secure", action="store_true",
+                    help="overwrite file bytes before deleting (best-effort; not guaranteed "
+                         "on SSD/flash/copy-on-write/synced storage)")
+
+    df = sub.add_parser("diff", help="compare this project's memory with another project")
+    df.add_argument("other", help="the other project name to compare against")
+
+    im = sub.add_parser("import", help="import an exported bundle directory into this project")
+    im.add_argument("src", help="path to an exported bundle directory (from `mta export`)")
+
+    mg = sub.add_parser("merge", help="merge several projects' corpora into a new project")
+    mg.add_argument("--into", required=True, metavar="PROJECT", help="target project name")
+    mg.add_argument("sources", nargs="+", help="source project names to merge")
 
     sv = sub.add_parser("serve", help="run the MCP server (stdio by default; --http/--rest = HTTP surfaces)")
     mode = sv.add_mutually_exclusive_group()
@@ -183,7 +200,16 @@ def main(argv: list[str] | None = None) -> int:
         from .server import _status
         _print(_status())
     elif args.cmd == "forget":
-        _print(store.delete_project(cfg))
+        _print(store.delete_project(cfg, secure=args.secure))
+    elif args.cmd == "diff":
+        from .core import interchange
+        _print(interchange.diff_memory(cfg, args.other, project=args.project))
+    elif args.cmd == "import":
+        from .core import interchange
+        _print(interchange.import_memory(cfg, args.src, project=args.project))
+    elif args.cmd == "merge":
+        from .core import interchange
+        _print(interchange.merge_memory(cfg, args.sources, args.into))
     elif args.cmd == "update":
         _print(updater.run_check(cfg, force=args.force))
     elif args.cmd == "doctor":

@@ -77,9 +77,10 @@ def test_digest_exception_is_wrapped(home, monkeypatch):
     assert out["status"] == "error" and "boom" in out["error"]
 
 
-def test_build_server_registers_eight_tools():
+def test_build_server_registers_eleven_tools():
     srv = server.build_server()
     mgr = getattr(srv, "_tool_manager", None)
     names = {t.name for t in mgr.list_tools()}
     assert {"digest", "convert", "recall", "memory_overview", "export_memory",
-            "list_digestible", "forget", "memory_status"} == names
+            "list_digestible", "forget", "memory_status",
+            "diff_memory", "import_memory", "merge_memory"} == names
