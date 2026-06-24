@@ -662,6 +662,10 @@ def _rebuild_from_markdown(cfg: Config, t0: float, *, files_count: int | None = 
             "mode": "deterministic",
         },
     }
+    # WP-123b: best-effort provenance spans — locate each fact in its source .md and stamp
+    # codepoint offsets (additive; recall/vectors/bm25 are built from fact TEXT only, so this
+    # changes graph.json alone). Deterministic → graph.json stays byte-identical run-to-run.
+    _attach_fact_spans(cfg, graph_doc)
     # Recall vectors: one card per entity + one per community summary. Persist these
     # BEFORE the graph so graph.json — the presence signal recall/overview key off —
     # only lands once its matching vectors are in place (shrinks the torn-store window;
@@ -715,6 +719,65 @@ def _build_bm25_index(units: list[dict]) -> dict:
     docs = [_unit_doc_tokens(u) for u in units]
     return {"version": 1, "tokenizer": "nfc+bn+len>1+label*2",
             "count": len(docs), "docs": docs}
+
+
+def _normalize_with_map(text: str) -> tuple[str, list[int]]:
+    """Lower-case + whitespace-collapsed copy of ``text`` plus a parallel list mapping each
+    normalised character back to its ORIGINAL codepoint index. Lets a whitespace-/case-
+    tolerant substring match be translated to exact offsets in the source .md (a fact that
+    wraps across line breaks in the .md still matches its single-line stored form)."""
+    chars: list[str] = []
+    pos: list[int] = []
+    prev_space = False
+    for i, ch in enumerate(text):
+        if ch.isspace():
+            if prev_space or not chars:       # collapse runs; drop leading whitespace
+                continue
+            chars.append(" "); pos.append(i); prev_space = True
+        else:
+            chars.append(ch.lower()); pos.append(i); prev_space = False
+    return "".join(chars), pos
+
+
+def _attach_fact_spans(cfg: Config, graph_doc: dict) -> None:
+    """WP-123b (Theme-Z): stamp each locatable fact with a best-effort provenance
+    ``span:{doc,start,end}`` — codepoint offsets into the digest-time ``.md``. Pure post-pass
+    over ``graph_doc`` (mutates the shared fact recs in place); deterministic. A fact whose
+    stored text can't be found verbatim in its .md (e.g. PII-redacted or Bengali-reorder-
+    normalised) simply gets no span — honest best-effort, paired with the per-doc ``md_sha``
+    fingerprint on ``documents[]`` so a consumer can detect staleness."""
+    cache: dict[str, tuple[str, list[int]] | None] = {}
+
+    def _index(doc: str):
+        if doc in cache:
+            return cache[doc]
+        try:
+            md = (cfg.markdown_dir / (doc + ".md")).read_text(encoding="utf-8", errors="replace")
+            cache[doc] = _normalize_with_map(md)
+        except OSError:
+            cache[doc] = None
+        return cache[doc]
+
+    seen: set[int] = set()
+    for node in graph_doc.get("nodes", []):
+        for f in node.get("facts", []):
+            if id(f) in seen:                 # facts are shared across the entities they name
+                continue
+            seen.add(id(f))
+            doc = f.get("doc")
+            if not doc:
+                continue
+            idx = _index(doc)
+            if not idx:
+                continue
+            norm_md, pos = idx
+            nf = _normalize_with_map(f.get("text", ""))[0]
+            if len(nf) < 8:                   # too short to locate unambiguously
+                continue
+            at = norm_md.find(nf)
+            if at < 0:
+                continue
+            f["span"] = {"doc": doc, "start": pos[at], "end": pos[at + len(nf) - 1] + 1}
 
 
 def _edge_doc(u: str, v: str, d: dict) -> dict:
@@ -847,10 +910,14 @@ def _documents(cfg: Config, all_md: list[Path], conv: list[dict],
     ok_names: set[str] = set()
     for md in all_md:
         src, method = _parse_md_header(md)
+        md_sha = None
         try:
             full = md.read_text(encoding="utf-8", errors="replace")
             body = full.split("-->", 1)[-1].lstrip("\n") if full.startswith("<!-- source:") else full
             chars = len(body)
+            # WP-123b: fingerprint of the converted .md the fact spans index into, so a
+            # consumer can detect a stale span after a re-conversion. Deterministic.
+            md_sha = hashlib.sha1(full.encode("utf-8")).hexdigest()[:12]
         except OSError:
             chars = 0
         ok_names.add(src)
@@ -859,6 +926,8 @@ def _documents(cfg: Config, all_md: list[Path], conv: list[dict],
         sha = out_to_sha.get(md.name)
         if sha:
             doc["sha256"] = sha
+        if md_sha:
+            doc["md_sha"] = md_sha
         docs.append(doc)
     for c in conv:  # surface files that failed/were unsupported this run (no dup)
         if c.get("status") != "ok":

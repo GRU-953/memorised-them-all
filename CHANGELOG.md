@@ -13,8 +13,15 @@ adheres to [Semantic Versioning](https://semver.org/) and
   fallback attachment). Pure functions of the extraction, so `graph.json` stays byte-identical
   run-to-run; facts are **not** reordered, so recall/render and the recall meta/BM25 index are
   unchanged (ranking by these values is the later recall/render-v2 brick). No schema bump, no
-  new tools. *(Codepoint-offset provenance spans are split out as WP-123b — they need
-  offset-preserving plumbing through segmentation.)*
+  new tools.
+- **Fact provenance offset spans (WP-123b).** Each locatable fact now also carries a
+  best-effort `span` (`{doc, start, end}` — codepoint offsets into the digest-time `.md`),
+  computed by a deterministic, whitespace-/case-tolerant locate (so a fact that wraps across
+  `.md` line breaks still resolves to exact offsets); a fact whose stored text can't be found
+  verbatim (e.g. PII-redacted) simply gets no span. `documents[]` gain an `md_sha` fingerprint
+  of the converted `.md` so a consumer can detect a stale span. Additive and deterministic
+  (`graph.json` byte-identical run-to-run); recall/render and the recall meta/BM25 index are
+  unaffected (spans live in `graph.json` only). Pairs with WP-134 (recall citing by offset).
 
 ## [3.2.0] — 2026-06-25
 

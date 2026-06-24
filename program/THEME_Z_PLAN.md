@@ -36,12 +36,19 @@ holder, 0.5 for a fallback attachment). Additive to `nodes[].facts[]`; facts are
 so recall meta / bm25 / render are unchanged and `graph.json` stays byte-identical run-to-run.
 Tests: `tests/test_fact_salience.py`. Accumulating on `develop` (not released alone).
 
-### WP-123b — provenance codepoint-offset spans (NEXT — needs offset plumbing)
-Add `span:{doc, start, end}` per fact over the digest-time `.md` + a converter-fingerprint
-(stale-marked on mismatch). **Why split from WP-123:** the segmentation pipeline reflows text
-(comment-strip → heading-split → line-join → sentence-pack) and extraction scrubs/redacts/
-reorders, so source `.md` offsets aren't preserved — this needs offset-preserving plumbing
-threaded through `segment` → `extract` → `graph` (a meatier, isolated change). Pairs with WP-134.
+### ✅ WP-123b — provenance codepoint-offset spans (DONE, additive — S31)
+Solved without touching the determinism-critical segment/extract pipeline: a **post-digest
+best-effort locator** (`digest._attach_fact_spans` + `_normalize_with_map`) finds each fact in
+its source `.md` via a whitespace-/case-tolerant search that maps back to exact codepoint
+offsets, stamping `span:{doc,start,end}`. `documents[]` gain an `md_sha` fingerprint of the `.md`
+the offsets index into (stale-detection). A fact whose stored text isn't verbatim in the `.md`
+(PII-redacted / Bengali-reorder-normalised) gets no span — honest best-effort. Additive,
+deterministic; recall/render/meta/bm25 untouched. Tests: `tests/test_provenance_spans.py`.
+A future refinement could thread exact sentence offsets through segmentation for 100% coverage.
+
+### WP-121 (sub-types half) — entity sub-types in the schema  ← NEXT
+Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
+closed `subtype` enum to nodes (gated on the 4 proofs in ROADMAP_V3 WP-121).
 
 ### WP-121 (sub-types half) — entity sub-types in the schema
 Per-script `_SCRIPT_BLOCKS` resolution work is the v2.9 half; the **schema** half here adds a
