@@ -642,8 +642,7 @@ def _rebuild_from_markdown(cfg: Config, t0: float, *, files_count: int | None = 
         "version": store.SCHEMA_VERSION,
         "synopsis": synopsis,
         "nodes": [{"id": n, **{k: v for k, v in G.nodes[n].items()}} for n in G.nodes()],
-        "edges": [{"source": u, "target": v, "weight": d["weight"],
-                   "labels": sorted(d.get("labels", []))} for u, v, d in G.edges(data=True)],
+        "edges": [_edge_doc(u, v, d) for u, v, d in G.edges(data=True)],
         "communities": communities,
         "documents": _documents(cfg, all_md, conv, manifest),
         "stats": {
@@ -716,6 +715,20 @@ def _build_bm25_index(units: list[dict]) -> dict:
     docs = [_unit_doc_tokens(u) for u in units]
     return {"version": 1, "tokenizer": "nfc+bn+len>1+label*2",
             "count": len(docs), "docs": docs}
+
+
+def _edge_doc(u: str, v: str, d: dict) -> dict:
+    """Serialise one graph edge. WP-120 (Theme-Z) adds a deterministic, DIRECTED
+    ``relations`` list (typed verb relations as ``{type, from, to}`` by entity id) when the
+    edge carries any — purely additive; the undirected backbone (source/target/weight/
+    labels) is unchanged, and a co-occurrence-only edge omits the field entirely."""
+    edge = {"source": u, "target": v, "weight": d["weight"],
+            "labels": sorted(d.get("labels", []))}
+    rels = d.get("rels")
+    if rels:
+        edge["relations"] = [{"type": rt, "from": fr, "to": to}
+                             for rt, fr, to in sorted(rels)]
+    return edge
 
 
 def _recall_units(graph_doc: dict) -> tuple[list[dict], list[str]]:

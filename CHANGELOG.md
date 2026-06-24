@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/) and
 
 ## [Unreleased]
 
+### Added (Theme-Z kickoff — accumulating toward the next major; see `program/THEME_Z_PLAN.md`)
+- **Typed, directional relations (WP-120).** A high-precision English verb cue in the short
+  gap between two entities now promotes that edge from undirected `related_to` co-occurrence
+  to a directed typed relation, serialised additively as `graph.json` `edges[].relations:
+  [{type, from, to}]` (node IDs). Deterministic and English-only; the undirected backbone,
+  edge weights and community detection are byte-for-byte unchanged (only cued edges gain the
+  field), so recall is unaffected. No schema bump (additive) and no new tools.
+
 ## [3.1.0] — 2026-06-24
 
 Recall power-ups — additive and invariant-safe (token-free, 100% local, deterministic,
